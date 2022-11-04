@@ -1,0 +1,87 @@
+﻿@* Copyright (C) 2022-present Jube Holdings Limited
+ *
+ * This file is part of Jube™ software.
+ *
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * see <https://www.gnu.org/licenses/>.
+ *@
+@page
+<script src="/js/Account/Authentication.js"></script>
+<form id="FormAuthenticate">
+    <table id="AuthenticationTable" class="tTStyle">
+        <tr>
+            <td>
+                <label for="UserName">User Name</label>
+            </td>
+            <td>
+                <input type="text" id="UserName" name="UserName" class="k-textbox" required validationMessage="Please enter a valid Name.">
+                <span class="k-invalid-msg" data-for="UserName"></span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="Password">Password</label>
+            </td>
+            <td>
+                <input type="password" id="Password" name="Password" class="k-textbox" required validationMessage="Please enter a valid password.">
+                <span class="k-invalid-msg" data-for="Password"></span>
+            </td>
+        </tr>
+    </table>
+</form>
+<div class="topPaddedGeneral bottomPaddedGeneral">
+    <button id="Login" type="submit">Log in</button> <span id="MessageAuthenticate"></span>
+</div>
+<form id="FormChange">
+    <table id="PasswordResetTable" class="tTStyle">
+        <tr>
+            <td>
+                <label for="NewPassword">New Password</label>
+            </td>
+            <td>
+                <input type="password" id="NewPassword" name="NewPassword" class="k-textbox" required validationMessage="Please enter a valid password.">
+                <span class="k-invalid-msg" data-for="NewPassword"></span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="VerifyNewPassword">Verify New Password</label>
+            </td>
+            <td>
+                <input type="password" id="VerifyNewPassword" name="VerifyNewPassword" class="k-textbox" required validationMessage="Please confirm new password.">
+                <span class="k-invalid-msg" data-for="VerifyNewPassword"></span>
+                <div id="MessageServerValidation" class="errorMessage">
+                    Please check password complexity:
+                    <ul>
+                        <li>
+                            Your password length must be at least 8.
+                        </li>
+                        <li>
+                            Your password length must not exceed 16.
+                        </li>
+                        <li>
+                            Your password must contain at least one uppercase letter.
+                        </li>
+                        <li>
+                            Your password must contain at least one lowercase letter.
+                        </li>
+                        <li>
+                            Your password must contain at least one number.
+                        </li>
+                        <li>
+                            Your password must contain at least one (!? *.).
+                        </li>
+                    </ul>
+                </div>
+            </td>
+        </tr>
+    </table>
+</form>
+<div class="topPaddedGeneral">
+    <button id="Change" type="submit">Change Password and Login</button> <span id="MessageChange"></span>
+</div>

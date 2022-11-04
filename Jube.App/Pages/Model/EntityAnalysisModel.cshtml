@@ -1,0 +1,302 @@
+@* Copyright (C) 2022-present Jube Holdings Limited
+ *
+ * This file is part of Jube™ software.
+ *
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * see <https://www.gnu.org/licenses/>.
+ *@
+@page
+@model Jube.App.Pages.Model.EntityAnalysisModel
+@{
+    Layout = "Shared/_Layout";
+}
+@section Scripts
+{
+    <script src="/js/Model/EntityAnalysisModel.js"></script>
+}
+<div class="fCStyle">
+<div id="Homepage">
+    <div id="Models" class="bottomPaddedGeneral">
+    </div>
+    <button type="button" id="New" class="ButtonDefault">New</button>
+</div>
+<div id="Template">
+<form id="Form" class="k-form">
+<table id="TemplateTable" class="tTStyle">
+<tr>
+    <td>
+        <label for="Name">Name</label>
+    </td>
+    <td>
+        <input type="text" id="Name" class="k-textbox large" name="Name" required validationMessage="Please enter a valid name for the Model.">
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="Active" class="k-checkbox-label">Active</label>
+    </td>
+    <td>
+        <input id="Active" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="Locked" class="k-checkbox-label">Locked</label>
+    </td>
+    <td>
+        <input id="Locked" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EntryName">Entry Name</label>
+    </td>
+    <td>
+        <input type="text" id="EntryName" class="k-textbox" name="EntryName" required validationMessage="Please enter an name for the Entry field.">
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EntryXPath">Entry XPath</label>
+    </td>
+    <td>
+        <input type="text" id="EntryXPath" name="EntryXPath" class="k-textbox" required validationMessage="Please enter a path for the Entry field.">
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="ReferenceDateName">Reference Date Name</label>
+    </td>
+    <td>
+        <input id="ReferenceDateName" name="ReferenceDateName" class="k-textbox" required validationMessage="Please enter a name for the Reference Date field.">
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="ReferenceDatePayloadLocationTypeId">Reference Date Payload Location</label>
+    </td>
+    <td>
+        <ul id="ReferenceDatePayloadLocationTypeId" class="fieldlist">
+            <li>
+                <input type="radio" class="k-radio" id="ReferenceDatePayloadLocationBody" name="ReferenceDatePayloadLocationTypeId" value="1" checked>
+                <label class="k-radio-label" for="ReferenceDatePayloadLocationBody">Body</label>
+            </li>
+            <li>
+                <input type="radio" class="k-radio" id="ReferenceDatePayloadLocationNow" name="ReferenceDatePayloadLocationTypeId" value="3">
+                <label class="k-radio-label" for="ReferenceDatePayloadLocationNow">Now</label>
+            </li>
+        </ul>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="ReferenceDateXPath">Reference Date XPath</label>
+    </td>
+    <td>
+        <input class="k-textbox" id="ReferenceDateXPath" name="ReferenceDateXPath" required validationMessage="Please enter a path for the Reference Date field.">
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CacheFetchLimit">Cache Fetch Limit</label>
+    </td>
+    <td>
+        <input name="CacheFetchLimit" id="CacheFetchLimit" value="1" required validationMessage="Please enter the maximum number of return records for the cache."/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CacheFetchLimit">Max Response Elevation</label>
+    </td>
+    <td>
+        <input id="MaxResponseElevation" value="10" required validationMessage="Please enter maximum response elevation to be returned."/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableCache" class="k-checkbox-label">Enable Cache</label>
+    </td>
+    <td>
+        <input id="EnableCache" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableTtlCounter" class="k-checkbox-label">Enable TTL Counter</label>
+    </td>
+    <td>
+        <input id="EnableTtlCounter" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableSanctionCache" class="k-checkbox-label">Enable Sanction Cache</label>
+    </td>
+    <td>
+        <input id="EnableSanctionCache" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableResponseElevationLimit" class="k-checkbox-label">Enable Response Elevation Limit</label>
+    </td>
+    <td>
+        <input id="EnableResponseElevationLimit" type="checkbox"/>
+        <table id="ResponseElevationLimitTable" class="sTStyle">
+            <tr>
+                <td class="sTBorderStyle">
+                    Interval
+                </td>
+                <td>
+                    <ul id="MaxResponseElevationInterval" class="fieldlist">
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxResponseElevationInterval" id="MaxResponseElevationIntervalSecond" value="s"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalSecond">Seconds</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxResponseElevationInterval" id="MaxResponseElevationIntervalMin" value="n"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalMin">Minutes</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxResponseElevationInterval" id="MaxResponseElevationIntervalHour" checked="checked" value="h"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalHour">Hours</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" id="MaxResponseElevationIntervalDay" name="MaxResponseElevationInterval" value="d"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalDay">Days</label>
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td class="sTBorderStyle">
+                    Value
+                </td>
+                <td>
+                    <input id="MaxResponseElevationValue" required validationMessage="Please enter maximum Response Elevation Limit."/>
+                </td>
+            </tr>
+            <tr>
+                <td class="sTBorderStyle">
+                    Threshold
+                </td>
+                <td>
+                    <input id="MaxResponseElevationThreshold" required validationMessage="Please enter maximum Maximum Response Elevation Threshold."/>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableRdbmsArchive" class="k-checkbox-label">Enable RDBMS Archive</label>
+    </td>
+    <td>
+        <input id="EnableRdbmsArchive" type="checkbox"/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="EnableActivationWatcher" class="k-checkbox-label">Enable Activation Watcher</label>
+    </td>
+    <td>
+        <input id="EnableActivationWatcher" type="checkbox"/>
+        <table id="ActivationWatcherLimitTable" class="sTStyle">
+            <tr>
+                <td class="sTBorderStyle">
+                    Interval
+                </td>
+                <td>
+                    <ul id="MaxActivationWatcherInterval" class="fieldlist">
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxActivationWatcherInterval" id="MaxActivationWatcherIntervalSecond" value="s"/>
+                            <label class="k-radio-label" for="MaxActivationWatcherIntervalSecond">Seconds</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxActivationWatcherInterval" id="MaxActivationWatcherIntervalMin" value="n"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalMin">Minutes</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" name="MaxActivationWatcherInterval" id="MaxActivationWatcherHour" checked="checked" value="h"/>
+                            <label class="k-radio-label" for="MaxResponseElevationIntervalHour">Hours</label>
+                        </li>
+                        <li>
+                            <input type="radio" class="k-radio" id="MaxActivationWatcherIntervalDay" name="MaxActivationWatcherIntervalDay" value="d"/>
+                            <label class="k-radio-label" for="MaxActivationWatcherIntervalDay">Days</label>
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td class="sTBorderStyle">
+                    Value
+                </td>
+                <td>
+                    <input id="MaxActivationWatcherValue" value="100" required validationMessage="Please enter maximum Activation Watcher Limit."/>
+                </td>
+            </tr>
+            <tr>
+                <td class="sTBorderStyle">
+                    Threshold
+                </td>
+                <td>
+                    <input id="MaxActivationWatcherThreshold" required validationMessage="Please enter maximum Maximum Activation Watcher Threshold."/>
+                </td>
+            </tr>
+            <tr>
+                <td class="sTBorderStyle">Activation Watcher Sample</td>
+                <td>
+                    <input id="ActivationWatcherSample" value="1"/>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="Guid">Guid</label>
+    </td>
+    <td>
+        <div id="Guid"></div>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="Version">Version</label>
+    </td>
+    <td>
+        <div id="Version"></div>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CreatedUser">User Created</label>
+    </td>
+    <td>
+        <div id="CreatedUser"></div>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CreatedDate">Created Date</label>
+    </td>
+    <td>
+        <div id="CreatedDate"></div>
+    </td>
+</tr>
+</table>
+</form>
+<div class="footerStyle">
+    <div id="ErrorMessage" class="errorMessage"></div>
+    <button type="button" id="Back" class="ButtonDefault">Back</button>
+    <button type="button" id="Add" class="ButtonDefault">Add</button>
+    <button type="button" id="Update" class="ButtonDefault">Update</button>
+    <button type="button" id="Delete" class="ButtonDefault">Delete</button>
+</div>
+</div>
+</div>

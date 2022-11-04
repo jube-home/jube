@@ -1,0 +1,1 @@
+﻿ConnectionString=Host=127.0.0.1; Database=test5; Username=postgres; Password=postgres;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
