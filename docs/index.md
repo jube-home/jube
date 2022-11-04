@@ -46,10 +46,10 @@ Waiting a few moments more will ensure that the embedded Kestrel web server is s
 
 The default user name \ password combination is Administrator \ Administrator,  although the password will be need to be changed on first login.
 
-A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/docs/GettingStarted/) of the [documentation](https://jube-home.github.io/docs).
+A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of the [documentation](https://jube-home.github.io/jube).
 
 # Community support
-For general support, refer to the [documentation](https://jube-home.github.io/docs).
+For general support, refer to the [documentation](https://jube-home.github.io/jube).
 
 For additional community support, the following resources are available:
 
@@ -68,7 +68,7 @@ Jube takes security issues very seriously. If you have any concerns about Jube o
 Please report any security problems to Jube before disclosing them publicly.
 
 # About Documentation
-The [documentation](https://jube-home.github.io/docs) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  The documentation, where possible, has been written to support an Educate, Demonstrate, Imitate and Practice (EDIP) style.  Given the EDIP style, an excellent approach to using the documentation is:
+The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  The documentation, where possible, has been written to support an Educate, Demonstrate, Imitate and Practice (EDIP) style.  Given the EDIP style, an excellent approach to using the documentation is:
 
 * Educate: Read the topic from start to finish.
 * Demonstrate: Read the topic and pause on each instruction and;
