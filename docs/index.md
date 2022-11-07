@@ -78,7 +78,7 @@ Jube is committed to high-quality instructional documentation and maintains it a
 Commercial training is available via GitHub Sponsors one-time tier.
 
 # Governance
-Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube and its trademark. Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube via Github Sponsors tiers.
+Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube and its trademark. Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube.
 
 # Licence
 Jube is distributed under [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt). 
