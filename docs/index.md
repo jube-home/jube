@@ -57,8 +57,6 @@ For additional community support, the following resources are available:
 * Use the #jube:matrix.org [\[Matrix\] Room](https://matrix.to/#/#jube:matrix.org) for support or discussion.
 * Use GitHub for bug reports.
 
-Commercial support is available via a GitHub Sponsors monthly tier.
-
 # Reporting Vulnerabilities
 
 Please do not file GitHub issues or post in the #jube:matrix.org [\[Matrix\] Room](https://matrix.to/#/#jube:matrix.org) for security vulnerabilities, as they are public.
