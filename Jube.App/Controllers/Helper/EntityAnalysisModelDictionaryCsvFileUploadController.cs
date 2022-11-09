@@ -92,22 +92,25 @@ namespace Jube.App.Controllers.Helper
                                     .GetByIdKvpKey(entityAnalysisModelDictionaryId,
                                         splits[0]);
 
-                                if (entityAnalysisModelDictionaryKvp == null)
+                                if (splits.Length > 1)
                                 {
-                                    var entityAnalysisModelsDictionaryKvp = new EntityAnalysisModelDictionaryKvp
+                                    if (entityAnalysisModelDictionaryKvp == null)
                                     {
-                                        EntityAnalysisModelDictionaryId = entityAnalysisModelDictionaryId,
-                                        KvpKey = splits[0],
-                                        KvpValue = double.Parse(splits[1])
-                                    };
+                                        var entityAnalysisModelsDictionaryKvp = new EntityAnalysisModelDictionaryKvp
+                                        {
+                                            EntityAnalysisModelDictionaryId = entityAnalysisModelDictionaryId,
+                                            KvpKey = splits[0],
+                                            KvpValue = double.Parse(splits[1])
+                                        };
                                     
-                                    _entityAnalysisModelDictionaryKvpRepository.Insert(
-                                        entityAnalysisModelsDictionaryKvp);
-                                }
-                                else
-                                {
-                                    entityAnalysisModelDictionaryKvp.KvpValue = double.Parse(splits[1]);
-                                    _entityAnalysisModelDictionaryKvpRepository.Update(entityAnalysisModelDictionaryKvp);
+                                        _entityAnalysisModelDictionaryKvpRepository.Insert(
+                                            entityAnalysisModelsDictionaryKvp);
+                                    }
+                                    else
+                                    {
+                                        entityAnalysisModelDictionaryKvp.KvpValue = double.Parse(splits[1]);
+                                        _entityAnalysisModelDictionaryKvpRepository.Update(entityAnalysisModelDictionaryKvp);
+                                    }   
                                 }
                             }
 

@@ -104,7 +104,6 @@ function LoadList() {
             }
         },
         batch: true,
-        pageSize: 20,
         schema: {
             model: {
                 id: "id",
@@ -120,7 +119,6 @@ function LoadList() {
 
     const listView = $("#listView").kendoListView({
         dataSource: dataSource,
-        filterable: true,
         remove: function (e) {
             if (!confirm("Are you sure you want to delete?")) {
                 e.preventDefault();
