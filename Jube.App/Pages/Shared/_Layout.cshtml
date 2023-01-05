@@ -94,6 +94,13 @@ else
                         <a href='/Model/Synchronisation'>Synchronisation</a>
                     </li>
                 }
+                
+                @if (permissionValidation.Validate(new[] {38}))
+                {
+                    <li>
+                        <a href='/Model/EntityAnalysisModelWizard'>Model Wizard</a>
+                    </li>
+                }
 
                 @if (permissionValidation.Validate(new[] {6}))
                 {
