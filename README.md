@@ -8,7 +8,7 @@ Data wrangling is real-time. Data wrangling is directed via a series of rules cr
 
 Data wrangling return values are independently available for use as features in artificial intelligence training and real-time recall or tested by rules to perform a specific action (e.g., the rejection of a transaction or event). Wrangled values are returned in the real-time response payload and can facilitate a Function as a Service (FaaS) pattern. Response payload data is also stored in an addressable fashion, improving the experience of advanced analytical reporting while also reducing database resource \ compute cost.
 
-Jube is developed statelessly and can support massive horizontal scalability and separation of concerns in the infrastructure.
+Jube is developed stateless and can support massive horizontal scalability and separation of concerns in the infrastructure.
 
 Jube takes a novel approach to artificial intelligence, ultimately Supervised Learning, yet blending anomaly detection with confirmed class data to ensure datasets of sufficient amounts of class data. Using data archived from its processing, Jube searches for optimal input variables, hidden layers and processing elements. The result is small, optimal, generalised and computationally inexpensive models for efficient real-time recall. The approach taken by Jube allows artificial intelligence's benefits to be available very early in an implementation's lifecycle. It avoids over-fitting models to typology long since passed.
 
@@ -22,7 +22,7 @@ Jube is multi-tenanted,  allowing a single infrastructure to be shared among man
 Jube runs on commodity Linux. The Quickstart has the following prerequisites:
 
 * .Net 6 SDK.
-* PostgreSQL database version 13 onwards.
+* Postgres database version 13 onwards.
 
 Subject to prerequisites, Jube can be up and running in minutes:
 
@@ -42,24 +42,7 @@ The default user name \ password combination is Administrator \ Administrator,  
 
 A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of the [documentation](https://jube-home.github.io/jube).
 
-# Community support
-For general support, refer to the [documentation](https://jube-home.github.io/jube).
-
-For additional community support, the following resources are available:
-
-* [Book a free a 30 minute demonstration](https://calendly.com/richard-churchman/30min) with the developer.
-* Use the #jube:matrix.org [\[Matrix\] Room](https://matrix.to/#/#jube:matrix.org) for support or discussion.
-* Use GitHub for bug reports.
-
-# Reporting Vulnerabilities
-
-Please do not file GitHub issues or post in the #jube:matrix.org [\[Matrix\] Room](https://matrix.to/#/#jube:matrix.org) for security vulnerabilities, as they are public.
-
-Jube takes security issues very seriously. If you have any concerns about Jube or believe you have uncovered a vulnerability, please contact via the e-mail address security@jube.io. In the message, try to describe the issue and, ideally, a way of reproducing it.
-
-Please report any security problems to Jube before disclosing them publicly.
-
-# About Documentation
+# Documentation
 The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  The documentation, where possible, has been written to support an Educate, Demonstrate, Imitate and Practice (EDIP) style.  Given the EDIP style, an excellent approach to using the documentation is:
 
 * Educate: Read the topic from start to finish.
@@ -67,12 +50,27 @@ The [documentation](https://jube-home.github.io/jube) has been drafted to includ
 * Imitate: A read of the topic following the instructions step by step.
 * Practice: Without referring to the documentation, practice using the topic,  varying parameters as appropriate.
 
-Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, it would be a great pleasure to receive such feedback as a Github Bug.
+Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a GitHub Bug.  More generally,  if the software does not perform as per documentation, raise a GitHub Bug.
 
-Commercial training is available via GitHub Sponsors one-time tier.
+# Commercial Support
+There are several commercial support options available:
+
+* Access to helpdesk is $990 per month. Helpdesk includes online chat and email, with direct access to the developer,for the support of documented features.  Helpdesk tickets enjoy response times between 4 and 12 hours. Priority GitHub Bug reporting and resolution.
+* Consulting is $187 per hour, commonly allocated for training, integration and customisation.  Usually delivered remotely,  although where onsite,  excludes travel and expenses.
+* Platform as a Service (PaaS), which is billed upon the DigitalOcean services utlised in the billing period, plus a fee \ margin of 65% for ongoing monitoring, but excluding support as set out above.
+
+For more information, email [support@jube.io](mailto:support@jube.io).
+
+# Reporting Vulnerabilities
+
+Please do not file GitHub issues for security vulnerabilities, as they are public.
+
+Jube takes security issues very seriously. If you have any concerns about Jube or believe you have uncovered a vulnerability, please contact via the e-mail address security@jube.io. In the message, try to describe the issue and, ideally, a way of reproducing it.
+
+Please report any security problems to Jube before disclosing them publicly.
 
 # Governance
-Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube and its trademark. Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube.
+Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus. 
 
 # Licence
 Jube is distributed under [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt).
