@@ -55,11 +55,11 @@ Jube is committed to high-quality instructional documentation and maintains it a
 # Retained Helpdesk and Support Services
 A consistent, simple, transparent and cost effective offer:
 
-* Access to Retained Helpdesk is a fee of $990 per month. Retained Helpdesk includes online chat or ticketing surrounding documented features.  Retained Helpdesk offers assured response times between 4 and 12 hours, ranging Critical through Moderate severity.  Access to Retained Helpdesk does not include fees for time spent, which is in addition, at $60 an hour, or part thereof. Access to Retained Helpdesk is a three month commitment, with a three month notice period.
+* Access to [Retained Helpdesk](https://direct.lc.chat/16609497/) is a fee of $990 per month. [Retained Helpdesk](https://direct.lc.chat/16609497/) includes online chat or ticketing surrounding documented features.  [Retained Helpdesk](https://direct.lc.chat/16609497/) offers assured response times between 4 and 12 hours, ranging Critical through Moderate severity.  Access to [Retained Helpdesk](https://direct.lc.chat/16609497/) does not include fees for time spent, which is in addition, at $60 an hour, or part thereof. Access to [Retained Helpdesk](https://direct.lc.chat/16609497/) is a three month commitment, with a three month notice period.
 * Support Services which are delivered outside of online chat or ticketing, such as training, integration, customisation, development or go-live support are instructed by Work Order \ Statement of Work, but the fees are the same, being time spent $60 an hour, or part thereof. 
 * Support Services are usually delivered remotely for cost efficiency, although where delivered onsite, excludes business class travel expenses.  Onsite delivery of training and go-live support tends to be impactful, but in other work effort, it is a suboptimal use of time.  Where Support Services are delivered onsite, the commitment should not be less than two two weeks,  allowing for some time to handle client commitments where required.
-* Given continued and uninterrupted commitment to Retained Helpdesk, all fees are capped for annual increase by no more than the US Retail Prices Index.
-* Where access to Retained Helpdesk is not in place,  Support Services as set out above are available, at a higher $180 an hour, or part thereof, instructed by Work Order \ Statement of Work.
+* Given continued and uninterrupted commitment to [Retained Helpdesk](https://direct.lc.chat/16609497/), all fees are capped for annual increase by no more than the US Retail Prices Index.
+* Where access to [Retained Helpdesk](https://direct.lc.chat/16609497/) is not in place,  Support Services as set out above are available, at a higher $180 an hour, or part thereof, instructed by Work Order \ Statement of Work.
 
 Otherwise governed by the Jube Operations Limited Service Terms, in matters relating to Insurances,  Warranties and Limitations.
 
