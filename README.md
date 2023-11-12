@@ -52,12 +52,20 @@ The [documentation](https://jube-home.github.io/jube) has been drafted to includ
 
 Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a GitHub Bug.  More generally,  if the software does not perform as per documentation, raise a GitHub Bug.
 
-# Commercial Support
-There are several commercial support options available:
+# Retained Helpdesk and Support Services
+A consistent, simple, transparent and cost effective offer:
 
-* Access to helpdesk is $990 per month. Helpdesk includes online chat and email, with direct access to the developer,for the support of documented features.  Helpdesk tickets enjoy response times between 4 and 12 hours. Priority GitHub Bug reporting and resolution.
-* Consulting is $187 per hour, commonly allocated for training, integration and customisation.  Usually delivered remotely,  although where onsite,  excludes travel and expenses.
-* Platform as a Service (PaaS), which is billed upon the DigitalOcean services utlised in the billing period, plus a fee \ margin of 65% for ongoing monitoring, but excluding support as set out above.
+* Access to Retained Helpdesk is a fee of $990 per month. Retained Helpdesk includes online chat or ticketing surrounding documented features.  Retained Helpdesk offers assured response times between 4 and 12 hours, ranging Critical through Moderate severity.  Access to Retained Helpdesk does not include fees for time spent, which is in addition, at $60 an hour, or part thereof. Access to Retained Helpdesk is a three month commitment, with a three month notice period.
+* Support Services which are delivered outside of online chat or ticketing, such as training, integration, customisation, development or go-live support are instructed by Work Order \ Statement of Work, but the fees are the same, being time spent $60 an hour, or part thereof. 
+* Support Services are usually delivered remotely for cost efficiency, although where delivered onsite, excludes business class travel expenses.  Onsite delivery of training and go-live support tends to be impactful, but in other work effort, it is a suboptimal use of time.  Where Support Services are delivered onsite, the commitment should not be less than two two weeks,  allowing for some time to handle client commitments where required.
+* Given continued and uninterrupted commitment to Retained Helpdesk, all fees are capped for annual increase by no more than the US Retail Prices Index.
+* Where access to Retained Helpdesk is not in place,  Support Services as set out above are available, at a higher $180 an hour, or part thereof, instructed by Work Order \ Statement of Work.
+
+Otherwise governed by the Jube Operations Limited Service Terms, in matters relating to Insurances,  Warranties and Limitations.
+
+It is commonplace to conduct development in own fork. Development conducted in own fork and that making a contribution to the public project is at he discretion of the client, yet subject to the terms of the [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt) licence.
+
+Invoicing and Credit Terms by negotiation subject to covenant, but usually monthly in arrears.
 
 For more information, email [support@jube.io](mailto:support@jube.io).
 
