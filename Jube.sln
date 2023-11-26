@@ -16,6 +16,20 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jube.CLI", "Jube.CLI\Jube.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jube.Tests", "Jube.Tests\Jube.Tests.csproj", "{7CC6AEDE-6BA4-432D-9169-BEACF046567C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Core", "Accord.Core\Accord.Core.csproj", "{02B61FCC-22E5-41D9-BACD-19B7B7570AE1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Genetic", "Accord.Genetic\Accord.Genetic.csproj", "{9F2AA21E-CB67-495C-BB19-BFAF733D0A17}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Math", "Accord.Math\Accord.Math.csproj", "{3B165B4B-5525-42F5-ACE3-E31333A5122B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Math.Core", "Accord.Math.Core\Accord.Math.Core.csproj", "{91BE94B9-33B6-4C42-B06A-77BF82F94AA2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Neuro", "Accord.Neuro\Accord.Neuro.csproj", "{1340878E-37B4-4547-95F3-D0CF05C638A7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Statistics", "Accord.Statistics\Accord.Statistics.csproj", "{4E04D51E-5F2B-4F10-954D-B512DFDBE222}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.MachineLearning", "Accord.MachineLearning\Accord.MachineLearning.csproj", "{BD913DA0-6660-48B2-86B5-C07924142F9D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,6 +72,34 @@ Global
 		{7CC6AEDE-6BA4-432D-9169-BEACF046567C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7CC6AEDE-6BA4-432D-9169-BEACF046567C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7CC6AEDE-6BA4-432D-9169-BEACF046567C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02B61FCC-22E5-41D9-BACD-19B7B7570AE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02B61FCC-22E5-41D9-BACD-19B7B7570AE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02B61FCC-22E5-41D9-BACD-19B7B7570AE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02B61FCC-22E5-41D9-BACD-19B7B7570AE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F2AA21E-CB67-495C-BB19-BFAF733D0A17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F2AA21E-CB67-495C-BB19-BFAF733D0A17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F2AA21E-CB67-495C-BB19-BFAF733D0A17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F2AA21E-CB67-495C-BB19-BFAF733D0A17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B165B4B-5525-42F5-ACE3-E31333A5122B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B165B4B-5525-42F5-ACE3-E31333A5122B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B165B4B-5525-42F5-ACE3-E31333A5122B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B165B4B-5525-42F5-ACE3-E31333A5122B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91BE94B9-33B6-4C42-B06A-77BF82F94AA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91BE94B9-33B6-4C42-B06A-77BF82F94AA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91BE94B9-33B6-4C42-B06A-77BF82F94AA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91BE94B9-33B6-4C42-B06A-77BF82F94AA2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1340878E-37B4-4547-95F3-D0CF05C638A7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1340878E-37B4-4547-95F3-D0CF05C638A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1340878E-37B4-4547-95F3-D0CF05C638A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1340878E-37B4-4547-95F3-D0CF05C638A7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E04D51E-5F2B-4F10-954D-B512DFDBE222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E04D51E-5F2B-4F10-954D-B512DFDBE222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E04D51E-5F2B-4F10-954D-B512DFDBE222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E04D51E-5F2B-4F10-954D-B512DFDBE222}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection

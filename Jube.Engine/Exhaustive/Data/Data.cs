@@ -30,27 +30,25 @@ namespace Jube.Engine.Exhaustive.Data
             string filterSql,
             string filterTokens,
             Dictionary<int, Variable> variables,
-            double[][] existingData,
-            double[] existingOutputs,
             bool mockData,
-            out double[][] newData, 
+            out double[][] data, 
             out double[] outputs)
         {
-            var dataList = existingData.ToList();
-            List<double> outputsList; 
-            if(existingOutputs != null)
-            {
-                outputsList = existingOutputs.ToList();
-            }
-            else
-            {
-                outputsList = new List<double>();
-            
-                for (var i = 0; i < dataList.Count; i++)
-                {
-                    outputsList.Add(0);
-                }
-            }
+            var dataList = new List<Double[]>();
+            var outputsList = new List<double>();
+            // if(existingOutputs != null)
+            // {
+            //     outputsList = existingOutputs.ToList();
+            // }
+            // else
+            // {
+            //     outputsList = new List<double>();
+            //
+            //     for (var i = 0; i < dataList.Count; i++)
+            //     {
+            //         outputsList.Add(0);
+            //     }
+        //}
             
             var postgres = new Postgres(dbContext.ConnectionString);
             
@@ -83,30 +81,10 @@ namespace Jube.Engine.Exhaustive.Data
                 outputsList.Add(1);
             }
 
-            var shuffleArray = new int[outputsList.Count];
-            for (var i = 0; i < shuffleArray.Length; i++)
-            {
-                shuffleArray[i] = i;
-            }
-            var r = new Random();
-            shuffleArray = shuffleArray.OrderBy(_ => r.Next()).ToArray();
-            
-            var newDataBeforeShuffle = dataList.ToArray();
-            var outputsBeforeShuffle = outputsList.ToArray();
-
-            var newDataAfterShuffle = new double[shuffleArray.Length][];
-            var outputsAfterShuffle = new double[shuffleArray.Length];
-
-            for (var i = 0; i < shuffleArray.Length; i++)
-            {
-                newDataAfterShuffle[i] = newDataBeforeShuffle[shuffleArray[i]];
-                outputsAfterShuffle[i] = outputsBeforeShuffle[shuffleArray[i]];
-            }
-
-            newData = newDataAfterShuffle;
-            outputs = outputsAfterShuffle;
+            outputs = outputsList.ToArray();
+            data = dataList.ToArray();
         }
-
+        
         public static void GetSampleData(DbContext dbContext,
             int tenantRegistryId,
             int entityAnalysisModelId,

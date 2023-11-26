@@ -53,7 +53,7 @@ namespace Jube.Data.Query
                         CreatedDate = s.CreatedDate.Value,
                         Active = s.Active.Value == 1,
                         TopologyComplexity = s.TopologyComplexity.Value,
-                        Object = s.Object,
+                        Json = s.Json,
                         ExhaustiveSearchInstanceTrialInstanceId = s.ExhaustiveSearchInstanceTrialInstanceId.Value
                     }
                 );
@@ -66,7 +66,7 @@ namespace Jube.Data.Query
             public bool Active { get; set; }
             public double Score { get; set; }
             public int TopologyComplexity { get; set; }
-            public byte[] Object { get; set; }
+            public string Json { get; set; }
             public DateTime CreatedDate { get; set; }
         }
     }

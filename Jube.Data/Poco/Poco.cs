@@ -1797,7 +1797,7 @@ namespace Jube.Data.Poco
         [Column] [Nullable] public int? TrueNegative { get; set; }
         [Column] [Nullable] public int? FalsePositive { get; set; }
         [Column] [Nullable] public int? FalseNegative { get; set; }
-        [Column] [Nullable] public byte[] Object { get; set; }
+        [Column] [DataType(DataType.BinaryJson)] [Nullable] public string Json { get; set; }
         [Column] [Nullable] public int? ExhaustiveSearchInstanceTrialInstanceId { get; set; }
         [Column] [Nullable] public DateTime? CreatedDate { get; set; }
         [Column] [Nullable] public byte? Active { get; set; }
@@ -2032,6 +2032,58 @@ namespace Jube.Data.Poco
             Relationship = Relationship.ManyToOne)]
         public ExhaustiveSearchInstance ExhaustiveSearchInstanceVariablesExhaustiveSearchInstance { get; set; }
     }
+    
+    [Table]
+    public class ExhaustiveSearchInstanceVariableClassification
+    {
+        [Column] [PrimaryKey] [Identity] public int Id { get; set; }
+        [Column] [Nullable] public int? ExhaustiveSearchInstanceVariableId { get; set; }
+        [Column] [Nullable] public double? Mode { get; set; }
+        [Column] [Nullable] public double? Mean { get; set; }
+        [Column] [Nullable] public double? StandardDeviation { get; set; }
+        [Column] [Nullable] public double? Kurtosis { get; set; }
+        [Column] [Nullable] public double? Skewness { get; set; }
+        [Column] [Nullable] public double? Maximum { get; set; }
+        [Column] [Nullable] public double? Minimum { get; set; }
+        [Column] [Nullable] public double? Iqr { get; set; }
+        [Column] [Nullable] public int? DistinctValues { get; set; }
+        [Column] [Nullable] public int? Bins { get; set; }
+
+        [Association(ThisKey = "ExhaustiveSearchInstanceVariableId", OtherKey = "Id", CanBeNull = true,
+            Relationship = Relationship.OneToOne)]
+        public ExhaustiveSearchInstance ExhaustiveSearchInstanceVariable { get; set; }
+
+        [Association(ThisKey = "Id", OtherKey = "ExhaustiveSearchInstanceVariableId",
+            CanBeNull = true, Relationship = Relationship.OneToMany)]
+        public IEnumerable<ExhaustiveSearchInstanceVariableHistogram>
+            ExhaustiveSearchInstanceVariableHistogramsClassificationExhaustiveSearchInstanceVariablesClassification { get; set; }
+    }
+    
+    [Table]
+    public class ExhaustiveSearchInstanceVariableAnomaly
+    {
+        [Column] [PrimaryKey] [Identity] public int Id { get; set; }
+        [Column] [Nullable] public int? ExhaustiveSearchInstanceVariableId { get; set; }
+        [Column] [Nullable] public double? Mode { get; set; }
+        [Column] [Nullable] public double? Mean { get; set; }
+        [Column] [Nullable] public double? StandardDeviation { get; set; }
+        [Column] [Nullable] public double? Kurtosis { get; set; }
+        [Column] [Nullable] public double? Skewness { get; set; }
+        [Column] [Nullable] public double? Maximum { get; set; }
+        [Column] [Nullable] public double? Minimum { get; set; }
+        [Column] [Nullable] public double? Iqr { get; set; }
+        [Column] [Nullable] public int? DistinctValues { get; set; }
+        [Column] [Nullable] public int? Bins { get; set; }
+
+        [Association(ThisKey = "ExhaustiveSearchInstanceVariableId", OtherKey = "Id", CanBeNull = true,
+            Relationship = Relationship.OneToOne)]
+        public ExhaustiveSearchInstance ExhaustiveSearchInstanceVariable { get; set; }
+
+        [Association(ThisKey = "Id", OtherKey = "ExhaustiveSearchInstanceVariableId",
+            CanBeNull = true, Relationship = Relationship.OneToMany)]
+        public IEnumerable<ExhaustiveSearchInstanceVariableHistogram>
+            ExhaustiveSearchInstanceVariableHistogramsClassificationExhaustiveSearchInstanceVariablesAnomaly { get; set; }
+    }
 
     [Table]
     public class ExhaustiveSearchInstanceVariableHistogram
@@ -2048,6 +2100,36 @@ namespace Jube.Data.Poco
         public ExhaustiveSearchInstanceVariable ExhaustiveSearchInstanceVariable { get; set; }
     }
 
+    [Table]
+    public class ExhaustiveSearchInstanceVariableHistogramClassification
+    {
+        [Column] [PrimaryKey] [Identity] public int Id { get; set; }
+        [Column] [Nullable] public int? ExhaustiveSearchInstanceVariableClassificationId { get; set; }
+        [Column] [Nullable] public int? BinSequence { get; set; }
+        [Column] [Nullable] public double? BinRangeStart { get; set; }
+        [Column] [Nullable] public double? BinRangeEnd { get; set; }
+        [Column] [Nullable] public int? Frequency { get; set; }
+
+        [Association(ThisKey = "ExhaustiveSearchInstanceVariableClassificationId", OtherKey = "Id",
+            CanBeNull = true, Relationship = Relationship.ManyToOne)]
+        public ExhaustiveSearchInstanceVariable ExhaustiveSearchInstanceVariableClassification { get; set; }
+    }
+    
+    [Table]
+    public class ExhaustiveSearchInstanceVariableHistogramAnomaly
+    {
+        [Column] [PrimaryKey] [Identity] public int Id { get; set; }
+        [Column] [Nullable] public int? ExhaustiveSearchInstanceVariableAnomalyId { get; set; }
+        [Column] [Nullable] public int? BinSequence { get; set; }
+        [Column] [Nullable] public double? BinRangeStart { get; set; }
+        [Column] [Nullable] public double? BinRangeEnd { get; set; }
+        [Column] [Nullable] public int? Frequency { get; set; }
+
+        [Association(ThisKey = "ExhaustiveSearchInstanceVariableAnomalyId", OtherKey = "Id",
+            CanBeNull = true, Relationship = Relationship.ManyToOne)]
+        public ExhaustiveSearchInstanceVariable ExhaustiveSearchInstanceVariableAnomaly { get; set; }
+    }
+    
     [Table]
     public class ExhaustiveSearchInstanceVariableMultiCollinearity
     {

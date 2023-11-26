@@ -28,7 +28,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Accord.Statistics" Version="3.8.0" />
         <PackageReference Include="AutoMapper" Version="10.1.1" />
         <PackageReference Include="FluentMigrator.Runner" Version="3.3.2" />
         <PackageReference Include="Isopoh.Cryptography.Argon2" Version="1.1.12" />
@@ -37,6 +36,10 @@
         <PackageReference Include="Microsoft.Extensions.Primitives" Version="6.0.0" />
         <PackageReference Include="Npgsql" Version="5.0.13" />
         <PackageReference Include="Npgsql.Json.NET" Version="5.0.13" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj" />
     </ItemGroup>
 
 </Project>

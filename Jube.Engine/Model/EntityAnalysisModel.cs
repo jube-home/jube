@@ -526,9 +526,9 @@ namespace Jube.Engine.Model
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} is checking is abstraction rule {evaluateAbstractionRule.Id} will be used to filter for matches.  As some rule logic can be common across a number of rules,  a check will be made to see if this logic has already been executed using the hash of the rule logic as {evaluateAbstractionRule.LogicHash}.");
 
                     List<Dictionary<string,object>> matches;
-                    if (logicHashMatches.ContainsKey(evaluateAbstractionRule.LogicHash))
+                    if (logicHashMatches.TryGetValue(evaluateAbstractionRule.LogicHash, out var match))
                     {
-                        matches = logicHashMatches[evaluateAbstractionRule.LogicHash];
+                        matches = match;
 
                         Log.Info(
                             $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} is checking is abstraction rule {evaluateAbstractionRule.Id} will be used to filter for matches.  Rule logic as {evaluateAbstractionRule.LogicHash} has already been executed so it will simply return the {matches.Count} records already having been matched on this logic.");
@@ -711,13 +711,13 @@ namespace Jube.Engine.Model
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} grouping key {distinctSearchKey.SearchKey} is a search key. A check will now be performed to understand when this abstraction rule key was last calculated.");
 
-                if (LastAbstractionRuleCache.ContainsKey(distinctSearchKey.SearchKey))
+                if (LastAbstractionRuleCache.TryGetValue(distinctSearchKey.SearchKey, out var value))
                 {
                     Log.Info(
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} will calculate the date threshold for this grouping key to be run.  It was last run on {LastAbstractionRuleCache.ContainsKey(distinctSearchKey.SearchKey)} and the SearchKey Cache Interval Type is {distinctSearchKey.SearchKeyCacheIntervalType} and the Search Key Cache Interval Value{distinctSearchKey.SearchKeyCacheIntervalValue}.");
 
                     var dateThreshold = DateAndTime.DateAdd(distinctSearchKey.SearchKeyCacheIntervalType,
-                        distinctSearchKey.SearchKeyCacheIntervalValue, LastAbstractionRuleCache[distinctSearchKey.SearchKey]);
+                        distinctSearchKey.SearchKeyCacheIntervalValue, value);
 
                     Log.Info(
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} should next run on {dateThreshold}.");
@@ -860,39 +860,30 @@ namespace Jube.Engine.Model
                 return referenceDate;
             }
         }
-
-        private DateTime? GetMostRecentFromTtlCounterCache(EntityAnalysisModelTtlCounter ttlCounter)
-        {
-            var cacheTtlCounterRepository = new CacheTtlCounterRepository(JubeEnvironment.AppSettings(
-                    new []{"CacheConnectionString","ConnectionString"}),Log);
-            return cacheTtlCounterRepository.GetMostRecentFromTtlCounterCache(Id, ttlCounter.Id,
-                ttlCounter.TtlCounterDataName);
-        }
         
         public bool TryProcessSingleDequeueForCaseCreationAndArchiver(int threadSequence)
         {
             var found = false;
             try
             {
-                if (BulkInsertMessageBuffers.ContainsKey(threadSequence))
+                if (BulkInsertMessageBuffers.TryGetValue(threadSequence, out var buffer))
                 {
-                    var bulkInsertMessageBuffer = BulkInsertMessageBuffers[threadSequence];
                     PersistToDatabaseAsync.TryDequeue(out var payload);
 
                     if (payload != null)
                     {
-                        bulkInsertMessageBuffer.LastMessage = DateTime.Now;
+                        buffer.LastMessage = DateTime.Now;
                         
                         found = true;
 
-                        CaseCreationAndArchiver(payload, bulkInsertMessageBuffer);
+                        CaseCreationAndArchiver(payload, buffer);
                     }
                     else
                     {
-                        if (bulkInsertMessageBuffer.LastMessage.AddSeconds(10) <= DateTime.Now &&
-                            bulkInsertMessageBuffer.Archive.Count > 0)
+                        if (buffer.LastMessage.AddSeconds(10) <= DateTime.Now &&
+                            buffer.Archive.Count > 0)
                         {
-                            WriteToDatabase(bulkInsertMessageBuffer);
+                            WriteToDatabase(buffer);
                         }
                     }
                 }

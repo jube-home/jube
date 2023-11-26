@@ -14,11 +14,12 @@
 using System.Linq;
 using Jube.Data.Context;
 using Jube.Data.Poco;
+using Jube.Data.Repository.Interface;
 using LinqToDB;
 
 namespace Jube.Data.Repository
 {
-    public class ExhaustiveSearchInstanceVariableRepository
+    public class ExhaustiveSearchInstanceVariableRepository : IGenericRepository
     {
         private readonly DbContext _dbContext;
 
@@ -26,13 +27,7 @@ namespace Jube.Data.Repository
         {
             _dbContext = dbContext;
         }
-
-        public ExhaustiveSearchInstanceVariable Insert(ExhaustiveSearchInstanceVariable model)
-        {
-            model.Id = _dbContext.InsertWithInt32Identity(model);
-            return model;
-        }
-
+        
         public void UpdateCorrelation(int id, double correlation, int rank)
         {
             _dbContext.ExhaustiveSearchInstanceVariable
@@ -40,6 +35,11 @@ namespace Jube.Data.Repository
                 .Set(s => s.Correlation, correlation)
                 .Set(s => s.CorrelationAbsRank, rank)
                 .Update();
+        }
+
+        public int Insert(object arg)
+        {
+            return _dbContext.InsertWithInt32Identity((ExhaustiveSearchInstanceVariable)arg);
         }
     }
 }

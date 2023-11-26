@@ -52,7 +52,7 @@ namespace Jube.Data.Query
                         Id = s.Id,
                         Score = Math.Round(s.Score.Value, 2),
                         CreatedDate = s.CreatedDate.Value,
-                        Object = s.Object,
+                        Json = s.Json,
                         ExhaustiveSearchInstanceTrialInstanceId = s.ExhaustiveSearchInstanceTrialInstanceId.Value
                     }
                 )
@@ -66,7 +66,7 @@ namespace Jube.Data.Query
             public int Id { get; set; }
             public int ExhaustiveSearchInstanceTrialInstanceId { get; set; }
             public double Score { get; set; }
-            public byte[] Object { get; set; }
+            public string Json { get; set; }
             public DateTime CreatedDate { get; set; }
         }
     }

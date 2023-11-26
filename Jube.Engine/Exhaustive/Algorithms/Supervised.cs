@@ -12,10 +12,8 @@
  */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using Accord.Math;
 using Accord.Neuro;
@@ -25,7 +23,9 @@ using Jube.Data.Context;
 using Jube.Data.Poco;
 using Jube.Data.Repository;
 using Jube.Engine.Exhaustive.Variables;
+using Jube.Engine.Helpers.Json;
 using log4net;
+using Newtonsoft.Json;
 
 namespace Jube.Engine.Exhaustive.Algorithms
 {
@@ -41,12 +41,19 @@ namespace Jube.Engine.Exhaustive.Algorithms
         private readonly Performance _performance;
         private readonly ExhaustiveSearchInstanceRepository _repositoryExhaustiveSearchInstance;
         private readonly DynamicEnvironment.DynamicEnvironment _environment;
+        private readonly JsonSerializerSettings _jsonSerializerSettings;
         
         public Supervised(DynamicEnvironment.DynamicEnvironment environment,
             ExhaustiveSearchInstanceRepository repositoryExhaustiveSearchInstance,
             int exhaustiveSearchInstanceId, Random seeded, Dictionary<int, Variable> variables,
             double[][] data, double[] output, DbContext dbContext, ILog log)
         {
+            _jsonSerializerSettings = new JsonSerializerSettings()
+            {
+                TypeNameHandling = TypeNameHandling.Auto,
+                ContractResolver = new DeepContractResolver()
+            };
+            
             _variables = variables;
             _exhaustiveSearchInstanceId = exhaustiveSearchInstanceId;
             _seeded = seeded;
@@ -262,16 +269,23 @@ namespace Jube.Engine.Exhaustive.Algorithms
                             $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search Instance " +
                             $"Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
                             "Has performed Monte Carlo simulation on the model and variables and the promotion is concluded.");
-                    }
-                    else
-                    {
-                        modelsSinceBest = IncrementModelsSinceBest(modelsSinceBest);
 
+                        if (!(Math.Abs(bestScore - 1) < 0.0001)) continue;
+                        
                         _log.Info(
                             $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search Instance " +
                             $"Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
-                            $"Has not beaten the best model,  has incremented models since best to {modelsSinceBest}.");
+                            "Is breaking training for reasons of total fit (and probably over fit).");
+                            
+                        break;
                     }
+
+                    modelsSinceBest = IncrementModelsSinceBest(modelsSinceBest);
+
+                    _log.Info(
+                        $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search Instance " +
+                        $"Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
+                        $"Has not beaten the best model,  has incremented models since best to {modelsSinceBest}.");
                 }
                 catch (Exception ex)
                 {
@@ -327,7 +341,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
                     try
                     {
                         simulationZScore[k] = trialVariables.ElementAt(k).Value.TriangularDistribution.Generate();
-                        if (trialVariables.ElementAt(k).Value.NormalisationType == 1)
+                        if (trialVariables.ElementAt(k).Value.NormalisationTypeId == 1)
                         {
                             simulationZScore[k] = simulationZScore[k] > 0.5 ? 1:0;
                         }
@@ -493,9 +507,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
             ExhaustiveSearchInstanceTrialInstance exhaustiveSearchInstanceTrialInstance,
             ExhaustiveSearchInstancePromotedTrialInstanceRepository exhaustiveSearchInstancePromotedTrialsRepository)
         {
-            var saveStream = new MemoryStream();
-            topologyNetwork.Save(saveStream);
-
+            var json = JsonConvert.SerializeObject(topologyNetwork, _jsonSerializerSettings);
+            
             var exhaustiveSearchInstancePromotedTrial = new ExhaustiveSearchInstancePromotedTrialInstance
             {
                 Active = 1,
@@ -505,7 +518,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
                 TruePositive = performance.Tp,
                 FalseNegative = performance.Fn,
                 FalsePositive = performance.Fp,
-                Object = saveStream.ToArray(),
+                Json = json,
                 ExhaustiveSearchInstanceTrialInstanceId = exhaustiveSearchInstanceTrialInstance
                     .Id
             };
@@ -536,7 +549,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
             int i,
             ExhaustiveSearchInstanceTrialInstance exhaustiveSearchInstanceTrialInstance,
             IActivationFunction activationFunction,
-            ICollection trialVariables, double[][] dataTraining, double[][] outputsTraining,
+            Dictionary<int, TrialVariable> trialVariables, double[][] dataTraining, double[][] outputsTraining,
             double[][] dataCrossValidation,
             double[][] outputsCrossValidation,
             double[][] dataTesting,
@@ -588,7 +601,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
                     $" and activation function {activationFunction}.  Weights are randomised on the construction of the trainer.");
 
                 var topologyNetwork = new ActivationNetwork(activationFunction, trialVariables.Count,
-                    LayersParamsArray(layers));
+                    MapTrialVariableToActivationNetworkAnnotations(trialVariables), LayersParamsArray(layers));
 
                 var trainerExploration =
                     new Accord.Neuro.Learning.LevenbergMarquardtLearning(TopologyRandomise(topologyNetwork));
@@ -648,66 +661,67 @@ namespace Jube.Engine.Exhaustive.Algorithms
                 {
                     log.Info(
                         $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. Trial instance count {i}. Has created an Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} the topology has arrived at a perfect fit (too good in fact).  The training will terminate for this iteration.");
+
+                    break;
                 }
-                else
+
+                if (topologyNetwork.Layers[layers.Count - 1].Neurons.Length >
+                    trialVariables.Count * layerWidthLimitInputLayerFactor)
                 {
-                    if (topologyNetwork.Layers[layers.Count - 1].Neurons.Length >
-                        trialVariables.Count * layerWidthLimitInputLayerFactor)
+                    if (layers.Count < layerDepthLimit)
                     {
-                        if (layers.Count < layerDepthLimit)
-                        {
-                            log.Info($"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
-                                     "Search Instance Trial Instance ID of " +
-                                     $"{exhaustiveSearchInstanceTrialInstance.Id}. " +
-                                     $"Has reached a layer depth limit of {layerDepthLimit}.");
-
-                            break;
-                        }
-
-                        layers.Add(1);
-                        layers[^1] = 1;
-
-                        log.Info(
-                            $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
-                            $"Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
-                            $"Trial instance count {i}. Has increased layers to " +
-                            $" {layers.Count} to width of {layers[^1]}.");
-                    }
-                    else
-                    {
-                        layers[^1] += 1;
-
-                        log.Info(
-                            $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
-                            $"Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
-                            $"Trial instance count {i}. Has kept layers at " +
-                            $" {layers.Count} and increased width to {layers[^1]}.");
-                    }
-
-                    log.Info(
-                        $"Exhaustive Training: Trial instance count {i}. Has created " +
-                        "an Exhaustive Search Instance Trial Instance ID of " +
-                        $"{exhaustiveSearchInstanceTrialInstance.Id} " +
-                        $"topology complexity or weights count is {thisTopologyComplexity}.");
-
-                    if (thisTopologyComplexity > topologyComplexityLimit)
-                    {
-                        log.Info(
-                            $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search " +
-                            "Instance Trial Instance ID of " +
-                            $"{exhaustiveSearchInstanceTrialInstance.Id} " +
-                            $"topology complexity or weights count of {thisTopologyComplexity} has exceeded limits.");
+                        log.Info($"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
+                                 "Search Instance Trial Instance ID of " +
+                                 $"{exhaustiveSearchInstanceTrialInstance.Id}. " +
+                                 $"Has reached a layer depth limit of {layerDepthLimit}.");
 
                         break;
                     }
 
-                    topologiesSinceNoImproveCounter += 1;
+                    layers.Add(1);
+                    layers[^1] = 1;
+
                     log.Info(
-                        $"Exhaustive Training: Trial instance count {i}. " +
-                        "Has created an Exhaustive Search Instance Trial Instance ID of " +
-                        $"{exhaustiveSearchInstanceTrialInstance.Id} " +
-                        $"{topologiesSinceNoImproveCounter} trials since improvement in the evolution of the topology.");
+                        $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
+                        $"Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
+                        $"Trial instance count {i}. Has increased layers to " +
+                        $" {layers.Count} to width of {layers[^1]}.");
                 }
+                else
+                {
+                    layers[^1] += 1;
+
+                    log.Info(
+                        $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive " +
+                        $"Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id}. " +
+                        $"Trial instance count {i}. Has kept layers at " +
+                        $" {layers.Count} and increased width to {layers[^1]}.");
+                }
+
+                log.Info(
+                    $"Exhaustive Training: Trial instance count {i}. Has created " +
+                    "an Exhaustive Search Instance Trial Instance ID of " +
+                    $"{exhaustiveSearchInstanceTrialInstance.Id} " +
+                    $"topology complexity or weights count is {thisTopologyComplexity}.");
+
+                if (thisTopologyComplexity > topologyComplexityLimit)
+                {
+                    log.Info(
+                        $"Exhaustive Training: Trial instance count {i}. Has created an Exhaustive Search " +
+                        "Instance Trial Instance ID of " +
+                        $"{exhaustiveSearchInstanceTrialInstance.Id} " +
+                        $"topology complexity or weights count of {thisTopologyComplexity} has exceeded limits.");
+
+                    break;
+                }
+
+                topologiesSinceNoImproveCounter += 1;
+                
+                log.Info(
+                    $"Exhaustive Training: Trial instance count {i}. " +
+                    "Has created an Exhaustive Search Instance Trial Instance ID of " +
+                    $"{exhaustiveSearchInstanceTrialInstance.Id} " +
+                    $"{topologiesSinceNoImproveCounter} trials since improvement in the evolution of the topology.");
             }
 
             var trainerFinalise = new Accord.Neuro.Learning.LevenbergMarquardtLearning(bestTopologyNetwork);
@@ -1090,7 +1104,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
         }
 
         private void SearchForBestActivationFunction(Performance performance,
-            ICollection trialVariables,
+            Dictionary<int, TrialVariable> trialVariables,
             int activationFunctionExplorationEpochs,
             ExhaustiveSearchInstanceTrialInstance exhaustiveSearchInstanceTrialInstance,
             double[][] dataTraining, double[][] outputsTraining,
@@ -1123,7 +1137,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new BipolarSigmoidFunction(1);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Bipolar Sigmoid Function 1.");
@@ -1136,7 +1151,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new BipolarSigmoidFunction(2);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Bipolar Sigmoid Function 2.");
@@ -1149,7 +1165,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new ThresholdFunction();
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Threshold Function.");
@@ -1162,7 +1179,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new SigmoidFunction(1);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Sigmoid Function 1.");
@@ -1175,7 +1193,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new SigmoidFunction(2);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Sigmoid Function 2.");
@@ -1188,7 +1207,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new LinearFunction(1);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables),1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Linear Function 1.");
@@ -1201,7 +1221,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new LinearFunction(2);
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables), 1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Linear Function 2.");
@@ -1214,7 +1235,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new RectifiedLinearFunction();
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count,
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables), 1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Rectified Linear Function.");
@@ -1227,7 +1249,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new IdentityFunction();
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables), 1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Identity Linear Function.");
@@ -1240,7 +1263,8 @@ namespace Jube.Engine.Exhaustive.Algorithms
                         trialTopologyFunction = new Accord.Neuro.ActivationFunctions.BernoulliFunction();
 
                         trialTopologyNetwork =
-                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+                            new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 
+                                MapTrialVariableToActivationNetworkAnnotations(trialVariables), 1);
 
                         _log.Info(
                             $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is testing Bernoulli Linear Function.");
@@ -1305,13 +1329,14 @@ namespace Jube.Engine.Exhaustive.Algorithms
             }
         }
 
-        private ActivationNetwork DefaultFirstActivationFunction(ICollection trialVariables,
+        private ActivationNetwork DefaultFirstActivationFunction(Dictionary<int, TrialVariable> trialVariables,
             ExhaustiveSearchInstanceTrialInstance exhaustiveSearchInstanceTrialInstance,
             IActivationFunction trialTopologyFunction,
             out ExhaustiveSearchInstanceTrialInstanceActivationFunctionTrial
                 exhaustiveSearchInstanceTrialInstanceActivationFunctionTrial)
         {
-            var trialTopologyNetwork = new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 1);
+            var trialTopologyNetwork = new ActivationNetwork(trialTopologyFunction, trialVariables.Count, 
+                MapTrialVariableToActivationNetworkAnnotations(trialVariables), 1);
 
             exhaustiveSearchInstanceTrialInstanceActivationFunctionTrial =
                 new ExhaustiveSearchInstanceTrialInstanceActivationFunctionTrial
@@ -1364,30 +1389,33 @@ namespace Jube.Engine.Exhaustive.Algorithms
             out double[][] dataTesting,
             out double[][] outputsTesting
         )
-        {
+        { 
             var trainingLength = (int) (output.Count * trainingDataSamplePercentage);
             var crossValidationLength = (int) (output.Count * crossValidationDataSamplePercentage);
             var testingLength = (int) (output.Count * testingDataSamplePercentage);
-
+            
             log.Info(
-                $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID of {exhaustiveSearchInstanceTrialInstance.Id} is separating the dataset. There are {trainingLength} training records, {crossValidationLength} cross validation records and {testingLength} testing records.  Will split the dataset.");
-
+                $"Exhaustive Training: For trial instance Exhaustive Search Instance Trial Instance ID " +
+                $"of {exhaustiveSearchInstanceTrialInstance.Id} is separating the dataset. " +
+                $"There are {trainingLength} training records, {crossValidationLength} cross validation records " +
+                $"and {testingLength} testing records.  Will split the dataset.");
+            
             dataTraining = new double[trainingLength - 1][];
             dataCrossValidation = new double[crossValidationLength - 1][];
-            dataTesting = new double[testingLength - 1][];
-
+            dataTesting = new double[testingLength + crossValidationLength][];
             outputsTraining = new double[trainingLength - 1][];
+            
             outputsCrossValidation = new double[crossValidationLength - 1][];
-            outputsTesting = new double[testingLength - 1][];
-
+            outputsTesting = new double[testingLength + crossValidationLength - 1][];
+            
             dataTraining = SplitArray(data, 0, trainingLength);
             outputsTraining = SplitArray(output, 0, trainingLength);
 
             dataCrossValidation = SplitArray(data, trainingLength, crossValidationLength);
-            outputsCrossValidation = SplitArray(output, trainingLength, crossValidationLength);
+            outputsCrossValidation = SplitArray(output, trainingLength, testingLength + crossValidationLength);
 
             dataTesting = SplitArray(data, crossValidationLength, testingLength);
-            outputsTesting = SplitArray(output, crossValidationLength, testingLength);
+            outputsTesting = SplitArray(output, crossValidationLength, testingLength + crossValidationLength);
         }
 
         private Dictionary<int, TrialVariable> SelectVariables(
@@ -1412,14 +1440,17 @@ namespace Jube.Engine.Exhaustive.Algorithms
                 {
                     var trialVariable = new TrialVariable
                     {
+                        Name = _variables[randomVariable].Name,
                         Mean = _variables[randomVariable].Mean,
                         Sd = _variables[randomVariable].Sd,
+                        Mode = _variables[randomVariable].Mode,
                         Min = _variables[randomVariable].Min,
                         Max = _variables[randomVariable].Max,
                         ExhaustiveSearchInstanceVariableId =
                             _variables[randomVariable].ExhaustiveSearchInstanceVariableId,
                         TriangularDistribution = _variables[randomVariable].TriangularDistribution,
-                        NormalisationType = _variables[randomVariable].NormalisationType
+                        NormalisationTypeId = _variables[randomVariable].NormalisationType,
+                        ProcessingTypeId = _variables[randomVariable].ProcessingTypeId
                     };
                     
                     trialVariables.Add(randomVariable, trialVariable);
@@ -1505,6 +1536,24 @@ namespace Jube.Engine.Exhaustive.Algorithms
             };
 
             return repository.Insert(exhaustiveSearchInstanceTrialInstance);
+        }
+
+        private List<ActivationNetworkAnnotation> MapTrialVariableToActivationNetworkAnnotations(Dictionary<int,TrialVariable> trialVariables)
+        {
+            return trialVariables.Select(trialVariable => new ActivationNetworkAnnotation
+                {
+                    Name = trialVariable.Value.Name,
+                    ExhaustiveSearchInstanceVariableId = trialVariable.Value.ExhaustiveSearchInstanceVariableId,
+                    Mean = trialVariable.Value.Mean,
+                    Sd = trialVariable.Value.Sd,
+                    Max = trialVariable.Value.Max,
+                    Min = trialVariable.Value.Min,
+                    Mode = trialVariable.Value.Mode,
+                    ExhaustiveSearchInstanceTrialInstanceVariableId = trialVariable.Value.ExhaustiveSearchInstanceTrialInstanceVariableId,
+                    NormalisationTypeId = trialVariable.Value.NormalisationTypeId,
+                    ProcessingTypeId = trialVariable.Value.ProcessingTypeId
+                })
+                .ToList();
         }
     }
 }

@@ -38,7 +38,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
             if (originalObject == null) return null;
             var typeToReflect = originalObject.GetType();
             if (IsPrimitive(typeToReflect)) return originalObject;
-            if (visited.ContainsKey(originalObject)) return visited[originalObject];
+            if (visited.TryGetValue(originalObject, out var copy)) return copy;
             if (typeof(Delegate).IsAssignableFrom(typeToReflect)) return null;
             var cloneObject = CloneMethod.Invoke(originalObject, null);
             if (typeToReflect.IsArray)

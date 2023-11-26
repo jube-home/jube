@@ -13,11 +13,12 @@
 
 using Jube.Data.Context;
 using Jube.Data.Poco;
+using Jube.Data.Repository.Interface;
 using LinqToDB;
 
 namespace Jube.Data.Repository
 {
-    public class ExhaustiveSearchInstanceVariableHistogramRepository
+    public class ExhaustiveSearchInstanceVariableHistogramRepository : IGenericRepository
     {
         private readonly DbContext _dbContext;
 
@@ -26,10 +27,9 @@ namespace Jube.Data.Repository
             _dbContext = dbContext;
         }
 
-        public ExhaustiveSearchInstanceVariableHistogram Insert(ExhaustiveSearchInstanceVariableHistogram model)
+        public int Insert(object arg)
         {
-            model.Id = _dbContext.InsertWithInt32Identity(model);
-            return model;
+            return _dbContext.InsertWithInt32Identity((ExhaustiveSearchInstanceVariableHistogram)arg);
         }
     }
 }

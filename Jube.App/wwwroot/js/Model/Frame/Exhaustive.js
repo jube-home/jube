@@ -590,40 +590,52 @@ function LoadModelSummery(data, force) {
             hideUpdateButton = false;
             break;
         case 1:
-            currentStatus.text('Fetching Data');
+            currentStatus.text('Query for base case data');
             break;
         case 2:
-            currentStatus.text('Calculating Statistics');
+            currentStatus.text('Calculating Statistics for base case');
             break;
         case 3:
-            currentStatus.text('Normalising Data');
+            currentStatus.text('Normalising Data for unsupervised learning');
             break;
         case 4:
-            currentStatus.text('Training Anomaly Model');
+            currentStatus.text('Unsupervised training');
             break;
         case 5:
-            currentStatus.text('Recalling Anomaly Model for Class Data');
+            currentStatus.text('Unsupervised training recall');
             break;
         case 6:
-            currentStatus.text('Getting Filter Class Data from Archive');
+            currentStatus.text('Unsupervised training statistics creation');
             break;
         case 7:
-            currentStatus.text('Data Class Symmetry Sampling');
+            currentStatus.text('Query for class filter data');
             break;
         case 8:
-            currentStatus.text('Performing Class Correlation Analysis');
+            currentStatus.text('Statistics for class filter data');
             break;
         case 9:
-            currentStatus.text('Performing All Variable Multicollinearity Analysis');
+            currentStatus.text('Shuffling data');
             break;
         case 10:
-            currentStatus.text('Training Neural Networks and Performing Evolution');
+            currentStatus.text('Normalising data');
             break;
         case 11:
-            currentStatus.text('Stopped as expected after training');
+            currentStatus.text('Over Sampling \ Symmetric Sampling');
             break;
         case 12:
-            currentStatus.text('Stopped for reasons of no Class data');
+            currentStatus.text('Correlation analysis');
+            break;
+        case 13:
+            currentStatus.text('Multicolinarity analysis');
+            break;
+        case 14:
+            currentStatus.text('Supervised Learning');
+            break;
+        case 15:
+            currentStatus.text('Finished');
+            break;
+        case 16:
+            currentStatus.text('Finished no class available');
             break;
         default:
             currentStatus.text('Stopped for reasons unexpected');
@@ -647,7 +659,7 @@ function LoadModelSummery(data, force) {
     if (data.score > LastScore || force) {
         LastScore = data.score;
 
-        if (data.statusId < 10) {
+        if (data.statusId < 14) {
             $('#KPI').hide();
             $('#tabstrip').hide();
         } else {
@@ -844,13 +856,14 @@ function LoadModelSummery(data, force) {
         }
 
         $("#grid").data("kendoGrid").dataSource.read();
+        
         let statistics = $("#statistics");
         let records = statistics.data("kendoGrid").dataSource.view().length;
         if (records === 0) {
             statistics.data("kendoGrid").dataSource.read();
         }
+        
         $("#chart").data("kendoChart").dataSource.read();
-
     }
 }
 

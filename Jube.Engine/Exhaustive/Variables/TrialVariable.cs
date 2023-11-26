@@ -19,18 +19,21 @@ namespace Jube.Engine.Exhaustive.Variables
     [Serializable]
     public class TrialVariable
     {
+        public string Name;
         public int ExhaustiveSearchInstanceVariableId { get; set; }
         public double Mean { get; set; }
         public double Sd { get; set; }
         public double Max { get; set; }
         public double Min { get; set; }
+        public double Mode { get; set; }
+        public int ProcessingTypeId { get; set; }
         public int ExhaustiveSearchInstanceTrialInstanceVariableId  { get; set; }
         public TriangularDistribution TriangularDistribution  { get; set; }
-        public int NormalisationType  { get; set; }
+        public int NormalisationTypeId  { get; set; }
 
         public double ReverseZScore(double value)
         {
-            if (NormalisationType == 2) return Mean + value * Sd;
+            if (NormalisationTypeId == 2) return Mean + value * Sd;
 
             return value;
         }

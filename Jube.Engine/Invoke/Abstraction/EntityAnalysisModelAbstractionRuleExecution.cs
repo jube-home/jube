@@ -71,9 +71,9 @@ namespace Jube.Engine.Invoke.Abstraction
                         Log.Info(
                             $"Abstraction Rule Execute: GUID {EntityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid} abstraction rule id {evaluateAbstractionRule.Id} has a logic hash of {evaluateAbstractionRule.LogicHash} and will be checked against similar rules already run for the results returned from cache.");
 
-                        if (logicHashMatches.ContainsKey(evaluateAbstractionRule.LogicHash))
+                        if (logicHashMatches.TryGetValue(evaluateAbstractionRule.LogicHash, out var match))
                         {
-                            matches = logicHashMatches[evaluateAbstractionRule.LogicHash];
+                            matches = match;
 
                             Log.Info(
                                 $"Abstraction Rule Execute: GUID {EntityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid} abstraction rule id {evaluateAbstractionRule.Id} has a logic hash of {evaluateAbstractionRule.LogicHash} and has already run for the results returned from cache, having {matches.Count} records.");

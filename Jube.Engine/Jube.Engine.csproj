@@ -6,12 +6,6 @@
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Accord" Version="3.8.0" />
-    <PackageReference Include="Accord.Genetic" Version="3.8.0" />
-    <PackageReference Include="Accord.MachineLearning" Version="3.8.0" />
-    <PackageReference Include="Accord.Math" Version="3.8.0" />
-    <PackageReference Include="Accord.Neuro" Version="3.8.0" />
-    <PackageReference Include="Accord.Statistics" Version="3.8.0" />
     <PackageReference Include="DnsClient" Version="1.2.0" />
     <PackageReference Include="Fastenshtein" Version="1.0.0.5" />
     <PackageReference Include="log4net" Version="2.0.14" />
@@ -38,6 +32,13 @@
     <Compile Remove="JubeQuantEngine.Designer.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Accord.Core\Accord.Core.csproj" />
+    <ProjectReference Include="..\Accord.Genetic\Accord.Genetic.csproj" />
+    <ProjectReference Include="..\Accord.MachineLearning\Accord.MachineLearning.csproj" />
+    <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj" />
+    <ProjectReference Include="..\Accord.Math\Accord.Math.csproj" />
+    <ProjectReference Include="..\Accord.Neuro\Accord.Neuro.csproj" />
+    <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj" />
     <ProjectReference Include="..\Jube.Data\Jube.Data.csproj" />
     <ProjectReference Include="..\Jube.DynamicEnvironment\Jube.DynamicEnvironment.csproj" />
     <ProjectReference Include="..\Jube.Parser\Jube.Parser.csproj" />    

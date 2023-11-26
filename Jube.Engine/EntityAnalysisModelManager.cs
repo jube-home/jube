@@ -31,6 +31,7 @@ using Jube.Data.Query;
 using Jube.Data.Reporting;
 using Jube.Data.Repository;
 using Jube.Engine.Helpers;
+using Jube.Engine.Helpers.Json;
 using Jube.Engine.Invoke;
 using Jube.Engine.Model;
 using Jube.Engine.Model.Archive;
@@ -56,6 +57,7 @@ using EntityAnalysisModelTtlCounter = Jube.Engine.Model.EntityAnalysisModelTtlCo
 using ExhaustiveSearchInstance = Jube.Engine.Model.Exhaustive.ExhaustiveSearchInstance;
 using ExhaustiveSearchInstancePromotedTrialInstanceVariable =
     Jube.Engine.Model.Exhaustive.ExhaustiveSearchInstancePromotedTrialInstanceVariable;
+using Newtonsoft.Json;
 
 namespace Jube.Engine
 {
@@ -76,6 +78,8 @@ namespace Jube.Engine
         private Thread _modelSyncThread;
         private bool _stopping;
         private Thread _tTtlCThread;
+        private JsonSerializerSettings _jsonSerializerSettings;
+        
         public ILog Log { get; set; }
         public ConcurrentQueue<Tag> PendingTagging { get; set; } = new();
         public Dictionary<int, EntityAnalysisModel> ActiveEntityAnalysisModels { get; } = new();
@@ -99,6 +103,7 @@ namespace Jube.Engine
 
         public void Start()
         {
+            BuildAndCacheJsonContractResolver();
             StartCallbackListener();
             LogStartInstance();
             StartModelSync();
@@ -108,7 +113,29 @@ namespace Jube.Engine
             StartTtlCounterServer();
             StartReprocessing();
         }
-        
+
+        private void BuildAndCacheJsonContractResolver()
+        {
+            _jsonSerializerSettings = new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Auto,
+                MetadataPropertyHandling = MetadataPropertyHandling.ReadAhead,
+                ContractResolver = new DeepContractResolver(),
+            };
+
+            _jsonSerializerSettings.Error += (_, args) =>
+            {
+                if (args.ErrorContext.Error.InnerException is not NotImplementedException)
+                {
+                    Log.Debug(
+                        $"Exhaustive, Balance and Currencies: Json has received " +
+                        $"the json three a handled error on {args.ErrorContext.Error.InnerException}.");
+
+                    args.ErrorContext.Handled = true;
+                }
+            };
+        }
+
         private void StartCallbackListener()
         {
             if (JubeEnvironment.AppSettings("EnableCallback").Equals("True", StringComparison.OrdinalIgnoreCase))
@@ -539,9 +566,7 @@ namespace Jube.Engine
                 {
                     int i;
                     var tempVar = int.Parse(JubeEnvironment.AppSettings("ArchiverPersistThreads"));
-                    for (i = 1; i <= tempVar; i++)
-                        if (!value.BulkInsertMessageBuffers.ContainsKey(i))
-                            value.BulkInsertMessageBuffers.Add(i, new ArchiveBuffer());
+                    for (i = 1; i <= tempVar; i++) value.BulkInsertMessageBuffers.TryAdd(i, new ArchiveBuffer());
                 }
                 catch (Exception ex)
                 {
@@ -574,28 +599,28 @@ namespace Jube.Engine
 
                         if (record.SuppressionKey != null)
                         {
-                            var suppressionsDictionary = new Dictionary<string, List<string>>();
+                            var suppressionDictionary = new Dictionary<string, List<string>>();
                             if (record.SuppressionKeyValue != null)
                             {
                                 Log.Info(
                                     $"Entity Start: Checking to see if there is a shadow collection for suppression value {record.Id} for Entity Model ID {key}.");
 
-                                if (!suppressionsDictionary.ContainsKey(record.SuppressionKeyValue ?? string.Empty))
+                                if (!suppressionDictionary.ContainsKey(record.SuppressionKeyValue ?? string.Empty))
                                 {
                                     Log.Info(
                                         $"Entity Start: No shadow collection for suppression value {record.Id} for Entity Model ID {key} so it is being created.");
 
-                                    suppressionsDictionary.Add(record.SuppressionKeyValue ?? string.Empty,
+                                    suppressionDictionary.Add(record.SuppressionKeyValue ?? string.Empty,
                                         new List<string>());
 
                                     Log.Info(
                                         $"Entity Start: checking for collection for suppression value {record.Id} and activation rule name {record.EntityAnalysisModelActivationRuleName} for Entity Model ID {key} so it is being created.");
 
-                                    if (!suppressionsDictionary[
+                                    if (!suppressionDictionary[
                                                 record.SuppressionKeyValue ?? string.Empty]
                                             .Contains(record.EntityAnalysisModelActivationRuleName))
                                     {
-                                        suppressionsDictionary[
+                                        suppressionDictionary[
                                                 record.SuppressionKeyValue ?? string.Empty]
                                             .Add(record.EntityAnalysisModelActivationRuleName);
 
@@ -610,11 +635,11 @@ namespace Jube.Engine
                                 }
                                 else
                                 {
-                                    if (!suppressionsDictionary[
+                                    if (!suppressionDictionary[
                                                 record.SuppressionKeyValue ?? string.Empty]
                                             .Contains(record.EntityAnalysisModelActivationRuleName))
                                     {
-                                        suppressionsDictionary[
+                                        suppressionDictionary[
                                                 record.SuppressionKeyValue ?? string.Empty]
                                             .Add(record.EntityAnalysisModelActivationRuleName);
 
@@ -626,7 +651,7 @@ namespace Jube.Engine
                                 if (shadowEntityAnalysisModelSuppressionDictionary.ContainsKey(record.SuppressionKey))
                                 {
                                     shadowEntityAnalysisModelSuppressionDictionary[record.SuppressionKey] =
-                                        suppressionsDictionary;
+                                        suppressionDictionary;
 
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and already exists in collection,  added to key.");
@@ -634,7 +659,7 @@ namespace Jube.Engine
                                 else
                                 {
                                     shadowEntityAnalysisModelSuppressionDictionary.Add(record.SuppressionKey,
-                                        suppressionsDictionary);
+                                        suppressionDictionary);
 
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and already exists in collection,  added to key.");
@@ -676,15 +701,15 @@ namespace Jube.Engine
                         Log.Info(
                             $"Entity Start: Entity Analysis Model Activation Rule Suppression ID {record.Id} returned for model {key}.");
 
-                        var suppressionsDictionary = new List<string>();
+                        var suppressionDictionary = new List<string>();
                         if (record.SuppressionKeyValue != null)
                         {
                             Log.Debug(
                                 $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Value as {record.SuppressionKeyValue} also checking to see if it is already added.");
 
-                            if (!suppressionsDictionary.Contains(record.SuppressionKeyValue))
+                            if (!suppressionDictionary.Contains(record.SuppressionKeyValue))
                             {
-                                suppressionsDictionary.Add(record.SuppressionKeyValue);
+                                suppressionDictionary.Add(record.SuppressionKeyValue);
 
                                 Log.Debug(
                                     $"Entity Start: Model {key} and Suppression ID  {record.Id} set Value as {record.SuppressionKeyValue} has been added to a shadow list of suppression.");
@@ -693,7 +718,7 @@ namespace Jube.Engine
                             if (shadowEntityAnalysisModelSuppressionList.ContainsKey(record.SuppressionKey))
                             {
                                 shadowEntityAnalysisModelSuppressionList[record.SuppressionKey] =
-                                    suppressionsDictionary;
+                                    suppressionDictionary;
 
                                 Log.Debug(
                                     $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and already exists in collection,  added to key.");
@@ -702,7 +727,7 @@ namespace Jube.Engine
                             {
                                 {
                                     shadowEntityAnalysisModelSuppressionList.Add(record.SuppressionKey,
-                                        suppressionsDictionary);
+                                        suppressionDictionary);
 
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and does not exist in collection,  created key.");
@@ -1018,47 +1043,57 @@ namespace Jube.Engine
                                 = new GetExhaustiveSearchInstancePromotedTrialInstanceByLastActiveQuery(dbContext)
                                     .Execute(exhaustive.Id);
 
-                            try
+                            if (getExhaustiveSearchInstancePromotedTrialInstanceQuery != null)
                             {
-                                var topologyNetworkBytes = getExhaustiveSearchInstancePromotedTrialInstanceQuery.Object;
+                                try
+                                {
+                                    Log.Debug(
+                                        $"Exhaustive, Balance and Currencies: Exhaustive GUID {exhaustive.Id} has received " +
+                                        $"the json as {getExhaustiveSearchInstancePromotedTrialInstanceQuery.Json} from the database and will now start to load to Accord.");
+                                    
+                                    exhaustive.TopologyNetwork  = 
+                                        JsonConvert.DeserializeObject<ActivationNetwork>
+                                            (getExhaustiveSearchInstancePromotedTrialInstanceQuery.Json,_jsonSerializerSettings);
 
-                                Stream topologyNetworkStream = new MemoryStream(topologyNetworkBytes);
+                                    Log.Debug(
+                                        $"Exhaustive, Balance and Currencies: Exhaustive GUID {exhaustive.Id} has deserialized " +
+                                        $"json and will add to the Exhaustive");
+                                        
+                                    var getExhaustiveSearchInstancePromotedTrialInstanceVariableQuery
+                                        = new GetExhaustiveSearchInstancePromotedTrialInstanceVariableQuery(dbContext);
 
-                                Log.Debug(
-                                    $"Exhaustive, Balance and Currencies: Exhaustive GUID {exhaustive.Id} has received the byte array from the database and will now start to load the byte array to Accord.");
+                                    foreach (var exhaustiveVariable in
+                                             getExhaustiveSearchInstancePromotedTrialInstanceVariableQuery
+                                                 .ExecuteByExhaustiveSearchInstanceTrialInstanceId(
+                                                     getExhaustiveSearchInstancePromotedTrialInstanceQuery
+                                                         .ExhaustiveSearchInstanceTrialInstanceId).ToList().Select(
+                                                     variable =>
+                                                         new ExhaustiveSearchInstancePromotedTrialInstanceVariable
+                                                         {
+                                                             Name = variable.Name,
+                                                             ProcessingTypeId = variable.ProcessingTypeId,
+                                                             Mean = variable.Mean,
+                                                             Sd = variable.StandardDeviation,
+                                                             NormalisationTypeId = variable.NormalisationTypeId
+                                                         }))
+                                        exhaustive.NetworkVariablesInOrder.Add(exhaustiveVariable);
 
-                                var topologyNetwork = (ActivationNetwork) Network.Load(topologyNetworkStream);
-                                exhaustive.TopologyNetwork = topologyNetwork;
+                                    Log.Debug(
+                                        $"Entity Start: Exhaustive GUID {exhaustive.Id} has loaded the byte array to Accord.");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Debug(
+                                        $"Entity Start: Exhaustive GUID {exhaustive.Id} has created an error during loading as {ex}.");
+                                }
 
-                                var getExhaustiveSearchInstancePromotedTrialInstanceVariableQuery
-                                    = new GetExhaustiveSearchInstancePromotedTrialInstanceVariableQuery(dbContext);
-
-                                foreach (var exhaustiveVariable in
-                                         getExhaustiveSearchInstancePromotedTrialInstanceVariableQuery
-                                             .ExecuteByExhaustiveSearchInstanceTrialInstanceId(
-                                                 getExhaustiveSearchInstancePromotedTrialInstanceQuery
-                                                     .ExhaustiveSearchInstanceTrialInstanceId).ToList().Select(
-                                                 variable =>
-                                                     new ExhaustiveSearchInstancePromotedTrialInstanceVariable
-                                                     {
-                                                         Name = variable.Name,
-                                                         ProcessingTypeId = variable.ProcessingTypeId,
-                                                         Mean = variable.Mean,
-                                                         Sd = variable.StandardDeviation,
-                                                         NormalisationTypeId = variable.NormalisationTypeId
-                                                     }))
-                                    exhaustive.NetworkVariablesInOrder.Add(exhaustiveVariable);
-
-                                Log.Debug(
-                                    $"Entity Start: Exhaustive GUID {exhaustive.Id} has loaded the byte array to Accord.");
+                                shadowEntityAnalysisModelExhaustive.Add(exhaustive);
                             }
-                            catch (Exception ex)
+                            else
                             {
                                 Log.Debug(
-                                    $"Entity Start: Exhaustive GUID {exhaustive.Id} has created an error during loading as {ex}.");
+                                    $"Entity Start: Exhaustive GUID {exhaustive.Id} has empty json indicating training not concluded.");
                             }
-
-                            shadowEntityAnalysisModelExhaustive.Add(exhaustive);
                         }
                     }
                     catch (Exception ex)
@@ -1903,13 +1938,13 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: {key} and Calculation {entityAnalysisModelAbstractionCalculation.Id} has been hashed to {activationRuleScriptHash}, will now check if it is in the hash cache.");
 
-                                if (HashCacheAssembly.ContainsKey(activationRuleScriptHash))
+                                if (HashCacheAssembly.TryGetValue(activationRuleScriptHash, out var valueHash))
                                 {
                                     Log.Debug(
                                         $"Entity Start: {key} and Calculation {entityAnalysisModelAbstractionCalculation.Id} has been hashed to {activationRuleScriptHash} and been located in the hash cache to be assigned to a delegate.");
 
                                     entityAnalysisModelAbstractionCalculation.FunctionCalculationCompile =
-                                        HashCacheAssembly[activationRuleScriptHash];
+                                        valueHash;
 
                                     var classType =
                                         entityAnalysisModelAbstractionCalculation.FunctionCalculationCompile.GetType(
@@ -2143,13 +2178,13 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: {key} and Function {entityAnalysisModelInlineFunction.Id} has been hashed to {activationRuleScriptHash}, will now check if it is in the hash cache.");
 
-                                if (HashCacheAssembly.ContainsKey(activationRuleScriptHash))
+                                if (HashCacheAssembly.TryGetValue(activationRuleScriptHash, out var valueHash))
                                 {
                                     Log.Debug(
                                         $"Entity Start: {key} and Function {entityAnalysisModelInlineFunction.Id} has been hashed to {activationRuleScriptHash} and been located in the hash cache to be assigned to a delegate.");
 
                                     entityAnalysisModelInlineFunction.FunctionCalculationCompile =
-                                        HashCacheAssembly[activationRuleScriptHash];
+                                        valueHash;
 
                                     var classType =
                                         entityAnalysisModelInlineFunction.FunctionCalculationCompile.GetType(
@@ -2389,12 +2424,12 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: Model {key} and Gateway Rule Model {modelGatewayRule.EntityAnalysisModelGatewayRuleId} has been hashed to {gatewayRuleScriptHash} and will be checked against the hash cache.");
 
-                                if (HashCacheAssembly.ContainsKey(gatewayRuleScriptHash))
+                                if (HashCacheAssembly.TryGetValue(gatewayRuleScriptHash, out var valueHash))
                                 {
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Gateway Rule Model {modelGatewayRule.EntityAnalysisModelGatewayRuleId} has been hashed to {gatewayRuleScriptHash} exists in the hash cache and will be allocated to a delegate.");
 
-                                    modelGatewayRule.GatewayRuleCompile = HashCacheAssembly[gatewayRuleScriptHash];
+                                    modelGatewayRule.GatewayRuleCompile = valueHash;
 
                                     var classType = modelGatewayRule.GatewayRuleCompile.GetType("GatewayRule");
                                     var methodInfo = classType.GetMethod("Match");
@@ -3118,13 +3153,13 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: {key} and Activation Rule Model {modelActivationRule.Id} has been hashed to {activationRuleScriptHash}, will now check if it is in the hash cache.");
 
-                                if (HashCacheAssembly.ContainsKey(activationRuleScriptHash))
+                                if (HashCacheAssembly.TryGetValue(activationRuleScriptHash, out var valueHash))
                                 {
                                     Log.Debug(
                                         $"Entity Start: {key} and Activation Rule Model {modelActivationRule.Id} has been hashed to {activationRuleScriptHash} and been located in the hash cache to be assigned to a delegate.");
 
                                     modelActivationRule.ActivationRuleCompile =
-                                        HashCacheAssembly[activationRuleScriptHash];
+                                        valueHash;
 
                                     var classType = modelActivationRule.ActivationRuleCompile.GetType("ActivationRule");
                                     var methodInfo = classType.GetMethod("Match");
@@ -3568,13 +3603,13 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} calculated hash as {abstractionRuleScriptHash}.  Checking if in hash cache.");
 
-                                if (HashCacheAssembly.ContainsKey(abstractionRuleScriptHash))
+                                if (HashCacheAssembly.TryGetValue(abstractionRuleScriptHash, out var valueHash))
                                 {
                                     Log.Debug(
                                         $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} hash {abstractionRuleScriptHash} is in the hash cache,  will create the delegate from this.");
 
                                     modelAbstractionRule.AbstractionRuleCompile =
-                                        HashCacheAssembly[abstractionRuleScriptHash];
+                                        valueHash;
                                     var classType =
                                         modelAbstractionRule.AbstractionRuleCompile.GetType("AbstractionRule");
                                     var methodInfo = classType.GetMethod("Match");
@@ -4605,12 +4640,12 @@ namespace Jube.Engine
                         Log.Debug(
                             $"Entity Start: Inline Script {record.Id} has been hashed to {inlineScriptHash} and the hash cache will now be checked.");
 
-                        if (HashCacheAssembly.ContainsKey(inlineScriptHash))
+                        if (HashCacheAssembly.TryGetValue(inlineScriptHash, out var value))
                         {
                             Log.Debug(
                                 $"Entity Start: Inline Script {record.Id} has been hashed to {inlineScriptHash} and has been located in the hash cache,  this will be used.  Creating a delegate.");
 
-                            inlineScript.InlineScriptCompile = HashCacheAssembly[inlineScriptHash];
+                            inlineScript.InlineScriptCompile = value;
                             inlineScript.InlineScriptType =
                                 inlineScript.InlineScriptCompile.GetType(inlineScript.ClassName);
                             inlineScript.PreProcessingMethodInfo =
@@ -5068,6 +5103,7 @@ namespace Jube.Engine
                                             deleted = LogAndGetTerminate(dbContext,
                                                 entityAnalysisModelRuleReprocessingInstance,
                                                 processed, sampled, matched, errors, lastReferenceDate);
+                                            
                                         } while (!deleted);
 
                                         FinishReprocessBatchChunk(dbContext,
@@ -5542,13 +5578,13 @@ namespace Jube.Engine
                 Log.Debug(
                     $"Entity Reprocessing: Model {key} and Reprocessing Rule Model {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} has been hashed to {gatewayRuleScriptHash} and will be checked against the hash cache.");
 
-                if (HashCacheAssembly.ContainsKey(gatewayRuleScriptHash))
+                if (HashCacheAssembly.TryGetValue(gatewayRuleScriptHash, out var value))
                 {
                     Log.Debug(
                         $"Entity Reprocessing: Model {key} and Reprocessing Rule Model {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} has been hashed to {gatewayRuleScriptHash} exists in the hash cache and will be allocated to a delegate.");
 
                     entityAnalysisModelRuleReprocessingInstance.ReprocessingRuleCompile =
-                        HashCacheAssembly[gatewayRuleScriptHash];
+                        value;
                     var classType =
                         entityAnalysisModelRuleReprocessingInstance.ReprocessingRuleCompile.GetType("GatewayRule");
 
@@ -5718,7 +5754,7 @@ namespace Jube.Engine
                         value.TtlCounterServer();
 
                         Log.Debug(
-                            $"Entity TTL Counter Administration: Entity Model {key} has finished will wait for {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")} miliseconds.");
+                            $"Entity TTL Counter Administration: Entity Model {key} has finished will wait for {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")} milliseconds.");
                     }
                 }
                 catch (Exception ex)

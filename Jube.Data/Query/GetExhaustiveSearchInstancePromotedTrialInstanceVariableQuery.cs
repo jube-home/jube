@@ -2,16 +2,15 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Jube.Data.Context;
@@ -48,15 +47,15 @@ namespace Jube.Data.Query
                     .Where(w2 => w2.ExhaustiveSearchInstanceTrialInstanceVariableId == t.Id).DefaultIfEmpty()
                 where (t.Removed == 0 || t.Removed == null)
                       && t.ExhaustiveSearchInstanceTrialInstanceId == promotedExhaustiveSearchInstanceTrialInstanceId
-                orderby v.VariableSequence
+                orderby t.VariableSequence
                 select new Dto
                 {
                     Id = v.Id,
                     Name = v.Name,
-                    Mean = Math.Round(p.Mean ?? v.Mean.Value, 2),
-                    Maximum = Math.Round(v.Maximum ?? v.Maximum.Value, 2),
-                    Minimum = Math.Round(v.Minimum ?? v.Minimum.Value, 2),
-                    StandardDeviation = Math.Round(v.StandardDeviation ?? v.StandardDeviation.Value, 2),
+                    Mean = v.Mean ?? v.Mean.Value,
+                    Maximum = v.Maximum ?? v.Maximum.Value,
+                    Minimum = v.Minimum ?? v.Minimum.Value,
+                    StandardDeviation = v.StandardDeviation ?? v.StandardDeviation.Value,
                     NormalisationTypeId = v.NormalisationTypeId.GetValueOrDefault(),
                     EmptyRange = v.Maximum + v.Minimum == 0,
                     VariableSequence = v.VariableSequence.GetValueOrDefault(),

@@ -217,10 +217,10 @@ namespace Jube.Engine.Invoke.Abstraction
                                     var elementAt =
                                         cacheDocumentsList.ElementAt(cacheDocumentAbstractionForRules.Length - 1);
                                     
-                                    if (elementAt.ContainsKey(abstractionRule.SearchFunctionKey))
+                                    if (elementAt.TryGetValue(abstractionRule.SearchFunctionKey, out var value))
                                     {
                                         sinceTestDate =
-                                            Convert.ToDateTime(elementAt[abstractionRule.SearchFunctionKey]);
+                                            Convert.ToDateTime(value);
                                         
                                         log.Debug(
                                             $"Abstraction Aggregation: payload GUID {payload.EntityAnalysisModelInstanceGuid} has found matches for {abstractionRule.Id} is using the {abstractionRule.SearchFunctionKey} for the Test Date Value.");

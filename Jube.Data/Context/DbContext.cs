@@ -67,6 +67,9 @@ namespace Jube.Data.Context
 
         public ITable<ExhaustiveSearchInstanceVariable> ExhaustiveSearchInstanceVariable =>
             GetTable<ExhaustiveSearchInstanceVariable>();
+        
+        public ITable<ExhaustiveSearchInstanceVariableClassification> ExhaustiveSearchInstanceVariableClassification =>
+            GetTable<ExhaustiveSearchInstanceVariableClassification>();
 
         public ITable<ExhaustiveSearchInstanceTrialInstanceVariable> ExhaustiveSearchInstanceTrialInstanceVariable =>
             GetTable<ExhaustiveSearchInstanceTrialInstanceVariable>();

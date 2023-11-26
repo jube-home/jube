@@ -1,4 +1,17 @@
-﻿using System;
+﻿/* Copyright (C) 2022-present Jube Holdings Limited.
+ *
+ * This file is part of Jube™ software.
+ *
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * see <https://www.gnu.org/licenses/>.
+ */
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -1563,12 +1576,11 @@ namespace Jube.Engine
                             _log.Info(
                                 "AMQP Inbound:  Has received a message over the AMQP inbound queue.  Will now look for the EntityAnalysisModelGuid header.");
 
-                            if (ea.BasicProperties.Headers.ContainsKey("EntityAnalysisModelGuid"))
+                            if (ea.BasicProperties.Headers.TryGetValue("EntityAnalysisModelGuid", out var header))
                             {
                                 var entityAnalysisModelGuid =
                                     Encoding.UTF8.GetString(
-                                        (byte[]) ea.BasicProperties.Headers[
-                                            "EntityAnalysisModelGuid"]);
+                                        (byte[]) header);
 
                                 var entityInstanceEntryPayloadStore = new EntityAnalysisModelInstanceEntryPayload
                                     {EntityAnalysisModelInstanceEntryGuid = Guid.NewGuid()};
@@ -1674,8 +1686,7 @@ namespace Jube.Engine
 
         public double ThreadPoolCallBackHttpHandlerExhaustive(Guid guid, JObject jObject)
         {
-            var value = 0d;
-
+            double valueRecall = 0;
             try
             {
                 _log.Info(
@@ -1700,28 +1711,28 @@ namespace Jube.Engine
                             _log.Info(
                                 $"Exhaustive Recall: GUID {guid}" +
                                 $" looking for match on {scoreInput.Name}.");
-
+                            
+                            double valueElement;
                             try
                             {
                                 var selectedToken = GetValueFromJson(jObject, scoreInput.Name);
-
                                 if (selectedToken != null)
                                 {
-                                    value = Convert.ToDouble(selectedToken);
+                                    valueElement = Convert.ToDouble(selectedToken);
 
                                     _log.Info(
                                         $"Exhaustive Recall: GUID {guid} " +
-                                        $"has found a value in the payload for {scoreInput.Name} as {value}.");
+                                        $"has found a value in the payload for {scoreInput.Name} as {valueElement}.");
 
                                     if (scoreInput.NormalisationTypeId == 2
                                        )
                                     {
-                                        value = (value - scoreInput.Mean) / scoreInput.Sd;
+                                        valueElement = (valueElement - scoreInput.Mean) / scoreInput.Sd;
 
                                         _log.Info(
                                             $"Exhaustive Recall: GUID {guid}" +
                                             $" has a standardization type of 2 for {scoreInput.Name}" +
-                                            $" and has been standardized to {value} .");
+                                            $" and has been standardized to {valueElement} .");
                                     }
                                 }
                                 else
@@ -1730,7 +1741,7 @@ namespace Jube.Engine
                                         $"Exhaustive Recall: GUID {guid}" +
                                         $" could not locate a match for {scoreInput.Name}.");
 
-                                    value = 0;
+                                    valueElement = 0;
                                 }
                             }
                             catch (Exception ex)
@@ -1739,20 +1750,20 @@ namespace Jube.Engine
                                     $"Exhaustive Recall: GUID {guid}" +
                                     $" has produced an error on {scoreInput.Name} as {ex}.");
 
-                                value = 0;
+                                valueElement = 0;
                             }
-
-                            scoreInputs[i] = value;
+                            
+                            scoreInputs[i] = valueElement;
                         }
 
-                        value = exhaustive.TopologyNetwork.Compute(scoreInputs)[0];
+                        valueRecall = exhaustive.TopologyNetwork.Compute(scoreInputs)[0];
                     }
                 }
                 catch (Exception ex)
                 {
                     _log.Info(
                         $"Exhaustive Recall: GUID {guid} is in error as {ex} and has flushed an error message to the response stream.");
-
+                    
                     throw;
                 }
 
@@ -1777,7 +1788,7 @@ namespace Jube.Engine
                 _log.Info($"Exhaustive Recall: GUID {guid} has completed.");
             }
 
-            return value;
+            return valueRecall;
         }
 
         private static JToken GetValueFromJson(JObject jObject, string name)

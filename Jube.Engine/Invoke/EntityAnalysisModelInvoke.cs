@@ -1286,19 +1286,15 @@ namespace Jube.Engine.Invoke
             foreach (var notificationToken in notificationTokenizationList)
             {
                 var notificationTokenValue = "";
-                if (CachePayloadDocumentStore.ContainsKey(notificationToken))
-                    notificationTokenValue = CachePayloadDocumentStore[notificationToken].ToString();
-                else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(notificationToken))
-                    notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                        .Abstraction[notificationToken].ToString(CultureInfo.InvariantCulture);
-                else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.ContainsKey(notificationToken))
-                    notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                        .TtlCounter[notificationToken].ToString();
+                if (CachePayloadDocumentStore.TryGetValue(notificationToken, out var valuePayload))
+                    notificationTokenValue = valuePayload.ToString();
+                else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(notificationToken, out var valueAbstraction))
+                    notificationTokenValue = valueAbstraction.ToString(CultureInfo.InvariantCulture);
+                else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryGetValue(notificationToken, out var valueTtlCounter))
+                    notificationTokenValue = valueTtlCounter.ToString();
                 else if (
-                    EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.ContainsKey(
-                        notificationToken))
-                    notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                        .AbstractionCalculation[notificationToken]
+                    EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.TryGetValue(notificationToken, out var valueAbstractionCalculation))
+                    notificationTokenValue = valueAbstractionCalculation
                         .ToString(CultureInfo.InvariantCulture);
                 var notificationReplaceToken = $"[@{notificationToken}@]";
                 message = message.Replace(notificationReplaceToken, notificationTokenValue);
@@ -2009,12 +2005,12 @@ namespace Jube.Engine.Invoke
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for KVP.");
-                            
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Dictionary.ContainsKey(cleanName))
+                                    .Dictionary.TryGetValue(cleanName, out var valueKvp))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.Dictionary[cleanName]);
+                                        valueKvp);
                                     
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2038,12 +2034,12 @@ namespace Jube.Engine.Invoke
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Ttl Counter.");
-                            
+                                
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .TtlCounter.ContainsKey(cleanName))
+                                    .TtlCounter.TryGetValue(cleanName, out var valueTtl))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter[cleanName]);
+                                        valueTtl);
                                     
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2069,10 +2065,10 @@ namespace Jube.Engine.Invoke
                                     $" will look up {cleanName} for Ttl Counter.");
                                 
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Sanction.ContainsKey(cleanName))
+                                    .Sanction.TryGetValue(cleanName, out var valueSanction))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.Sanction[cleanName]);
+                                        valueSanction);
                                     
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2098,10 +2094,10 @@ namespace Jube.Engine.Invoke
                                     $" will look up {cleanName} for Abstraction.");
                                 
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Abstraction.ContainsKey(cleanName))
+                                    .Abstraction.TryGetValue(cleanName, out var valueAbstraction))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.Abstraction[cleanName]);
+                                        valueAbstraction);
                                         
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2127,10 +2123,10 @@ namespace Jube.Engine.Invoke
                                     $" will look up {cleanName} for Abstraction Calculation.");
                             
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .AbstractionCalculation.ContainsKey(cleanName))
+                                    .AbstractionCalculation.TryGetValue(cleanName, out var valueAbstractionCalculation))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation[cleanName]);
+                                        valueAbstractionCalculation);
                                     
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2156,10 +2152,10 @@ namespace Jube.Engine.Invoke
                                     $" will look up {cleanName} for Abstraction as the default.");
                                 
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Abstraction.ContainsKey(cleanName))
+                                    .Abstraction.TryGetValue(cleanName, out var valueAbstractionDefault))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                        EntityAnalysisModelInstanceEntryPayloadStore.Abstraction[cleanName]);
+                                        valueAbstractionDefault);
                                     
                                     _log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2234,11 +2230,9 @@ namespace Jube.Engine.Invoke
                             var cleanAbstractionNameRight = entityAnalysisModelAbstractionCalculation
                                 .EntityAnalysisModelAbstractionNameRight.Replace(" ", "_");
 
-                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(
-                                cleanAbstractionNameLeft))
+                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameLeft, out var valueLeft))
                             {
-                                leftDouble = EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Abstraction[cleanAbstractionNameLeft];
+                                leftDouble = valueLeft;
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has extracted left value of {leftDouble}.");
@@ -2249,11 +2243,9 @@ namespace Jube.Engine.Invoke
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} but it does not contain a left value.");
                             }
 
-                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(
-                                cleanAbstractionNameRight))
+                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameRight, out var valueRight))
                             {
-                                rightDouble = EntityAnalysisModelInstanceEntryPayloadStore
-                                    .Abstraction[cleanAbstractionNameRight];
+                                rightDouble = valueRight;
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and extracted right value of {rightDouble}.");
@@ -2880,19 +2872,19 @@ namespace Jube.Engine.Invoke
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i}.");
 
                     double value;
-                    if (CachePayloadDocumentStore.ContainsKey(kvpDictionary.DataName))
+                    if (CachePayloadDocumentStore.TryGetValue(kvpDictionary.DataName, out var valueCache))
                     {
                         _log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload.");
 
-                        var key = (string) CachePayloadDocumentStore[kvpDictionary.DataName];
+                        var key = (string) valueCache;
 
                         _log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, which will be used for the lookup.");
 
-                        if (kvpDictionary.KvPs.ContainsKey(key))
+                        if (kvpDictionary.KvPs.TryGetValue(key, out var p))
                         {
-                            value = kvpDictionary.KvPs[key];
+                            value = p;
 
                             _log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, found a lookup value.  The dictionary value has been set to {value}.");
