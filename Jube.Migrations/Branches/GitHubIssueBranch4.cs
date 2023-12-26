@@ -14,10 +14,10 @@
 using System;
 using FluentMigrator;
 
-namespace Jube.Migrations.Projects;
+namespace Jube.Migrations.Branches;
 
-[Migration(202305010847)]
-public class ModelWizard4 : Migration
+[Migration(20231226083600)]
+public class GitHubIssueBranch4 : Migration
 {
     public override void Up()
     {

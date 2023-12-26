@@ -1364,19 +1364,15 @@ public class EntityAnalysisModelInvoke
         foreach (var notificationToken in notificationTokenizationList)
         {
             var notificationTokenValue = "";
-            if (CachePayloadDocumentStore.ContainsKey(notificationToken))
-                notificationTokenValue = CachePayloadDocumentStore[notificationToken].ToString();
-            else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(notificationToken))
-                notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                    .Abstraction[notificationToken].ToString(CultureInfo.InvariantCulture);
-            else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.ContainsKey(notificationToken))
-                notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                    .TtlCounter[notificationToken].ToString();
+            if (CachePayloadDocumentStore.TryGetValue(notificationToken, out var value))
+                notificationTokenValue = value.ToString();
+            else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(notificationToken, out var value1))
+                notificationTokenValue = value1.ToString(CultureInfo.InvariantCulture);
+            else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryGetValue(notificationToken, out var value2))
+                notificationTokenValue = value2.ToString();
             else if (
-                EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.ContainsKey(
-                    notificationToken))
-                notificationTokenValue = EntityAnalysisModelInstanceEntryPayloadStore
-                    .AbstractionCalculation[notificationToken]
+                EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.TryGetValue(notificationToken, out var value3))
+                notificationTokenValue = value3
                     .ToString(CultureInfo.InvariantCulture);
             var notificationReplaceToken = $"[@{notificationToken}@]";
             message = message.Replace(notificationReplaceToken, notificationTokenValue);
@@ -2096,10 +2092,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for KVP.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .Dictionary.ContainsKey(cleanName))
+                                .Dictionary.TryGetValue(cleanName, out var value1))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.Dictionary[cleanName]);
+                                    value1);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2125,10 +2121,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for Ttl Counter.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .TtlCounter.ContainsKey(cleanName))
+                                .TtlCounter.TryGetValue(cleanName, out var value2))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter[cleanName]);
+                                    value2);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2154,10 +2150,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for Ttl Counter.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .Sanction.ContainsKey(cleanName))
+                                .Sanction.TryGetValue(cleanName, out var value3))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.Sanction[cleanName]);
+                                    value3);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2183,10 +2179,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for Abstraction.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .Abstraction.ContainsKey(cleanName))
+                                .Abstraction.TryGetValue(cleanName, out var value4))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.Abstraction[cleanName]);
+                                    value4);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2212,10 +2208,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for Abstraction Calculation.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .AbstractionCalculation.ContainsKey(cleanName))
+                                .AbstractionCalculation.TryGetValue(cleanName, out var value5))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation[cleanName]);
+                                    value5);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2241,10 +2237,10 @@ public class EntityAnalysisModelInvoke
                                 $" will look up {cleanName} for Abstraction as the default.");
 
                             if (EntityAnalysisModelInstanceEntryPayloadStore
-                                .Abstraction.ContainsKey(cleanName))
+                                .Abstraction.TryGetValue(cleanName, out var value6))
                             {
                                 data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
-                                    EntityAnalysisModelInstanceEntryPayloadStore.Abstraction[cleanName]);
+                                    value6);
 
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -2320,11 +2316,9 @@ public class EntityAnalysisModelInvoke
                         var cleanAbstractionNameRight = entityAnalysisModelAbstractionCalculation
                             .EntityAnalysisModelAbstractionNameRight.Replace(" ", "_");
 
-                        if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(
-                                cleanAbstractionNameLeft))
+                        if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameLeft, out var value))
                         {
-                            leftDouble = EntityAnalysisModelInstanceEntryPayloadStore
-                                .Abstraction[cleanAbstractionNameLeft];
+                            leftDouble = value;
 
                             _log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has extracted left value of {leftDouble}.");
@@ -2335,11 +2329,9 @@ public class EntityAnalysisModelInvoke
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} but it does not contain a left value.");
                         }
 
-                        if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.ContainsKey(
-                                cleanAbstractionNameRight))
+                        if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameRight, out var value1))
                         {
-                            rightDouble = EntityAnalysisModelInstanceEntryPayloadStore
-                                .Abstraction[cleanAbstractionNameRight];
+                            rightDouble = value1;
 
                             _log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and extracted right value of {rightDouble}.");
@@ -2974,19 +2966,19 @@ public class EntityAnalysisModelInvoke
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i}.");
 
                 double value;
-                if (CachePayloadDocumentStore.ContainsKey(kvpDictionary.DataName))
+                if (CachePayloadDocumentStore.TryGetValue(kvpDictionary.DataName, out var value1))
                 {
                     _log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload.");
 
-                    var key = (string) CachePayloadDocumentStore[kvpDictionary.DataName];
+                    var key = (string) value1;
 
                     _log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, which will be used for the lookup.");
 
-                    if (kvpDictionary.KvPs.ContainsKey(key))
+                    if (kvpDictionary.KvPs.TryGetValue(key, out var p))
                     {
-                        value = kvpDictionary.KvPs[key];
+                        value = p;
 
                         _log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, found a lookup value.  The dictionary value has been set to {value}.");
