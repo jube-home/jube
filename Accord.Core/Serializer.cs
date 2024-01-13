@@ -104,28 +104,9 @@ namespace Accord.IO
     public
 #endif
         static void Save<T>(this T obj, BinaryFormatter formatter, Stream stream, SerializerCompression compression = DEFAULT_COMPRESSION)
-        {
-            if (formatter.SurrogateSelector == null)
-                formatter.SurrogateSelector = GetSurrogate(typeof(T));
-
-            if (compression == SerializerCompression.GZip)
-            {
-#if NET35 || NET40
-                using (var gzip = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true))
-#else
-                using (var gzip = new GZipStream(stream, CompressionLevel.Optimal, leaveOpen: true))
-#endif
-                    formatter.Serialize(gzip, obj);
-            }
-            else if (compression == SerializerCompression.None)
-            {
-                formatter.Serialize(stream, obj);
-            }
-            else
-            {
-                throw new ArgumentException("compression");
-            }
-        }
+    {
+        throw new NotSupportedException();
+    }
 
         /// <summary>
         ///   Saves an object to a stream.
@@ -361,25 +342,19 @@ namespace Accord.IO
 
                     if (formatter.SurrogateSelector == null)
                         formatter.SurrogateSelector = GetSurrogate(typeof(T));
-
-                    object obj;
+                    
                     if (compression == SerializerCompression.GZip)
                     {
-                        using (var gzip = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true))
-                            obj = formatter.Deserialize(gzip);
+                        throw new NotSupportedException();
                     }
                     else if (compression == SerializerCompression.None)
                     {
-                        obj = formatter.Deserialize(stream);
+                        throw new NotSupportedException();
                     }
                     else
                     {
                         throw new ArgumentException("compression");
                     }
-
-                    if (obj is T)
-                        return (T)obj;
-                    return obj.To<T>();
                 }
                 finally
                 {

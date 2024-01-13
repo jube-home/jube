@@ -669,9 +669,7 @@ namespace Accord
         // TODO: Move this method to a more appropriate location
         internal static WebClient NewWebClient()
         {
-            var webClient = new WebClient();
-            webClient.Headers.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) (Accord.NET Framework)");
-            return webClient;
+            throw new NotSupportedException();
         }
 
         /// <summary>
