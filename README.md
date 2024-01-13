@@ -52,22 +52,10 @@ The [documentation](https://jube-home.github.io/jube) has been drafted to includ
 
 Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a GitHub Bug.  More generally,  if the software does not perform as per documentation, raise a GitHub Bug.
 
-# Helpdesk and Support Services
-A consistent, simple, transparent and cost effective offer:
+# Support
+Free Support is available via the creation of Github Issues.
 
-* Access to [Helpdesk](https://direct.lc.chat/16609497/) is a fee of $990 per month. [Helpdesk](https://direct.lc.chat/16609497/) includes online chat or ticketing surrounding documented features.  [Helpdesk](https://direct.lc.chat/16609497/) offers assured response times between 4 and 12 hours, ranging Critical through Moderate severity.  Access to [Helpdesk](https://direct.lc.chat/16609497/) does not include fees for time spent, which is in addition, at $60 an hour, or part thereof. Access to [Helpdesk](https://direct.lc.chat/16609497/) is a three month commitment, with a three month notice period.
-* Support Services which are delivered outside of online chat or ticketing, such as training, integration, customisation, development or go-live support are instructed by Work Order \ Statement of Work, but the fees are the same, being time spent $60 an hour, or part thereof. 
-* Support Services are usually delivered remotely for cost efficiency, although where delivered onsite, excludes business class travel expenses.  Onsite delivery of training and go-live support tends to be impactful, but in other work effort, it is a suboptimal use of time.  Where Support Services are delivered onsite, the commitment should not be less than two two weeks,  allowing for some time to handle client commitments where required.
-* Given continued and uninterrupted commitment to [Helpdesk](https://direct.lc.chat/16609497/), all fees are capped for annual increase by no more than the US Retail Prices Index.
-* Where access to [Helpdesk](https://direct.lc.chat/16609497/) is not in place,  Support Services as set out above are available, at a higher $180 an hour, or part thereof, instructed by Work Order \ Statement of Work.
-
-Otherwise governed by the Jube Operations Limited Service Terms, in matters relating to Insurances,  Warranties and Limitations.
-
-It is commonplace to conduct development in own fork. Development conducted in own fork and that making a contribution to the public project is at he discretion of the client, yet subject to the terms of the [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt) licence.
-
-Invoicing and Credit Terms by negotiation subject to covenant, but usually monthly in arrears.
-
-For more information, email [support@jube.io](mailto:support@jube.io).
+Enterprise Support is a fee of $990 per month. Enterprise Support is helpdesk ticketing for guidance in the use of documented features.  Enterprise Support includes expedited remedy of bugs present in the documented features.  Enterprise Support offers a response times of 24 hours delivered between 9am and 5pm US Central Time (CET). Otherwise governed by the Jube Operations Limited Terms of Service, in matters relating to Insurances,  Warranties and Limitations. For more information, email [support@jube.io](mailto:support@jube.io).
 
 # Reporting Vulnerabilities
 
@@ -81,4 +69,4 @@ Please report any security problems to Jube before disclosing them publicly.
 Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus. 
 
 # Licence
-Jube is distributed under [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt).
+Jube is distributed under [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.txt).
