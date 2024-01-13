@@ -6,9 +6,7 @@
 
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-  
-  <PropertyGroup>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <DefaultItemExcludes>Properties\**;$(DefaultItemExcludes)</DefaultItemExcludes>
   </PropertyGroup>
 
@@ -16,5 +14,4 @@
     <PackageReference Include="System.ComponentModel.Annotations" Version="4.4.1" />
   </ItemGroup>
   
-
 </Project>
