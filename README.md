@@ -18,6 +18,9 @@ To ensure the segregation of user responsibilities, a user, role and permission 
 
 Jube is multi-tenanted,  allowing a single infrastructure to be shared among many logically isolated entities, maintaining total isolation between tenant data with no loss of function in the user interface.
 
+# Stargazing
+Please consider giving the project a GitHub Star.  Thank you in advance!
+
 # Quickstart
 Jube runs on commodity Linux. The Quickstart has the following prerequisites:
 
@@ -43,19 +46,22 @@ The default user name \ password combination is Administrator \ Administrator,  
 A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of the [documentation](https://jube-home.github.io/jube).
 
 # Documentation
-The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  The documentation, where possible, has been written to support an Educate, Demonstrate, Imitate and Practice (EDIP) style.  Given the EDIP style, an excellent approach to using the documentation is:
+The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  
 
-* Educate: Read the topic from start to finish.
-* Demonstrate: Read the topic and pause on each instruction and;
-* Imitate: A read of the topic following the instructions step by step.
-* Practice: Without referring to the documentation, practice using the topic,  varying parameters as appropriate.
-
-Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a GitHub Bug.  More generally,  if the software does not perform as per documentation, raise a GitHub Bug.
+Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a [Github Issue](https://github.com/jube-home/jube/issues).
 
 # Support
-Free Support is available via the creation of Github Issues.
+Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). Enterprise Support is $990 per month without long term commitment. Enterprise Support is private, direct and dedicated access to the developer via helpdesk ticketing.  
 
-Enterprise Support is a fee of $990 per month. Enterprise Support is helpdesk ticketing for guidance in the use of documented features.  Enterprise Support includes expedited remedy of bugs present in the documented features.  Enterprise Support offers a response times of 24 hours delivered between 9am and 5pm US Central Time (CET). Otherwise governed by the Jube Operations Limited Terms of Service, in matters relating to Insurances,  Warranties and Limitations. For more information, email [support@jube.io](mailto:support@jube.io).
+Enterprise Support is guidance in the use of documented features.  Enterprise Support includes expedited remedy of bugs present in the software as documented and acceleration of feature requests made.  
+
+The profile of an Enterprise Support user is that of a large organization (e.g. mid to large bank or payment institution) with dedicated access to a software engineering team. Enterprise Support offers a response time within 24 hours, delivered between 9am and 5pm US Central Time (CET).  Enterprise Support does not include production support and Jube can't guarantee emergency responsiveness.
+
+For users without dedicated access to a software engineering team, Jube has System Integrator and Consulting partners that are skilled in the use of the software.  Partners provide engineering capacity, production support and emergency responsiveness on a retained, time and material basis.
+
+Enterprise Support is governed by the Jube Operations Limited Terms of Service, in matters relating to Insurances, Confidentiality \ Non Disclosure, Warranties and Limitations.
+
+For more information, email [support@jube.io](mailto:support@jube.io).
 
 # Reporting Vulnerabilities
 
