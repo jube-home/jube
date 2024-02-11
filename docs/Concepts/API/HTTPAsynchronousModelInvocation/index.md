@@ -17,7 +17,7 @@ The .Net Thread Pool is exceptionally good at sizing itself, however in periods 
 
 There exists a switch in the model invocation endpoint which will instruct the asynchronous processing of a transaction or event:
 
-[https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc)/async
+[https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc)/async
 
 ![Image](LocationOfAsyncSwitch.png)
 
@@ -39,7 +39,7 @@ Returning the following data:
 
 Queue balances are captured roughly evey minute. In burst,  queues backing up are to be expected,  and will clear assuming that the threads are sized slightly ahead of demand.
 
-Post the example Json to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc/async](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc/async):
+Post the example Json to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/async](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/async):
 
 ![Image](OnlyHeadCheck.png)
 

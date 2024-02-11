@@ -11,7 +11,7 @@ In the previous procedure the Response Elevation was set as the result of an Act
 
 Consider the scenario where a customer has been declined in real time for foreign transactions,  yet it transpires upon investigation,  that that the customer is on holiday.  In such a circumstance,  it would be desirable to suppress any actions as the result of an Activation Rule match,  for that account.
 
-To help illustrate, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+To help illustrate, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](ResponseElevationDrivingDecline.png)
 
@@ -63,7 +63,7 @@ To suppress for the IP value 123.456.789.200,  simply toggle the switch next to 
 
 Suppression (as Lists and Dictionary) do not require an explicit synchronisation,  rather they will be synchronised in the engine as a matter of routine.
 
-Repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+Repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](ActivationsStillMatching.png)
 
@@ -86,7 +86,7 @@ To remove the suppression,  simply toggle off the switch after having fetched th
 
 ![Image](ToggleOffSuppressionAtModelLevel.png)
 
-To validate removal of suppression, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+To validate removal of suppression, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](SuppressionRestored.png)
 

@@ -110,7 +110,7 @@ Scroll down and update the version of the Cases Workflow XPath by clicking the A
 
 The bold line matching details are returned alongside Cases Request Xpath,  in this case TxnId.  When the Cases Request Xpath is being processed in the case page,  if "Bold Line Matched" is enabled,  a check to compare if the value extracted for the row matches that same value in the case creation payload, and upon a match, the fore and back colour will be set for that row only.
 
-Post to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) but pay special attention to changing the TxnId in the request as this will likely have been the same,  so to assure that only a single bold line match is visible for that TxnId:
+Post to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) but pay special attention to changing the TxnId in the request as this will likely have been the same,  so to assure that only a single bold line match is visible for that TxnId:
 
 ![Image](UpdatedTxnIdInPayloadRequest.png)
 
@@ -153,7 +153,7 @@ Scroll down and update a version of the Cases Workflows XPath:
 
 ![Image](UpdatedForConditionalFormatting.png)
 
-Being sure to change the IP address in the request payload to 127.0.0.1 repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+Being sure to change the IP address in the request payload to 127.0.0.1 repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](ChangingIPInRequestPayload.png)
 
@@ -236,7 +236,7 @@ Scroll down to update a version of the Cases Workflow XPath:
 
 ![Image](UpdatedResponseCodeForDrill.png)
 
-The response code has been the same throughout the posting of financial transaction messages,  a value of 0 (commonly taken to be approved). Changing the response code, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows
+The response code has been the same throughout the posting of financial transaction messages,  a value of 0 (commonly taken to be approved). Changing the response code, repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows
 
 ![Image](ChangedResponseCodeToDeclineInRequestPayload.png)
 

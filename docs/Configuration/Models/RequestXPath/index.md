@@ -137,7 +137,7 @@ This process would be repeated for each element required in processing and is av
 
 ![Image](DetailedAccountFinancialTransactionDefault.png)
 
-The Guid for the DetailedAccountFinancialTransaction model is 90c425fd-101a-420b-91d1-cb7a24a969cc.  The HTTP endpoint will be [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) throughout this documentation.  In the case of AMQP integration,  a header key value pair of EntityAnalysisModelGuid = 90c425fd-101a-420b-91d1-cb7a24a969cc will be used throughout this documentation:
+The Guid for the DetailedAccountFinancialTransaction model is 90c425fd-101a-420b-91d1-cb7a24a969cc.  The HTTP endpoint will be [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) throughout this documentation.  In the case of AMQP integration,  a header key value pair of EntityAnalysisModelGuid = 90c425fd-101a-420b-91d1-cb7a24a969cc will be used throughout this documentation:
 
 ![Image](ModifiedGuidForPOST.png)
 

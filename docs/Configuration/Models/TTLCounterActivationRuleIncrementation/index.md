@@ -33,7 +33,7 @@ Scroll down and click Update a create new version of the Activation Rule:
 
 ![Image](UpdatedActivationRuleForTTLCounter.png)
 
-Synchronise the model via Entity >> Synchronisation and repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+Synchronise the model via Entity >> Synchronisation and repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](TTLCounterHasNotAdvanced.png)
 
@@ -41,7 +41,7 @@ The Activation Rule should of course be showing as activated,  however,  the TTL
 
 As incrementation takes place AFTER the activation of the rule, it can be seen that the TTL Counter has not been incremented at the point the response is written out, as the count was TTL counts were fetched BEFORE the invocation of the TTL counter.
 
-Repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc) for response as follows:
+Repeat the HTTP POST to endpoint [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc) for response as follows:
 
 ![Image](IncrementAfterIP.png)
 

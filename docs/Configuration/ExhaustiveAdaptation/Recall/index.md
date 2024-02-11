@@ -11,7 +11,7 @@ Upon models having been promoted during Exhaustive training,  they will be avail
 
 Given the evolutionary nature of Exhaustive model training,  and indeed retraining,  explicit synchronisation is not required.
 
-Proceed to post the example JSON to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969ccc):
+Proceed to post the example JSON to [https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc](https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc):
 
 ![Image](Recalled.png)
 
