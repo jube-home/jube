@@ -638,11 +638,7 @@ namespace Accord
 #endif
         public static System.IntPtr AddressOf<T>(this T t)
         {
-            unsafe
-            {
-                System.TypedReference reference = __makeref(t);
-                return *(System.IntPtr*)(&reference);
-            }
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -657,12 +653,7 @@ namespace Accord
 #endif
         static System.IntPtr AddressOfRef<T>(ref T t)
         {
-            unsafe
-            {
-                System.TypedReference reference = __makeref(t);
-                System.TypedReference* pRef = &reference;
-                return (System.IntPtr)pRef; //(&pRef)
-            }
+            throw new NotImplementedException();
         }
 #endif
 

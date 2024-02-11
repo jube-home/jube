@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Session
             {
                 cfg.CreateMap<SessionCaseJournal, SessionCaseJournalDto>();
                 cfg.CreateMap<SessionCaseJournalDto, SessionCaseJournal>();
-                cfg.CreateMap<List<SessionCaseJournal>, List<SessionCaseJournalDto>>();
+                cfg.CreateMap<List<SessionCaseJournal>, List<SessionCaseJournalDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new SessionCaseJournalRepository(_dbContext, _userName);

@@ -31,7 +31,7 @@ namespace Accord
     /// <typeparam name="T">The target type.</typeparam>
     /// <typeparam name="U">The source type.</typeparam>
     /// 
-    internal struct cast<T, U>
+    internal struct Cast<T, U>
     {
         private T value;
 
@@ -42,34 +42,34 @@ namespace Accord
         public T Value { get { return value; } }
 
         /// <summary>
-        ///   Initializes a new instance of the <see cref="cast{T, U}"/> struct.
+        ///   Initializes a new instance of the <see cref="Cast{T,U}"/> struct.
         /// </summary>
         /// 
-        public cast(U value)
+        public Cast(U value)
         {
             this.value = (T)System.Convert.ChangeType(value, typeof(T));
         }
 
         /// <summary>
-        /// Performs an implicit conversion from <typeparamref name="U"/> to <see cref="cast{T, U}"/>.
+        /// Performs an implicit conversion from <typeparamref name="U"/> to <see cref="Cast{T,U}"/>.
         /// </summary>
         /// <param name="value">The value.</param>
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T, U>(U value)
+        public static implicit operator Cast<T, U>(U value)
         {
-            return new cast<T, U>(value);
+            return new Cast<T, U>(value);
         }
 
         /// <summary>
-        /// Performs an implicit conversion from <see cref="cast{T, U}"/> to <typeparamref name="T"/>.
+        /// Performs an implicit conversion from <see cref="Cast{T,U}"/> to <typeparamref name="T"/>.
         /// </summary>
         /// <param name="value">The value.</param>
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator T(cast<T, U> value)
+        public static implicit operator T(Cast<T, U> value)
         {
             return value.Value;
         }
@@ -81,7 +81,7 @@ namespace Accord
     /// 
     /// <typeparam name="T">The target type.</typeparam>
     /// 
-    internal struct cast<T>
+    internal struct Cast<T>
     {
         private T value;
 
@@ -95,7 +95,7 @@ namespace Accord
         /// Initializes a new instance of the <see cref="cast{T}"/> struct.
         /// </summary>
         /// <param name="value">The value.</param>
-        public cast(object value)
+        public Cast(object value)
         {
             this.value = (T)System.Convert.ChangeType(value, typeof(T));
         }
@@ -107,9 +107,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(double value)
+        public static implicit operator Cast<T>(double value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -119,9 +119,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(float value)
+        public static implicit operator Cast<T>(float value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -131,9 +131,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(Decimal value)
+        public static implicit operator Cast<T>(Decimal value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -143,9 +143,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(Byte value)
+        public static implicit operator Cast<T>(Byte value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -155,9 +155,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(SByte value)
+        public static implicit operator Cast<T>(SByte value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -167,9 +167,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(Int16 value)
+        public static implicit operator Cast<T>(Int16 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -179,9 +179,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(UInt16 value)
+        public static implicit operator Cast<T>(UInt16 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -191,9 +191,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(Int32 value)
+        public static implicit operator Cast<T>(Int32 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -203,9 +203,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(UInt32 value)
+        public static implicit operator Cast<T>(UInt32 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -215,9 +215,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(Int64 value)
+        public static implicit operator Cast<T>(Int64 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -227,9 +227,9 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator cast<T>(UInt64 value)
+        public static implicit operator Cast<T>(UInt64 value)
         {
-            return new cast<T>(value);
+            return new Cast<T>(value);
         }
 
         /// <summary>
@@ -239,7 +239,7 @@ namespace Accord
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator T(cast<T> value)
+        public static implicit operator T(Cast<T> value)
         {
             return value.Value;
         }

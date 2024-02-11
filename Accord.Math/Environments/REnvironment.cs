@@ -36,7 +36,7 @@ namespace Accord.Math.Environments
         ///   Creates a new vector.
         /// </summary>
         /// 
-        protected vec c(params double[] values)
+        protected Vec c(params double[] values)
         {
             return values;
         }
@@ -45,7 +45,7 @@ namespace Accord.Math.Environments
         ///   Creates a new matrix.
         /// </summary>
         /// 
-        protected mat matrix(double[] values, int rows, int cols)
+        protected Mat matrix(double[] values, int rows, int cols)
         {
             return Matrix.Reshape(values, rows, cols, MatrixOrder.FortranColumnMajor);
         }
@@ -55,9 +55,9 @@ namespace Accord.Math.Environments
         ///   Placeholder vector definition
         /// </summary>
         /// 
-        protected vec _
+        protected Vec _
         {
-            get { return new vec(null); }
+            get { return new Vec(null); }
         }
 
 
@@ -65,7 +65,7 @@ namespace Accord.Math.Environments
         ///   Vector definition operator.
         /// </summary>
         /// 
-        protected class vec
+        protected class Vec
         {
             /// <summary>
             ///   Inner vector object
@@ -74,10 +74,10 @@ namespace Accord.Math.Environments
             public double[] vector;
 
             /// <summary>
-            ///   Initializes a new instance of the <see cref="vec"/> class.
+            ///   Initializes a new instance of the <see cref="Vec"/> class.
             /// </summary>
             /// 
-            public vec(double[] values)
+            public Vec(double[] values)
             {
                 this.vector = values;
             }
@@ -86,7 +86,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator -.
             /// </summary>
             /// 
-            public static vec operator -(vec v)
+            public static Vec operator -(Vec v)
             {
                 return v;
             }
@@ -95,7 +95,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator &lt;.
             /// </summary>
             /// 
-            public static vec operator <(vec a, vec v)
+            public static Vec operator <(Vec a, Vec v)
             {
                     a.vector = v.vector;
                     return a;
@@ -105,29 +105,29 @@ namespace Accord.Math.Environments
             ///   Implements the operator &gt;.
             /// </summary>
             /// 
-            public static vec operator >(vec a, vec v)
+            public static Vec operator >(Vec a, Vec v)
             {
                 return a;
             }
 
             /// <summary>
             ///   Performs an implicit conversion from <see cref="T:System.Double[]"/>
-            ///   to <see cref="Accord.Math.Environments.REnvironment.vec"/>.
+            ///   to <see cref="Vec"/>.
             /// </summary>
             /// 
-            public static implicit operator vec(double[] v)
+            public static implicit operator Vec(double[] v)
             {
-                return new vec(v);
+                return new Vec(v);
             }
 
 
             /// <summary>
             ///   Performs an implicit conversion from 
-            ///   <see cref="Accord.Math.Environments.REnvironment.vec"/> 
+            ///   <see cref="Vec"/> 
             ///   to <see cref="T:System.Double[]"/>.
             /// </summary>
             /// 
-            public static implicit operator double[](vec v)
+            public static implicit operator double[](Vec v)
             {
                 return v.vector;
             }
@@ -137,7 +137,7 @@ namespace Accord.Math.Environments
         ///   Matrix definition operator.
         /// </summary>
         /// 
-        protected class mat
+        protected class Mat
         {
             /// <summary>
             ///   Inner matrix object.
@@ -146,10 +146,10 @@ namespace Accord.Math.Environments
             public double[,] matrix;
 
             /// <summary>
-            ///   Initializes a new instance of the <see cref="mat"/> class.
+            ///   Initializes a new instance of the <see cref="Mat"/> class.
             /// </summary>
             /// 
-            public mat(double[,] values)
+            public Mat(double[,] values)
             {
                 this.matrix = values;
             }
@@ -158,7 +158,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator -.
             /// </summary>
             /// 
-            public static mat operator -(mat v)
+            public static Mat operator -(Mat v)
             {
                 return v;
             }
@@ -167,7 +167,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator &lt;.
             /// </summary>
             /// 
-            public static mat operator <(mat a, mat v)
+            public static Mat operator <(Mat a, Mat v)
             {
                 a.matrix = v.matrix;
                 return a;
@@ -177,7 +177,7 @@ namespace Accord.Math.Environments
             ///    Implements the operator &gt;.
             /// </summary>
             /// 
-            public static mat operator >(mat a, mat v)
+            public static Mat operator >(Mat a, Mat v)
             {
                 return a;
             }
@@ -185,22 +185,22 @@ namespace Accord.Math.Environments
             /// <summary>
             ///   Performs an implicit conversion from 
             ///   <see cref="T:System.Double[]"/> to 
-            ///   <see cref="Accord.Math.Environments.REnvironment.mat"/>.
+            ///   <see cref="Mat"/>.
             /// </summary>
             /// 
-            public static implicit operator mat(double[,] v)
+            public static implicit operator Mat(double[,] v)
             {
-                return new mat(v);
+                return new Mat(v);
             }
 
 
             /// <summary>
             ///   Performs an implicit conversion from 
-            ///   <see cref="Accord.Math.Environments.REnvironment.mat"/> 
+            ///   <see cref="Mat"/> 
             ///   to <see cref="T:System.Double[]"/>.
             /// </summary>
             /// 
-            public static implicit operator double[,](mat v)
+            public static implicit operator double[,](Mat v)
             {
                 return v.matrix;
             }

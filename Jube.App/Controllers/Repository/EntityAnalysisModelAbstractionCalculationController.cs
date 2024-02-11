@@ -62,7 +62,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisModelAbstractionCalculation,
                     EntityAnalysisModelAbstractionCalculationDto>();
                 cfg.CreateMap<List<EntityAnalysisModelAbstractionCalculation>,
-                    List<EntityAnalysisModelAbstractionCalculationDto>>();
+                    List<EntityAnalysisModelAbstractionCalculationDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelAbstractionCalculationRepository(_dbContext, _userName);

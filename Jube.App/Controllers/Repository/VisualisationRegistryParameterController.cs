@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<VisualisationRegistryParameterDto, VisualisationRegistryParameter>();
                 cfg.CreateMap<VisualisationRegistryParameter, VisualisationRegistryParameterDto>();
-                cfg.CreateMap<List<VisualisationRegistryParameter>, List<VisualisationRegistryParameterDto>>();
+                cfg.CreateMap<List<VisualisationRegistryParameter>, List<VisualisationRegistryParameterDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new VisualisationRegistryParameterRepository(_dbContext, _userName);

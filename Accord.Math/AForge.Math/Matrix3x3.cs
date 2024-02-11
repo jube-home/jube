@@ -866,7 +866,7 @@ namespace Accord.Math
             double[,] vArray;
             double[] eArray;
 
-            svd.svdcmp( uArray, out eArray, out vArray );
+            Svd.svdcmp( uArray, out eArray, out vArray );
 
             // build U matrix
             u = new Matrix3x3( );

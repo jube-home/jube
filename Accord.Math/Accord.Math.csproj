@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj" />
+    <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj"/>
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -13,5 +13,5 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <DefaultItemExcludes>Properties/**;$(DefaultItemExcludes)</DefaultItemExcludes>
   </PropertyGroup>
-  
+
 </Project>

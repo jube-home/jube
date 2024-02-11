@@ -86,7 +86,7 @@ namespace Accord.IO
         /// 
         public static void Save<T>(this T obj, Stream stream, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            Save(obj, new BinaryFormatter(), stream, compression);
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -103,10 +103,11 @@ namespace Accord.IO
 #else
     public
 #endif
-        static void Save<T>(this T obj, BinaryFormatter formatter, Stream stream, SerializerCompression compression = DEFAULT_COMPRESSION)
-    {
-        throw new NotSupportedException();
-    }
+        static void Save<T>(this T obj, object formatter, Stream stream,
+            SerializerCompression compression = DEFAULT_COMPRESSION)
+        {
+            throw new NotSupportedException();
+        }
 
         /// <summary>
         ///   Saves an object to a stream.
@@ -117,7 +118,7 @@ namespace Accord.IO
         /// 
         public static void Save<T>(this T obj, string path)
         {
-            Save(obj, path, ParseCompression(path));
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -130,22 +131,7 @@ namespace Accord.IO
         /// 
         public static void Save<T>(this T obj, string path, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            path = Path.GetFullPath(path);
-
-            var dir = Path.GetDirectoryName(path);
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-
-            if (compression == SerializerCompression.GZip)
-            {
-                if (!path.EndsWith(".gz"))
-                    path = path + ".gz";
-            }
-
-            using (var fs = new FileStream(path, FileMode.Create))
-            {
-                Save(obj, fs, compression);
-            }
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -157,9 +143,7 @@ namespace Accord.IO
         /// 
         public static byte[] Save<T>(this T obj, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            byte[] bytes;
-            Save(obj, out bytes, compression);
-            return bytes;
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -172,12 +156,7 @@ namespace Accord.IO
         /// 
         public static void Save<T>(this T obj, out byte[] bytes, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            using (var fs = new MemoryStream())
-            {
-                Save(obj, fs, compression);
-                fs.Seek(0, SeekOrigin.Begin);
-                bytes = fs.ToArray();
-            }
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -191,7 +170,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(Stream stream, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            return Load<T>(stream, new BinaryFormatter(), compression);
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -204,7 +183,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(string path)
         {
-            return Load<T>(path, ParseCompression(path));
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -218,8 +197,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(string path, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            path = Path.GetFullPath(path);
-            return load<T>(path, compression);
+            throw new NotSupportedException();
         }
 
         private static T load<T>(string path, SerializerCompression compression)
@@ -241,10 +219,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(byte[] bytes, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            using (var fs = new MemoryStream(bytes, false))
-            {
-                return Load<T>(fs, compression);
-            }
+            throw new NotSupportedException();
         }
 
 
@@ -262,7 +237,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(Stream stream, out T value, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            return value = Load<T>(stream, compression);
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -277,7 +252,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(string path, out T value)
         {
-            return Load<T>(path, out value, ParseCompression(path));
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -293,7 +268,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(string path, out T value, SerializerCompression compression)
         {
-            return value = Load<T>(path, compression);
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -309,7 +284,7 @@ namespace Accord.IO
         /// 
         public static T Load<T>(byte[] bytes, out T value, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            return value = Load<T>(bytes, compression);
+            throw new NotSupportedException();
         }
 
 
@@ -329,38 +304,9 @@ namespace Accord.IO
 #else
         public
 #endif
-        static T Load<T>(Stream stream, BinaryFormatter formatter, SerializerCompression compression = DEFAULT_COMPRESSION)
+        static T Load<T>(Stream stream, object formatter, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
-            lock (lockObj)
-            {
-                try
-                {
-                    if (formatter.Binder == null)
-                        formatter.Binder = GetBinder(typeof(T));
-
-                    AppDomain.CurrentDomain.AssemblyResolve += resolve;
-
-                    if (formatter.SurrogateSelector == null)
-                        formatter.SurrogateSelector = GetSurrogate(typeof(T));
-                    
-                    if (compression == SerializerCompression.GZip)
-                    {
-                        throw new NotSupportedException();
-                    }
-                    else if (compression == SerializerCompression.None)
-                    {
-                        throw new NotSupportedException();
-                    }
-                    else
-                    {
-                        throw new ArgumentException("compression");
-                    }
-                }
-                finally
-                {
-                    AppDomain.CurrentDomain.AssemblyResolve -= resolve;
-                }
-            }
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -374,63 +320,16 @@ namespace Accord.IO
         /// 
         public static T DeepClone<T>(this T obj)
         {
-            return Load<T>(Save<T>(obj));
+            throw new NotSupportedException();
         }
 
 
         private static SerializationBinder GetBinder(Type type)
         {
-#if NETSTANDARD1_4
-            throw new NotSupportedException("Serialization Binders are not supported in .NET Standard 1.4.");
-#else
-            // Try to get the binder by checking if there type is
-            // marked with a SerializationBinderAttribute
-            var attribute = Attribute.GetCustomAttribute(type,
-                typeof(SerializationBinderAttribute)) as SerializationBinderAttribute;
-
-            if (attribute != null)
-                return attribute.Binder;
-
-            // Check if the type has an internal static property containing the binder
-            var field = type.GetField("Binder", BindingFlags.NonPublic | BindingFlags.Static);
-            if (field != null)
-            {
-                var binder = field.GetValue(null) as SerializationBinder;
-                if (binder != null)
-                    return binder;
-            }
-
-            return null;
-#endif
+            throw new NotSupportedException();
         }
-
-        private static SurrogateSelector GetSurrogate(Type type)
-        {
-#if NETSTANDARD1_4
-            throw new NotSupportedException("Surrogates are not supported in .NET Standard 1.4.");
-#else
-            // Try to get the binder by checking if there type is
-            // marked with a SerializationBinderAttribute
-            var attribute = Attribute.GetCustomAttribute(type,
-                typeof(SurrogateSelectorAttribute)) as SurrogateSelectorAttribute;
-
-            if (attribute != null)
-                return attribute.Selector;
-
-            // Check if the type has an internal static property containing the surrogate selector
-            var field = type.GetField("Selector", BindingFlags.NonPublic | BindingFlags.Static);
-            if (field != null)
-            {
-                var selector = field.GetValue(null) as SurrogateSelector;
-                if (selector != null)
-                    return selector;
-            }
-
-            return null;
-#endif
-        }
-
-        private static Assembly resolve(object sender, ResolveEventArgs args)
+        
+        private static Assembly Resolve(object sender, ResolveEventArgs args)
         {
             var display = new AssemblyName(args.Name);
 

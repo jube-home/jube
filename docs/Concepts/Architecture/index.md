@@ -27,7 +27,7 @@ Jube is intended to run on a commodity Linux open source infrastructure and has 
 * .Net Runtime 6.0.9.
 * Postgres Database version 13+.
 
-Jube will of course run on Windows, or indeed any platform that is supported by .Net 6,  however, alternative platforms are not recommended for production use.  Windows is not tested.
+Jube will of course run on Windows, or indeed any platform that is supported by the .Net runtime,  however, alternative platforms are not recommended for production use.  Windows is not tested.
 
 ## Migration
 Jube handles its own database model installation and upgrade,  a process known more commonly as Migration.  When Jube starts, and after establishing a connection to the Postgres database, a check is performed against a database table called "VersionInfo" to establish what database changes need to be made to harmonise:

@@ -54,7 +54,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<HttpProcessingCounterDto, HttpProcessingCounter>();
                 cfg.CreateMap<HttpProcessingCounter, HttpProcessingCounterDto>();
-                cfg.CreateMap<List<HttpProcessingCounter>, List<HttpProcessingCounterDto>>();
+                cfg.CreateMap<List<HttpProcessingCounter>, List<HttpProcessingCounterDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new HttpProcessingCounterRepository(_dbContext);

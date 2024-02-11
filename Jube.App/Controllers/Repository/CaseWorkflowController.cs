@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<CaseWorkflow, CaseWorkflowDto>();
                 cfg.CreateMap<CaseWorkflowDto, CaseWorkflow>();
-                cfg.CreateMap<List<CaseWorkflow>, List<CaseWorkflowDto>>();
+                cfg.CreateMap<List<CaseWorkflow>, List<CaseWorkflowDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new CaseWorkflowRepository(_dbContext, _userName);

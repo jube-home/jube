@@ -1,18 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <AssemblyName>Accord.Neuro</AssemblyName>
-    <RootNamespace>Accord.Neuro</RootNamespace>
-    <TargetFramework>net6.0</TargetFramework>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-  </PropertyGroup>
+    <PropertyGroup>
+        <AssemblyName>Accord.Neuro</AssemblyName>
+        <RootNamespace>Accord.Neuro</RootNamespace>
+        <TargetFramework>net8.0</TargetFramework>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Accord.Core\Accord.Core.csproj" />
-    <ProjectReference Include="..\Accord.Genetic\Accord.Genetic.csproj" />
-    <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj" />
-    <ProjectReference Include="..\Accord.Math\Accord.Math.csproj" />
-    <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Accord.Core\Accord.Core.csproj"/>
+        <ProjectReference Include="..\Accord.Genetic\Accord.Genetic.csproj"/>
+        <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj"/>
+        <ProjectReference Include="..\Accord.Math\Accord.Math.csproj"/>
+        <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj"/>
+    </ItemGroup>
 
 </Project>

@@ -51,7 +51,7 @@ export ASPNETCORE_URLS="https://143.198.224.41:5001/"
 
 Execute the shell command to create the Environment Variable.
 
-For the purpose of illustration the dotnet run command will be used, however, for production it is extremely unlikely that this would be satisfactory,  instead it is far more likely that a formal release will be built for a specific operating system.  There is such an abundance of release techniques for .Net 6 applications that it exists outside the scope of this documentation.  The dotnet run command will build then run the application and it is perfectly adequate for comprehensive testing, proof of concept and smaller production implementations.  
+For the purpose of illustration the dotnet run command will be used, however, for production it is extremely unlikely that this would be satisfactory,  instead it is far more likely that a formal release will be built for a specific operating system.  There is such an abundance of release techniques for .Net applications that it exists outside the scope of this documentation.  The dotnet run command will build then run the application and it is perfectly adequate for comprehensive testing, proof of concept and smaller production implementations.  
 
 Build and run Jube:
 

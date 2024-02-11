@@ -62,7 +62,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisModelReprocessingRuleInstance,
                     EntityAnalysisModelReprocessingRuleInstanceDto>();
                 cfg.CreateMap<List<EntityAnalysisModelReprocessingRuleInstance>,
-                    List<EntityAnalysisModelReprocessingRuleInstanceDto>>();
+                    List<EntityAnalysisModelReprocessingRuleInstanceDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelReprocessingRuleInstanceRepository(_dbContext, _userName);

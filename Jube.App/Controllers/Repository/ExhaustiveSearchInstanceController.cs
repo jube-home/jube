@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<ExhaustiveSearchInstanceDto, ExhaustiveSearchInstance>();
                 cfg.CreateMap<ExhaustiveSearchInstance, ExhaustiveSearchInstanceDto>();
-                cfg.CreateMap<List<ExhaustiveSearchInstance>, List<ExhaustiveSearchInstanceDto>>();
+                cfg.CreateMap<List<ExhaustiveSearchInstance>, List<ExhaustiveSearchInstanceDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new ExhaustiveSearchInstanceRepository(_dbContext, _userName);

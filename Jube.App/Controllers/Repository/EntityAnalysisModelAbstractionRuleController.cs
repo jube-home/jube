@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<EntityAnalysisModelAbstractionRuleDto, EntityAnalysisModelAbstractionRule>();
                 cfg.CreateMap<EntityAnalysisModelAbstractionRule, EntityAnalysisModelAbstractionRuleDto>();
-                cfg.CreateMap<List<EntityAnalysisModelAbstractionRule>, List<EntityAnalysisModelAbstractionRuleDto>>();
+                cfg.CreateMap<List<EntityAnalysisModelAbstractionRule>, List<EntityAnalysisModelAbstractionRuleDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelAbstractionRuleRepository(_dbContext, _userName);

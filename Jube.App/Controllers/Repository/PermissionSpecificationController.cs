@@ -54,7 +54,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<PermissionSpecificationDto, PermissionSpecification>();
                 cfg.CreateMap<PermissionSpecification, PermissionSpecificationDto>();
-                cfg.CreateMap<List<PermissionSpecification>, List<PermissionSpecificationDto>>();
+                cfg.CreateMap<List<PermissionSpecification>, List<PermissionSpecificationDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new PermissionSpecificationRepository(_dbContext);

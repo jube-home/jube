@@ -56,7 +56,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<UserInTenantDto, UserInTenant>();
                 cfg.CreateMap<UserInTenant, UserInTenantDto>();
-                cfg.CreateMap<List<UserInTenant>, List<UserInTenantDto>>();
+                cfg.CreateMap<List<UserInTenant>, List<UserInTenantDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new UserInTenantRepository(_dbContext, _userName);

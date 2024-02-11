@@ -62,7 +62,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisModelSynchronisationSchedule,
                     EntityAnalysisModelSynchronisationScheduleDto>();
                 cfg.CreateMap<List<EntityAnalysisModelSynchronisationSchedule>,
-                    List<EntityAnalysisModelSynchronisationScheduleDto>>();
+                    List<EntityAnalysisModelSynchronisationScheduleDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelSynchronisationScheduleRepository(_dbContext, _userName);

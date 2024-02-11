@@ -21,8 +21,8 @@ This section of the documentation makes no assumption about technical ability an
 
 Jube has the following prerequisites:
 
-* .Net 6 Runtime environment.
-* PostgreSQL database version 13 onwards.
+* .Net 8 Runtime.
+* Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking change).
 
 Create an account on [DigitalOcean](https://m.do.co/c/8be72e86abb2).  Once the account is created and navigate to the page as follows:
 

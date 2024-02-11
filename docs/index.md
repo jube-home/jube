@@ -24,11 +24,14 @@ To ensure the segregation of user responsibilities, a user, role and permission 
 
 Jube is multi-tenanted,  allowing a single infrastructure to be shared among many logically isolated entities, maintaining total isolation between tenant data with no loss of function in the user interface.
 
+# Stargazing
+Please consider giving the project a GitHub Star.  Thank you in advance!
+
 # Quickstart
 Jube runs on commodity Linux. The Quickstart has the following prerequisites:
 
-* .Net 6 SDK.
-* Postgres database version 13 onwards.
+* .Net 8 Runtime.
+* Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking change).
 
 Subject to prerequisites, Jube can be up and running in minutes:
 
@@ -49,23 +52,12 @@ The default user name \ password combination is Administrator \ Administrator,  
 A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of the [documentation](https://jube-home.github.io/jube).
 
 # Documentation
-The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  The documentation, where possible, has been written to support an Educate, Demonstrate, Imitate and Practice (EDIP) style.  Given the EDIP style, an excellent approach to using the documentation is:
+The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.
 
-* Educate: Read the topic from start to finish.
-* Demonstrate: Read the topic and pause on each instruction and;
-* Imitate: A read of the topic following the instructions step by step.
-* Practice: Without referring to the documentation, practice using the topic,  varying parameters as appropriate.
+Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a [Github Issue](https://github.com/jube-home/jube/issues).
 
-Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a GitHub Bug.  More generally,  if the software does not perform as per documentation, raise a GitHub Bug.
-
-# Commercial Support
-There are several commercial support options available:
-
-* Access to helpdesk is $990 per month. Helpdesk includes online chat and email, with direct access to the developer,for the support of documented features.  Helpdesk tickets enjoy response times between 4 and 12 hours. Priority GitHub Bug reporting and resolution.
-* Consulting is $187 per hour, commonly allocated for training, integration and customisation.  Usually delivered remotely,  although where onsite,  excludes travel and expenses.
-* Platform as a Service (PaaS), which is billed upon the DigitalOcean services utlised in the billing period, plus a fee \ margin of 65% for ongoing monitoring, but excluding support as set out above.
-
-For more information, email [support@jube.io](mailto:support@jube.io).
+# Support
+Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). Paid Support is private and direct access to the developer on a time and material basis.  For more information email support@jube.io.
 
 # Reporting Vulnerabilities
 
@@ -79,4 +71,4 @@ Please report any security problems to Jube before disclosing them publicly.
 Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus.
 
 # Licence
-Jube is distributed under [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.txt).
+Jube is distributed under [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.txt).

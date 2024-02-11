@@ -86,16 +86,6 @@ namespace Accord
         /// 
         public ConnectionLostException(string message, Exception innerException)
             : base(message, innerException) { }
-
-        /// <summary>
-        ///   Initializes a new instance of the <see cref="ConnectionLostException"/> class.
-        /// </summary>
-        /// 
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="T:System.Runtime.Serialization.StreamingContext" /> that contains contextual information about the source or destination.</param>
-        /// 
-        public ConnectionLostException(SerializationInfo info, StreamingContext context)
-            : base(info, context) { }
     }
 
     /// <summary>
@@ -134,17 +124,6 @@ namespace Accord
         /// 
         public NotConnectedException(string message, Exception innerException)
             : base(message, innerException) { }
-
-        /// <summary>
-        ///   Initializes a new instance of the <see cref="NotConnectedException"/> class.
-        /// </summary>
-        /// 
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="T:System.Runtime.Serialization.StreamingContext" /> that contains contextual information about the source or destination.</param>
-        /// 
-        public NotConnectedException(SerializationInfo info, StreamingContext context)
-            : base(info, context) { }
-
     }
 
     /// <summary>
@@ -183,16 +162,6 @@ namespace Accord
         /// 
         public DeviceBusyException(string message, Exception innerException)
             : base(message, innerException) { }
-
-        /// <summary>
-        ///   Initializes a new instance of the <see cref="DeviceBusyException"/> class.
-        /// </summary>
-        /// 
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="T:System.Runtime.Serialization.StreamingContext" /> that contains contextual information about the source or destination.</param>
-        /// 
-        public DeviceBusyException(SerializationInfo info, StreamingContext context)
-            : base(info, context) { }
     }
 
     /// <summary>
@@ -210,7 +179,9 @@ namespace Accord
         /// </summary>
         /// 
         public DeviceErrorException() :
-            base() { }
+            base()
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DeviceErrorException"/> class.
@@ -219,7 +190,9 @@ namespace Accord
         /// <param name="message">Exception's message.</param>
         /// 
         public DeviceErrorException(string message) :
-            base(message) { }
+            base(message)
+        {
+        }
 
         /// <summary>
         ///   Initializes a new instance of the <see cref="DeviceErrorException"/> class.
@@ -229,16 +202,8 @@ namespace Accord
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference (Nothing in Visual Basic) if no inner exception is specified.</param>
         /// 
         public DeviceErrorException(string message, Exception innerException)
-            : base(message, innerException) { }
-
-        /// <summary>
-        ///   Initializes a new instance of the <see cref="DeviceErrorException"/> class.
-        /// </summary>
-        /// 
-        /// <param name="info">The <see cref="T:System.Runtime.Serialization.SerializationInfo" /> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="T:System.Runtime.Serialization.StreamingContext" /> that contains contextual information about the source or destination.</param>
-        /// 
-        public DeviceErrorException(SerializationInfo info, StreamingContext context)
-            : base(info, context) { }
+            : base(message, innerException)
+        {
+        }
     }
 }

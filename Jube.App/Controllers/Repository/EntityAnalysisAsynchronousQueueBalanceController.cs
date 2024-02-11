@@ -55,7 +55,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisAsynchronousQueueBalanceDto, EntityAnalysisAsynchronousQueueBalance>();
                 cfg.CreateMap<EntityAnalysisAsynchronousQueueBalance, EntityAnalysisAsynchronousQueueBalanceDto>();
                 cfg.CreateMap<List<EntityAnalysisAsynchronousQueueBalance>,
-                    List<EntityAnalysisAsynchronousQueueBalanceDto>>();
+                    List<EntityAnalysisAsynchronousQueueBalanceDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisAsynchronousQueueBalanceRepository(_dbContext);

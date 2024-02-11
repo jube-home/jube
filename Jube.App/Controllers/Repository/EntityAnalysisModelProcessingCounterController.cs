@@ -57,7 +57,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisModelProcessingCounter,
                     EntityAnalysisModelProcessingCounterDto>();
                 cfg.CreateMap<List<EntityAnalysisModelProcessingCounter>,
-                    List<EntityAnalysisModelProcessingCounterDto>>();
+                    List<EntityAnalysisModelProcessingCounterDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelProcessingCounterRepository(_dbContext, _userName);

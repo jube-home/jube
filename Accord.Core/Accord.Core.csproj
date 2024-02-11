@@ -1,17 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <DefaultItemExcludes>Properties\**;$(DefaultItemExcludes)</DefaultItemExcludes>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <DefaultItemExcludes>Properties\**;$(DefaultItemExcludes)</DefaultItemExcludes>
-  </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="System.ComponentModel.Annotations" Version="4.4.1"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.ComponentModel.Annotations" Version="4.4.1" />
-  </ItemGroup>
-  
 </Project>

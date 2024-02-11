@@ -62,7 +62,8 @@ namespace Jube.App.Controllers.Repository
                 cfg.CreateMap<EntityAnalysisModelActivationRuleSuppression,
                     EntityAnalysisModelActivationRuleSuppressionDto>();
                 cfg.CreateMap<List<EntityAnalysisModelActivationRuleSuppression>,
-                    List<EntityAnalysisModelActivationRuleSuppressionDto>>();
+                    List<EntityAnalysisModelActivationRuleSuppressionDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelActivationRuleSuppressionRepository(_dbContext, _userName);

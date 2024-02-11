@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<EntityAnalysisModelRequestXPathDto, EntityAnalysisModelRequestXpath>();
                 cfg.CreateMap<EntityAnalysisModelRequestXpath, EntityAnalysisModelRequestXPathDto>();
-                cfg.CreateMap<List<EntityAnalysisModelRequestXpath>, List<EntityAnalysisModelRequestXPathDto>>();
+                cfg.CreateMap<List<EntityAnalysisModelRequestXpath>, List<EntityAnalysisModelRequestXPathDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelRequestXPathRepository(_dbContext, _userName);

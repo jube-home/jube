@@ -59,7 +59,8 @@ namespace Jube.App.Controllers.Repository
             {
                 cfg.CreateMap<EntityAnalysisModelSanctionDto, EntityAnalysisModelSanction>();
                 cfg.CreateMap<EntityAnalysisModelSanction, EntityAnalysisModelSanctionDto>();
-                cfg.CreateMap<List<EntityAnalysisModelSanction>, List<EntityAnalysisModelSanctionDto>>();
+                cfg.CreateMap<List<EntityAnalysisModelSanction>, List<EntityAnalysisModelSanctionDto>>()
+                    .ForMember("Item", opt => opt.Ignore());
             });
             _mapper = new Mapper(config);
             _repository = new EntityAnalysisModelSanctionRepository(_dbContext, _userName);

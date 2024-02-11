@@ -332,7 +332,7 @@ namespace Accord.Math
         /// 
         public string ToString(string format, IFormatProvider formatProvider)
         {
-            formatter f = new formatter();
+            Formatter f = new Formatter();
             f.format = format;
             f.provider = formatProvider;
 
@@ -370,7 +370,7 @@ namespace Accord.Math
         /// 
         public string ToString(char variable, IFormatProvider formatProvider)
         {
-            formatter f = new formatter();
+            Formatter f = new Formatter();
             f.provider = formatProvider;
 
             switch (variable)
@@ -389,7 +389,7 @@ namespace Accord.Math
             }
         }
 
-        private class formatter
+        private class Formatter
         {
             public IFormatProvider provider;
             public string format = "g";

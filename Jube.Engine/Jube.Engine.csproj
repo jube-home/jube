@@ -1,52 +1,52 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <AppDesignerFolder>Properties</AppDesignerFolder>
-      <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
-    <WarningLevel>1</WarningLevel>
-    <TargetFramework>net6.0</TargetFramework>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="DnsClient" Version="1.2.0" />
-    <PackageReference Include="Fastenshtein" Version="1.0.0.5" />
-    <PackageReference Include="log4net" Version="2.0.14" />
-    <PackageReference Include="Microsoft.CodeAnalysis" Version="3.8.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.8.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="3.8.0" />
-    <PackageReference Include="Microsoft.VisualBasic" Version="10.3.0" />
-    <PackageReference Include="NEST" Version="7.3.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="RabbitMQ.Client" Version="6.2.1" />
-    <PackageReference Include="SharpCompress" Version="0.29.0" />
-    <PackageReference Include="System.Buffers" Version="4.5.0" />
-    <PackageReference Include="System.ComponentModel.Composition" Version="5.0.0" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.7.1" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
-    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
-    <PackageReference Include="System.Runtime" Version="4.3.0" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Remove="Class1.cs" />
-    <Compile Remove="JubeQuantEngine.Designer.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Accord.Core\Accord.Core.csproj" />
-    <ProjectReference Include="..\Accord.Genetic\Accord.Genetic.csproj" />
-    <ProjectReference Include="..\Accord.MachineLearning\Accord.MachineLearning.csproj" />
-    <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj" />
-    <ProjectReference Include="..\Accord.Math\Accord.Math.csproj" />
-    <ProjectReference Include="..\Accord.Neuro\Accord.Neuro.csproj" />
-    <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj" />
-    <ProjectReference Include="..\Jube.Data\Jube.Data.csproj" />
-    <ProjectReference Include="..\Jube.DynamicEnvironment\Jube.DynamicEnvironment.csproj" />
-    <ProjectReference Include="..\Jube.Parser\Jube.Parser.csproj" />    
-  </ItemGroup>
-  <ItemGroup>
-    <None Remove="Exhaustive\Mock.csv" />
-    <AdditionalFiles Include="Exhaustive\Mock.csv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </AdditionalFiles>
-  </ItemGroup>
+        <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+        <WarningLevel>1</WarningLevel>
+        <TargetFramework>net8.0</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="DnsClient" Version="1.2.0"/>
+        <PackageReference Include="Fastenshtein" Version="1.0.0.5"/>
+        <PackageReference Include="log4net" Version="2.0.14"/>
+        <PackageReference Include="Microsoft.CodeAnalysis" Version="3.8.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.8.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="3.8.0"/>
+        <PackageReference Include="Microsoft.VisualBasic" Version="10.3.0"/>
+        <PackageReference Include="NEST" Version="7.3.1"/>
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.1"/>
+        <PackageReference Include="RabbitMQ.Client" Version="6.2.1"/>
+        <PackageReference Include="SharpCompress" Version="0.29.0"/>
+        <PackageReference Include="System.Buffers" Version="4.5.0"/>
+        <PackageReference Include="System.ComponentModel.Composition" Version="5.0.0"/>
+        <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0"/>
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="4.7.1"/>
+        <PackageReference Include="System.Numerics.Vectors" Version="4.5.0"/>
+        <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0"/>
+        <PackageReference Include="System.Runtime" Version="4.3.0"/>
+        <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0"/>
+        <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0"/>
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Remove="Class1.cs"/>
+        <Compile Remove="JubeQuantEngine.Designer.cs"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Accord.Core\Accord.Core.csproj"/>
+        <ProjectReference Include="..\Accord.Genetic\Accord.Genetic.csproj"/>
+        <ProjectReference Include="..\Accord.MachineLearning\Accord.MachineLearning.csproj"/>
+        <ProjectReference Include="..\Accord.Math.Core\Accord.Math.Core.csproj"/>
+        <ProjectReference Include="..\Accord.Math\Accord.Math.csproj"/>
+        <ProjectReference Include="..\Accord.Neuro\Accord.Neuro.csproj"/>
+        <ProjectReference Include="..\Accord.Statistics\Accord.Statistics.csproj"/>
+        <ProjectReference Include="..\Jube.Data\Jube.Data.csproj"/>
+        <ProjectReference Include="..\Jube.DynamicEnvironment\Jube.DynamicEnvironment.csproj"/>
+        <ProjectReference Include="..\Jube.Parser\Jube.Parser.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Remove="Exhaustive\Mock.csv"/>
+        <AdditionalFiles Include="Exhaustive\Mock.csv">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </AdditionalFiles>
+    </ItemGroup>
 </Project>

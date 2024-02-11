@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Accord.Math\Accord.Math.csproj" />
+    <ProjectReference Include="..\Accord.Math\Accord.Math.csproj"/>
   </ItemGroup>
-  
+
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <DefaultItemExcludes>Properties/**;$(DefaultItemExcludes)</DefaultItemExcludes>
   </PropertyGroup>
-  
+
 </Project>
