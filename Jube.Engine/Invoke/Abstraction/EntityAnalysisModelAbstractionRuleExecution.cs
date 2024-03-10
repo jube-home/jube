@@ -27,6 +27,7 @@ namespace Jube.Engine.Invoke.Abstraction
     public class Execute
     {
         public string AbstractionRuleGroupingKey { get; init; }
+        public DistinctSearchKey DistinctSearchKey { get; init; }
         public Dictionary<string,object> CachePayloadDocument { get; init; }
         public EntityAnalysisModel EntityAnalysisModel { get; init; }
         public EntityAnalysisModelInstanceEntryPayload EntityAnalysisModelInstanceEntryPayload { get; init; }
@@ -41,17 +42,9 @@ namespace Jube.Engine.Invoke.Abstraction
             try
             {
                 var documents = CachePayloadRepository
-                    .GetSqlByKeyValueLimit(EntityAnalysisModel.CachePayloadSql,
+                    .GetSqlByKeyValueLimit(DistinctSearchKey.Sql,
                         AbstractionRuleGroupingKey, CachePayloadDocument[AbstractionRuleGroupingKey].AsString(),"ReferenceDate", EntityAnalysisModel.CacheTtlLimit);
                 
-                Log.Info(
-                    $"Abstraction Rule Execute: GUID {EntityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid} has created a filter for cache where {AbstractionRuleGroupingKey} is equal to {Convert.ToString(CachePayloadDocument[AbstractionRuleGroupingKey], CultureInfo.InvariantCulture)} and it has been executed and returned {documents.Count} records.");
-
-                documents.Reverse();
-
-                Log.Info(
-                    $"Abstraction Rule Execute: GUID {EntityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid} has created a filter for cache where {AbstractionRuleGroupingKey} is equal to {Convert.ToString(CachePayloadDocument[AbstractionRuleGroupingKey], CultureInfo.InvariantCulture)} and it has been executed and returned {documents.Count} records.  All have been reversed to it can be stepped from oldest to newest.");
-
                 documents.Add(CachePayloadDocument);
 
                 Log.Info(

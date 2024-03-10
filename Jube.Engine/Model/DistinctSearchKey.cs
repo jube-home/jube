@@ -10,7 +10,10 @@
  * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
  * see <https://www.gnu.org/licenses/>.
  */
- 
+
+using System.Collections.Generic;
+using Jube.Parser;
+
 namespace Jube.Engine.Model
 {
     public class DistinctSearchKey
@@ -22,5 +25,7 @@ namespace Jube.Engine.Model
         public int SearchKeyCacheFetchLimit { get; set; }
         public string SearchKey { get; set; }
         public bool SearchKeyCacheSample { get; set; }
+        public string Sql;
+        public Dictionary<string,SelectedPayloadData> SelectedPayloadData = [];
     }
 }

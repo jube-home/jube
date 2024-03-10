@@ -13,6 +13,8 @@ The abstraction rules are grouped together by their search keys, which has the e
 
 A search key will be used as a predicate in retrieval of data for the subsequent execution of Abstraction rules that use roll up to that search key.  For example,  if a transaction is being processed through a model,  if an account identifier is configured to be a search key,  a selection of all records in the cache will be returned where that account identifier matches (put simply it will return all transactions for that customer account). Search Keys are defined in the Request XPath definition and there can be many search keys - thus cache database queries - per transaction being executed through the model.  The process is different when a Search Key is defined to be retrieved from a cache,  as these values are pre-calculated by the Search Key Cache thread.
 
+In the case of PostgresSQL being used as the cache for Abstraction Rule processing, only the columns that have been identified as being required in the Abstraction Rules definition (in both rule text and its aggregation key) will be selected from the database,  thus reducing casting and network IO.  The columns required and the SQL to be pushed down to the cache is compiled during model synchronisation for used in real-time processing.
+
 Firstly,  Search Keys need to be set up - in this example IP - by revisiting the Request XPath page via Models >> References >> Request XPath:
 
 ![Image](TopOfTreeForRequestXPath.png)

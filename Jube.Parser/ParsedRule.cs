@@ -19,6 +19,7 @@ namespace Jube.Parser
     {
         public int CharOffset;
         public int LineOffset;
+        public Dictionary<string,SelectedPayloadData> SelectedPayloadData = [];
         public List<ErrorSpan> ErrorSpans;
         public string OriginalRuleText;
         public string ParsedRuleText;

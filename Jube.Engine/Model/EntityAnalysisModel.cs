@@ -61,7 +61,7 @@ namespace Jube.Engine.Model
         public List<EntityAnalysisModelActivationRule> ModelActivationRules { get; set; } = new();
         public List<EntityModelGatewayRule> ModelGatewayRules { get; set; } = new();
         public List<ExhaustiveSearchInstance> ExhaustiveModels { get; set; } = new();
-        public Dictionary<string,DistinctSearchKey> DistinctSearchKeys { get; } = new();
+        public Dictionary<string,DistinctSearchKey> DistinctSearchKeys { get; set; } = new();
         public string EntryXPath { get; set; }
         public string EntryName { get; set; }
         public string ReferenceDateXpath { get; set; }

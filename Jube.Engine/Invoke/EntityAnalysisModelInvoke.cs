@@ -2447,6 +2447,7 @@ namespace Jube.Engine.Invoke
                                 {
                                     EntityInstanceEntryDictionaryKvPs = EntityInstanceEntryDictionaryKvPs,
                                     AbstractionRuleGroupingKey = key,
+                                    DistinctSearchKey = value,
                                     CachePayloadDocument = CachePayloadDocumentStore,
                                     EntityAnalysisModelInstanceEntryPayload = EntityAnalysisModelInstanceEntryPayloadStore,
                                     AbstractionRuleMatches = AbstractionRuleMatches,
@@ -2454,14 +2455,14 @@ namespace Jube.Engine.Invoke
                                     Log = _log,
                                     CachePayloadRepository = cachePayloadRepository
                                 };
-                                activeExecutionThreads.Add(execute);
-
+                                
                                 _log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has created a execute object to run all the abstraction rules rolling up to the grouping key.  It has been added to a collection to track it when multi threaded abstraction rules are enabled.");
 
                                 switch (_jubeEnvironment.AppSettings("ForkAbstractionRuleSearchKeys"))
                                 {
                                     case "True":
+                                        activeExecutionThreads.Add(execute);
                                         ThreadPool.QueueUserWorkItem(ThreadPoolCallBackExecute, execute);
 
                                         _log.Info(
@@ -2469,7 +2470,7 @@ namespace Jube.Engine.Invoke
 
                                         break;
                                     default:
-                                        ThreadPoolCallBackExecute(execute);
+                                        execute.Start();
 
                                         _log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} execute object is set be serial, so it is being launched now in this thread.");

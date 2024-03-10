@@ -22,9 +22,9 @@ namespace Jube.Parser
 {
     public class Parser
     {
-        private readonly ILog _log;
-        private readonly List<string> _ruleScriptTokens;
-        public Dictionary<string, int> EntityAnalysisModelRequestXPaths;
+        private readonly ILog log;
+        private readonly List<string> ruleScriptTokens;
+        public Dictionary<string, EntityAnalysisModelRequestXPath> EntityAnalysisModelRequestXPaths ;
         public List<string> EntityAnalysisModelAbstractionCalculations;
         public List<string> EntityAnalysisModelsAbstractionRule;
         public List<string> EntityAnalysisModelsAdaptations;
@@ -37,35 +37,35 @@ namespace Jube.Parser
             List<string> ruleScriptTokens
         )
         {
-            _log = log;
-            _ruleScriptTokens = ruleScriptTokens ?? new List<string>();
+            this.log = log;
+            this.ruleScriptTokens = ruleScriptTokens ?? new List<string>();
             
-            if (!_ruleScriptTokens.Contains("Return")) _ruleScriptTokens.Add("return");
-            if (!_ruleScriptTokens.Contains("If")) _ruleScriptTokens.Add("if");
-            if (!_ruleScriptTokens.Contains("Then")) _ruleScriptTokens.Add("then");
-            if (!_ruleScriptTokens.Contains("End If")) _ruleScriptTokens.Add("End If");
-            if (!_ruleScriptTokens.Contains("False")) _ruleScriptTokens.Add("False");
-            if (!_ruleScriptTokens.Contains("true")) _ruleScriptTokens.Add("true");
-            if (!_ruleScriptTokens.Contains("Payload")) _ruleScriptTokens.Add("Payload");
-            if (!_ruleScriptTokens.Contains("Abstraction")) _ruleScriptTokens.Add("Abstraction");
-            if (!_ruleScriptTokens.Contains("Activation")) _ruleScriptTokens.Add("Activation");
-            if (!_ruleScriptTokens.Contains("Select")) _ruleScriptTokens.Add("Select");
-            if (!_ruleScriptTokens.Contains("Case")) _ruleScriptTokens.Add("Case");
-            if (!_ruleScriptTokens.Contains("End Select")) _ruleScriptTokens.Add("End Select");
-            if (!_ruleScriptTokens.Contains("Contains")) _ruleScriptTokens.Add("Contains");
-            if (!_ruleScriptTokens.Contains("Sanctions")) _ruleScriptTokens.Add("Sanctions");
-            if (!_ruleScriptTokens.Contains("KVP")) _ruleScriptTokens.Add("KVP");
-            if (!_ruleScriptTokens.Contains("List")) _ruleScriptTokens.Add("List");
-            if (!_ruleScriptTokens.Contains("TTLCounter")) _ruleScriptTokens.Add("TTLCounter");
-            if (!_ruleScriptTokens.Contains("String")) _ruleScriptTokens.Add("String");
-            if (!_ruleScriptTokens.Contains("Double")) _ruleScriptTokens.Add("Double");
-            if (!_ruleScriptTokens.Contains("Integer")) _ruleScriptTokens.Add("Integer");
-            if (!_ruleScriptTokens.Contains("DateTime")) _ruleScriptTokens.Add("DateTime");
-            if (!_ruleScriptTokens.Contains("CType")) _ruleScriptTokens.Add("CType");
-            if (!_ruleScriptTokens.Contains("Boolean")) _ruleScriptTokens.Add("Boolean");
-            if (!_ruleScriptTokens.Contains("Data")) _ruleScriptTokens.Add("Data");
-            if (!_ruleScriptTokens.Contains("Calculation")) _ruleScriptTokens.Add("Calculation");
-            if (!_ruleScriptTokens.Contains("Not")) _ruleScriptTokens.Add("Not");
+            if (!this.ruleScriptTokens.Contains("Return")) this.ruleScriptTokens.Add("return");
+            if (!this.ruleScriptTokens.Contains("If")) this.ruleScriptTokens.Add("if");
+            if (!this.ruleScriptTokens.Contains("Then")) this.ruleScriptTokens.Add("then");
+            if (!this.ruleScriptTokens.Contains("End If")) this.ruleScriptTokens.Add("End If");
+            if (!this.ruleScriptTokens.Contains("False")) this.ruleScriptTokens.Add("False");
+            if (!this.ruleScriptTokens.Contains("true")) this.ruleScriptTokens.Add("true");
+            if (!this.ruleScriptTokens.Contains("Payload")) this.ruleScriptTokens.Add("Payload");
+            if (!this.ruleScriptTokens.Contains("Abstraction")) this.ruleScriptTokens.Add("Abstraction");
+            if (!this.ruleScriptTokens.Contains("Activation")) this.ruleScriptTokens.Add("Activation");
+            if (!this.ruleScriptTokens.Contains("Select")) this.ruleScriptTokens.Add("Select");
+            if (!this.ruleScriptTokens.Contains("Case")) this.ruleScriptTokens.Add("Case");
+            if (!this.ruleScriptTokens.Contains("End Select")) this.ruleScriptTokens.Add("End Select");
+            if (!this.ruleScriptTokens.Contains("Contains")) this.ruleScriptTokens.Add("Contains");
+            if (!this.ruleScriptTokens.Contains("Sanctions")) this.ruleScriptTokens.Add("Sanctions");
+            if (!this.ruleScriptTokens.Contains("KVP")) this.ruleScriptTokens.Add("KVP");
+            if (!this.ruleScriptTokens.Contains("List")) this.ruleScriptTokens.Add("List");
+            if (!this.ruleScriptTokens.Contains("TTLCounter")) this.ruleScriptTokens.Add("TTLCounter");
+            if (!this.ruleScriptTokens.Contains("String")) this.ruleScriptTokens.Add("String");
+            if (!this.ruleScriptTokens.Contains("Double")) this.ruleScriptTokens.Add("Double");
+            if (!this.ruleScriptTokens.Contains("Integer")) this.ruleScriptTokens.Add("Integer");
+            if (!this.ruleScriptTokens.Contains("DateTime")) this.ruleScriptTokens.Add("DateTime");
+            if (!this.ruleScriptTokens.Contains("CType")) this.ruleScriptTokens.Add("CType");
+            if (!this.ruleScriptTokens.Contains("Boolean")) this.ruleScriptTokens.Add("Boolean");
+            if (!this.ruleScriptTokens.Contains("Data")) this.ruleScriptTokens.Add("Data");
+            if (!this.ruleScriptTokens.Contains("Calculation")) this.ruleScriptTokens.Add("Calculation");
+            if (!this.ruleScriptTokens.Contains("Not")) this.ruleScriptTokens.Add("Not");
         }
 
         public ParsedRule Parse(ParsedRule parsedRule)
@@ -94,7 +94,7 @@ namespace Jube.Parser
                                 valid = true;
                             else
                                 //'Loop around all permissions,  matching up with the tokens that have been found in the rule text.
-                                foreach (var ruleScriptToken in _ruleScriptTokens)
+                                foreach (var ruleScriptToken in ruleScriptTokens)
                                 {
                                     //'There is a curious case of valid language tokens such a "End If" which is logically a single token,  but would be read as two tokens.  As seen above,  it is possible to store such logical tokens in the registry.
                                     var permissionTokensCount = ruleScriptToken.Split(" ".ToCharArray()).Length;
@@ -135,11 +135,11 @@ namespace Jube.Parser
                 }
 
                 if (softParseFailed) //'Any error causes this, although all issues are in the logs.x
-                    _log.Info($"Soft Parser: User code has failed a soft parse: {parsedRule.OriginalRuleText}");
+                    log.Info($"Soft Parser: User code has failed a soft parse: {parsedRule.OriginalRuleText}");
             }
             catch (Exception ex)
             {
-                _log.Info(
+                log.Info(
                     $"Soft Parser: User code has failed a soft parse: {parsedRule.OriginalRuleText} and error {ex}");
             }
 
@@ -509,11 +509,13 @@ namespace Jube.Parser
                                         findString = firstString + "." + elements[k];
 
                                         var asFunction = "String";
+                                        var databaseCast = "";
+                                        var defaultValue = "";
                                         if (EntityAnalysisModelRequestXPaths != null)
                                         {
                                             if (EntityAnalysisModelRequestXPaths.ContainsKey(elements[k]))
                                             {
-                                                asFunction = EntityAnalysisModelRequestXPaths[elements[k]] switch
+                                                asFunction = EntityAnalysisModelRequestXPaths[elements[k]].DataTypeId switch
                                                 {
                                                     1 => "String",
                                                     2 => "Integer",
@@ -524,6 +526,73 @@ namespace Jube.Parser
                                                     7 => "Double",
                                                     _ => "String"
                                                 };
+                                                
+                                                switch (EntityAnalysisModelRequestXPaths[elements[k]].DataTypeId)
+                                                {
+                                                    case 2:
+                                                        databaseCast = "::int";
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+
+                                                        if (!int.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "0";
+                                                        }
+                                                        
+                                                        break;
+                                                    case 3:
+                                                        databaseCast = "::float8";
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+                                                        
+                                                        if (!double.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "0";
+                                                        }
+                                                        
+                                                        break;
+                                                    case 4:
+                                                        databaseCast = "::timestamp";
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+                                                        
+                                                        if (!DateTime.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "'" + DateTime.Now.ToString("O") + "'";
+                                                        }
+                                                        
+                                                        break;
+                                                    case 5:
+                                                        databaseCast = "::boolean";
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+                                                        
+                                                        if (!bool.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "false";
+                                                        }
+                                                        
+                                                        break;
+                                                    case 6:
+                                                        databaseCast = "::float8";
+                                                        
+                                                        if (!double.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "0";
+                                                        }
+                                                        
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+                                                        break;
+                                                    case 7:
+                                                        databaseCast = "::float8";
+                                                        defaultValue = EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue;
+                                                        
+                                                        if (!double.TryParse(defaultValue, out _))
+                                                        {
+                                                            defaultValue = "0";
+                                                        }
+                                                        
+                                                        break;
+                                                    default:
+                                                        defaultValue = "'" + EntityAnalysisModelRequestXPaths[elements[k]].DefaultValue+ "'";
+                                                        break;
+                                                }
                                             }
                                             else
                                             {
@@ -537,6 +606,17 @@ namespace Jube.Parser
 
                                                 asFunction = "String";
                                             }    
+                                        }
+                                        
+                                        if (!parsedRule.SelectedPayloadData.ContainsKey(elements[k]))
+                                        {
+                                            var selectedPayloadData = new SelectedPayloadData()
+                                            {
+                                                Name = elements[k],
+                                                DatabaseCast = databaseCast,
+                                                DefaultValue = defaultValue
+                                            };
+                                            parsedRule.SelectedPayloadData.Add(elements[k],selectedPayloadData);
                                         }
                                         
                                         replaceString = replaceString + "CType(Data(\"" + elements[k] + "\")," + asFunction +")";
@@ -692,7 +772,6 @@ namespace Jube.Parser
                                     else
                                     {
                                         findString = firstString + "." + elements[k];
-
                                         replaceString = replaceString + firstString + "." + elements[k];
                                     }
                                 }

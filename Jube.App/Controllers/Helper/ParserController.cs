@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -37,29 +37,29 @@ namespace Jube.App.Controllers.Helper
     [Authorize]
     public class ParserController : Controller
     {
-        private readonly DbContext _dbContext;
-        private readonly ILog _log;
-        private readonly PermissionValidation _permissionValidation;
-        private readonly string _userName;
+        private readonly DbContext dbContext;
+        private readonly ILog log;
+        private readonly PermissionValidation permissionValidation;
+        private readonly string userName;
 
         public ParserController(ILog log, IHttpContextAccessor httpContextAccessor,
             DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             if (httpContextAccessor.HttpContext?.User.Identity != null)
-                _userName = httpContextAccessor.HttpContext.User.Identity.Name;
-            _log = log;
+                userName = httpContextAccessor.HttpContext.User.Identity.Name;
+            this.log = log;
 
-            _dbContext =
+            dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(dynamicEnvironment.AppSettings("ConnectionString"));
-            _permissionValidation = new PermissionValidation(_dbContext, _userName);
+            permissionValidation = new PermissionValidation(dbContext, userName);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _dbContext.Close();
-                _dbContext.Dispose();
+                dbContext.Close();
+                dbContext.Dispose();
             }
 
             base.Dispose(disposing);
@@ -70,9 +70,9 @@ namespace Jube.App.Controllers.Helper
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {8, 10, 13, 14, 16, 17, 25, 26})) return Forbid();
+                if (!permissionValidation.Validate(new[] {8, 10, 13, 14, 16, 17, 25, 26})) return Forbid();
 
-                var tokens = _dbContext.RuleScriptToken.Select(s => s.Token).ToList();
+                var tokens = dbContext.RuleScriptToken.Select(s => s.Token).ToList();
 
                 var entityAnalysisModelRequestXPaths = parseRuleRequestDto.RuleParseType switch
                 {
@@ -116,7 +116,7 @@ namespace Jube.App.Controllers.Helper
                         = EntityAnalysisModelsAdaptations(parseRuleRequestDto.EntityAnalysisModelId);
                 }
 
-                var parser = new Parser.Parser(_log,
+                var parser = new Parser.Parser(log,
                     tokens
                 )
                 {
@@ -175,7 +175,7 @@ namespace Jube.App.Controllers.Helper
                         };
 
                         var compile = new Compile();
-                        compile.CompileCode(parsedRule.ParsedRuleText, _log, refs);
+                        compile.CompileCode(parsedRule.ParsedRuleText, log, refs);
 
                         if (!compile.Success)
                         {
@@ -218,8 +218,8 @@ namespace Jube.App.Controllers.Helper
             }
             catch (Exception ex)
             {
-                _log.Error(ex.ToString());
-                
+                log.Error(ex.ToString());
+
                 return new ParseRuleResultDto
                 {
                     Message = "Error"
@@ -230,7 +230,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsAdaptations(int entityAnalysisModelId)
         {
             var entityAnalysisModelHttpAdaptationRepository =
-                new EntityAnalysisModelHttpAdaptationRepository(_dbContext, _userName);
+                new EntityAnalysisModelHttpAdaptationRepository(dbContext, userName);
 
             return entityAnalysisModelHttpAdaptationRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -240,7 +240,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsDictionaries(int entityAnalysisModelId)
         {
             var entityAnalysisModelDictionaryRepository =
-                new EntityAnalysisModelDictionaryRepository(_dbContext, _userName);
+                new EntityAnalysisModelDictionaryRepository(dbContext, userName);
 
             return entityAnalysisModelDictionaryRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -250,7 +250,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsLists(int entityAnalysisModelId)
         {
             var entityAnalysisModelListRepository =
-                new EntityAnalysisModelListRepository(_dbContext, _userName);
+                new EntityAnalysisModelListRepository(dbContext, userName);
 
             return entityAnalysisModelListRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -260,7 +260,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsSanctions(int entityAnalysisModelId)
         {
             var entityAnalysisModelSanctionRepository =
-                new EntityAnalysisModelSanctionRepository(_dbContext, _userName);
+                new EntityAnalysisModelSanctionRepository(dbContext, userName);
 
             return entityAnalysisModelSanctionRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -270,7 +270,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsTtlCounters(int entityAnalysisModelId)
         {
             var entityAnalysisModelTtlCounterRepository =
-                new EntityAnalysisModelTtlCounterRepository(_dbContext, _userName);
+                new EntityAnalysisModelTtlCounterRepository(dbContext, userName);
 
             return entityAnalysisModelTtlCounterRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -280,7 +280,7 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelAbstractionCalculations(int entityAnalysisModelId)
         {
             var entityAnalysisModelAbstractionCalculationRepository =
-                new EntityAnalysisModelAbstractionCalculationRepository(_dbContext, _userName);
+                new EntityAnalysisModelAbstractionCalculationRepository(dbContext, userName);
 
             return entityAnalysisModelAbstractionCalculationRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
@@ -290,24 +290,32 @@ namespace Jube.App.Controllers.Helper
         private List<string> EntityAnalysisModelsAbstractionRules(int entityAnalysisModelId)
         {
             var entityAnalysisModelAbstractionRuleRepository =
-                new EntityAnalysisModelAbstractionRuleRepository(_dbContext, _userName);
+                new EntityAnalysisModelAbstractionRuleRepository(dbContext, userName);
 
             return entityAnalysisModelAbstractionRuleRepository
                 .GetByEntityAnalysisModelId(entityAnalysisModelId)
                 .Select(s => s.Name).ToList();
         }
 
-        private Dictionary<string, int> EntityAnalysisModelRequestXPaths(int entityAnalysisModelId)
+        private Dictionary<string, EntityAnalysisModelRequestXPath> EntityAnalysisModelRequestXPaths(
+            int entityAnalysisModelId)
         {
             var entityAnalysisModelRequestXPathRepository =
-                new EntityAnalysisModelRequestXPathRepository(_dbContext, _userName);
+                new EntityAnalysisModelRequestXPathRepository(dbContext, userName);
 
-            var values = new Dictionary<string, int>();
-            foreach (var entityAnalysisModelRequestXPath in entityAnalysisModelRequestXPathRepository.GetByEntityAnalysisModelId(entityAnalysisModelId))
+            var values = new Dictionary<string, EntityAnalysisModelRequestXPath>();
+            foreach (var entityAnalysisModelRequestXPath in entityAnalysisModelRequestXPathRepository
+                         .GetByEntityAnalysisModelId(entityAnalysisModelId))
             {
                 if (!values.ContainsKey(entityAnalysisModelRequestXPath.Name))
                 {
-                    values.Add(entityAnalysisModelRequestXPath.Name,entityAnalysisModelRequestXPath.DataTypeId ?? 1);   
+                    values.Add(entityAnalysisModelRequestXPath.Name,
+                        new EntityAnalysisModelRequestXPath()
+                        {
+                            DataTypeId = entityAnalysisModelRequestXPath.DataTypeId ?? 1,
+                            DefaultValue = entityAnalysisModelRequestXPath.DefaultValue
+                        }
+                    );
                 }
             }
 

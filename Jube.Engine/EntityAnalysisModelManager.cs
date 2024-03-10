@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -23,6 +23,7 @@ using System.Text;
 using System.Threading;
 using System.Web;
 using Accord.Neuro;
+using AutoMapper.Internal;
 using Jube.Data.Cache;
 using Jube.Data.Context;
 using Jube.Data.Extension;
@@ -64,22 +65,22 @@ namespace Jube.Engine
     public class EntityAnalysisModelManager
     {
         // ReSharper disable once CollectionNeverQueried.Local
-        private readonly List<Thread> _activationWatcherThreads = new();
+        private readonly List<Thread> activationWatcherThreads = new();
 
         // ReSharper disable once CollectionNeverQueried.Local
-        private readonly List<Thread> _archiverThreads = new();
-        private readonly List<ArchiverThreadStarter> _archiverThreadStarters = new();
-        private readonly List<EntityAnalysisModelInlineScript> _inlineScripts = new();
+        private readonly List<Thread> archiverThreads = new();
+        private readonly List<ArchiverThreadStarter> archiverThreadStarters = new();
+        private readonly List<EntityAnalysisModelInlineScript> inlineScripts = new();
 
         // ReSharper disable once CollectionNeverQueried.Local
-        private readonly List<Thread> _reprocessingThreads = new();
-        private Thread _cacheThread;
-        private Guid _entityAnalysisInstanceGuid;
-        private Thread _modelSyncThread;
-        private bool _stopping;
-        private Thread _tTtlCThread;
-        private JsonSerializerSettings _jsonSerializerSettings;
-        
+        private readonly List<Thread> reprocessingThreads = new();
+        private Thread cacheThread;
+        private Guid entityAnalysisInstanceGuid;
+        private Thread modelSyncThread;
+        private bool stopping;
+        private Thread tTtlCThread;
+        private JsonSerializerSettings jsonSerializerSettings;
+
         public ILog Log { get; set; }
         public ConcurrentQueue<Tag> PendingTagging { get; set; } = new();
         public Dictionary<int, EntityAnalysisModel> ActiveEntityAnalysisModels { get; } = new();
@@ -91,14 +92,14 @@ namespace Jube.Engine
         public IModel RabbitMqChannel { get; set; }
         public ConcurrentQueue<Notification> PendingNotification { get; set; }
         public bool EntityModelsHasLoadedForStartup { get; set; }
-        public ConcurrentDictionary<Guid,Callback> PendingCallbacks { get; set; }
+        public ConcurrentDictionary<Guid, Callback> PendingCallbacks { get; set; }
         public DefaultContractResolver ContractResolver;
-        
+
         public void StopMe()
         {
-            _stopping = true;
+            stopping = true;
 
-            foreach (var archiverThreadStarter in _archiverThreadStarters) archiverThreadStarter.StopMe();
+            foreach (var archiverThreadStarter in archiverThreadStarters) archiverThreadStarter.StopMe();
         }
 
         public void Start()
@@ -116,14 +117,14 @@ namespace Jube.Engine
 
         private void BuildAndCacheJsonContractResolver()
         {
-            _jsonSerializerSettings = new JsonSerializerSettings
+            jsonSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Auto,
                 MetadataPropertyHandling = MetadataPropertyHandling.ReadAhead,
                 ContractResolver = new DeepContractResolver(),
             };
 
-            _jsonSerializerSettings.Error += (_, args) =>
+            jsonSerializerSettings.Error += (_, args) =>
             {
                 if (args.ErrorContext.Error.InnerException is not NotImplementedException)
                 {
@@ -141,10 +142,10 @@ namespace Jube.Engine
             if (JubeEnvironment.AppSettings("EnableCallback").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 PendingCallbacks = new ConcurrentDictionary<Guid, Callback>();
-                
+
                 var cacheCallbackRepository = new CacheCallbackRepository(JubeEnvironment.AppSettings(
-                    new[] {"CacheConnectionString", "ConnectionString"}), Log,PendingCallbacks);
-                    
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log, PendingCallbacks);
+
                 var startCallbackThread = new ThreadStart(cacheCallbackRepository.ListenForCallbacks);
                 var callbackThread = new Thread(startCallbackThread)
                 {
@@ -157,7 +158,7 @@ namespace Jube.Engine
 
         private void StartReprocessing()
         {
-            if (JubeEnvironment.AppSettings("EnableReprocessing").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (JubeEnvironment.AppSettings("EnableReprocessing").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 int i;
                 var tempVar = int.Parse(JubeEnvironment.AppSettings("ReprocessingThreads"));
@@ -172,7 +173,7 @@ namespace Jube.Engine
                         Priority = ThreadPriority.Normal
                     };
                     reprocessingThread.Start();
-                    _reprocessingThreads.Add(reprocessingThread);
+                    reprocessingThreads.Add(reprocessingThread);
 
                     Log.Debug($"Entity Start: Started Reprocessing in start routine for thread {i}.");
                 }
@@ -200,18 +201,19 @@ namespace Jube.Engine
             Log.Debug(
                 $"Entity Start: TTL Counter Administration is set to be {JubeEnvironment.AppSettings("EnableTtlCounter")} on this node.");
 
-            if (JubeEnvironment.AppSettings("EnableTtlCounter").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (JubeEnvironment.AppSettings("EnableTtlCounter").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
-                Log.Debug($"Entity Start: Starting the TTL Counter Administration with a polling rate of {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")}.");
-                
+                Log.Debug(
+                    $"Entity Start: Starting the TTL Counter Administration with a polling rate of {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")}.");
+
                 ThreadStart tsTtlC = TtlCounterAdministration;
-                _tTtlCThread = new Thread(tsTtlC)
+                tTtlCThread = new Thread(tsTtlC)
                 {
                     IsBackground = false,
                     Priority = ThreadPriority.Normal
                 };
 
-                _tTtlCThread.Start();
+                tTtlCThread.Start();
 
                 Log.Debug("Entity Start: TTL Counter Administration.");
             }
@@ -222,18 +224,18 @@ namespace Jube.Engine
             Log.Debug(
                 $"Entity Start: The Rule Cache Server is set to be {JubeEnvironment.AppSettings("EnableSearchKeyCache")} on this node.");
 
-            if (JubeEnvironment.AppSettings("EnableSearchKeyCache").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (JubeEnvironment.AppSettings("EnableSearchKeyCache").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 Log.Debug("Entity Start: Starting the Rule Cache Engine.");
 
                 ThreadStart tsCache = AbstractionRuleCaching;
-                _cacheThread = new Thread(tsCache)
+                cacheThread = new Thread(tsCache)
                 {
                     IsBackground = false,
                     Priority = ThreadPriority.Normal
                 };
 
-                _cacheThread.Start();
+                cacheThread.Start();
 
                 Log.Debug("Entity Start: Started the Rule Cache Engine.");
             }
@@ -241,7 +243,8 @@ namespace Jube.Engine
 
         private void StartActivationWatcherArchive()
         {
-            if (JubeEnvironment.AppSettings("ActivationWatcherAllowPersist").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (JubeEnvironment.AppSettings("ActivationWatcherAllowPersist")
+                .Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 int i;
                 var tempVar = int.Parse(JubeEnvironment.AppSettings("ActivationWatcherPersistThreads"));
@@ -254,7 +257,7 @@ namespace Jube.Engine
                         Priority = ThreadPriority.Normal
                     };
                     activationWatcherThread.Start();
-                    _activationWatcherThreads.Add(activationWatcherThread);
+                    activationWatcherThreads.Add(activationWatcherThread);
 
                     Log.Debug(string.Format("Entity Start: Started Activation Watcher Persist Thread " + i + "."));
                 }
@@ -285,8 +288,8 @@ namespace Jube.Engine
                     Priority = ThreadPriority.Normal
                 };
                 archiverThread.Start();
-                _archiverThreads.Add(archiverThread);
-                _archiverThreadStarters.Add(persistToDatabaseAcrossAllModels);
+                archiverThreads.Add(archiverThread);
+                archiverThreadStarters.Add(persistToDatabaseAcrossAllModels);
 
                 Log.Debug($"Entity Start: Started Database Persist Thread {i}.");
             }
@@ -297,12 +300,12 @@ namespace Jube.Engine
             Log.Debug("Entity Start: Starting Model Sync.");
 
             ThreadStart startModelSyncThread = ModelSync;
-            _modelSyncThread = new Thread(startModelSyncThread)
+            modelSyncThread = new Thread(startModelSyncThread)
             {
                 IsBackground = false,
                 Priority = ThreadPriority.Normal
             };
-            _modelSyncThread.Start();
+            modelSyncThread.Start();
 
             Log.Debug("Entity Start: Started Model Sync in start routine.");
         }
@@ -320,25 +323,25 @@ namespace Jube.Engine
 
                 Log.Debug("Entity Start: Established a connection to the Database database.");
 
-                _entityAnalysisInstanceGuid = Guid.NewGuid();
+                entityAnalysisInstanceGuid = Guid.NewGuid();
 
                 Log.Debug(
-                    $"Entity Start: A GUID for this instance has been created and is {_entityAnalysisInstanceGuid}.");
-                
+                    $"Entity Start: A GUID for this instance has been created and is {entityAnalysisInstanceGuid}.");
+
                 var model = new EntityAnalysisInstance
                 {
-                    Guid = _entityAnalysisInstanceGuid,
+                    Guid = entityAnalysisInstanceGuid,
                     Instance = Dns.GetHostName(),
                     CreatedDate = DateTime.Now
                 };
 
                 Log.Debug(
-                    $"Entity Start: Passing values to record the entity instance starting Entity_Analysis_Instance_GUID {_entityAnalysisInstanceGuid}; Node {model.Instance};.");
+                    $"Entity Start: Passing values to record the entity instance starting Entity_Analysis_Instance_GUID {entityAnalysisInstanceGuid}; Node {model.Instance};.");
 
                 repository.Insert(model);
 
                 Log.Debug(
-                    $"Entity Start: Recorded the entity instance starting in the Database database with a GUID of {_entityAnalysisInstanceGuid}.");
+                    $"Entity Start: Recorded the entity instance starting in the Database database with a GUID of {entityAnalysisInstanceGuid}.");
             }
             catch (Exception ex)
             {
@@ -358,7 +361,7 @@ namespace Jube.Engine
             var startupTenantRegistrySchedule = true;
             try
             {
-                while (!_stopping)
+                while (!stopping)
                     try
                     {
                         var codeBase = Assembly.GetExecutingAssembly().Location;
@@ -387,22 +390,27 @@ namespace Jube.Engine
 
                             foreach (var tenantRegistrySchedule in tenantRegistrySchedules)
                             {
+                                var parser = ConfigureTokenParserForSecurity(dbContext);
+
+                                SyncExhaustiveSearchInstances(dbContext, parser);
+                                SyncEntityAnalysisModelLists(dbContext, parser);
+                                SyncEntityAnalysisModelDictionaries(dbContext, parser);
+
                                 if (tenantRegistrySchedule.SynchronisationPending || startupTenantRegistrySchedule)
                                 {
                                     if (startupTenantRegistrySchedule) startupTenantRegistrySchedule = false;
 
-                                    var parser = ConfigureTokenParserForSecurity(dbContext);
                                     SyncEntityAnalysisModels(dbContext, tenantRegistrySchedule.TenantRegistryId);
-                                    SyncEntityAnalysisModelRequestXPath(dbContext);
-                                    SyncEntityAnalysisModelGatewayRules(dbContext, strPathBinary, parser);
-                                    SyncEntityAnalysisModelSanctions(dbContext);
-                                    SyncEntityAnalysisModelAbstractionRules(dbContext, strPathBinary, parser);
-                                    SyncEntityAnalysisModelActivationRules(dbContext, strPathBinary, parser);
-                                    SyncEntityAnalysisModelInlineFunctions(dbContext, strPathBinary, parser);
-                                    SyncEntityAnalysisModelAbstractionCalculations(dbContext, strPathBinary, parser);
-                                    SyncEntityAnalysisModelTtlCounters(dbContext);
+                                    SyncEntityAnalysisModelRequestXPath(dbContext, parser);
                                     SyncEntityAnalysisModelInlineScripts(dbContext);
-                                    SyncEntityAnalysisModelHttpAdaptation(dbContext);
+                                    SyncEntityAnalysisModelInlineFunctions(dbContext, strPathBinary, parser);
+                                    SyncEntityAnalysisModelGatewayRules(dbContext, strPathBinary, parser);
+                                    SyncEntityAnalysisModelSanctions(dbContext, parser);
+                                    SyncEntityAnalysisModelAbstractionRules(dbContext, strPathBinary, parser);
+                                    SyncEntityAnalysisModelAbstractionCalculations(dbContext, strPathBinary, parser);
+                                    SyncEntityAnalysisModelTtlCounters(dbContext, parser);
+                                    SyncEntityAnalysisModelHttpAdaptation(dbContext, parser);
+                                    SyncEntityAnalysisModelActivationRules(dbContext, strPathBinary, parser);
                                     SyncEntityAnalysisModelTags(dbContext);
                                     ConfirmSync(dbContext, tenantRegistrySchedule.TenantRegistryId);
                                 }
@@ -411,10 +419,7 @@ namespace Jube.Engine
                                     HeartbeatThisModel(dbContext, tenantRegistrySchedule.TenantRegistryId);
                                 }
 
-                                SyncExhaustiveSearchInstances(dbContext);
                                 StoreRuleCounterValues(dbContext);
-                                SyncEntityAnalysisModelLists(dbContext);
-                                SyncEntityAnalysisModelDictionaries(dbContext);
                                 SyncSuppression(dbContext);
                                 SyncActivationRuleSuppression(dbContext);
                                 StartupModel(dbContext);
@@ -748,8 +753,10 @@ namespace Jube.Engine
             }
         }
 
-        private void SyncEntityAnalysisModelDictionaries(DbContext dbContext)
+        private void SyncEntityAnalysisModelDictionaries(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsDictionaries = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -807,6 +814,14 @@ namespace Jube.Engine
                                     $"Entity Start: Model  {key} and Dictionary {recordDictionary.Id} set Name as {kvpDictionary.Name}.");
 
                                 shadowKvpDictionary.Add(recordDictionary.Id, kvpDictionary);
+
+                                Log.Debug(
+                                    $"Entity Start: Model  {key} and Dictionary {recordDictionary.Id} added {kvpDictionary.Name} to shadow copy of dictionary.");
+
+                                parser.EntityAnalysisModelsDictionaries.TryAdd(recordDictionary.Name);
+
+                                Log.Debug(
+                                    $"Entity Start: Model  {key} and Dictionary {recordDictionary.Id} added {kvpDictionary.Name} to parser.");
                             }
                         }
                     }
@@ -873,8 +888,10 @@ namespace Jube.Engine
             }
         }
 
-        private void SyncEntityAnalysisModelLists(DbContext dbContext)
+        private void SyncEntityAnalysisModelLists(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsLists = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -907,6 +924,11 @@ namespace Jube.Engine
 
                                 Log.Debug(
                                     $"Entity Start: Model  {key} and List {recordList.Id} set Name as {name}.");
+
+                                parser.EntityAnalysisModelsLists.TryAdd(recordList.Name);
+
+                                Log.Debug(
+                                    $"Entity Start: Model  {key} and List {recordList.Id} added {name} to parser.");
                             }
                         }
                     }
@@ -965,8 +987,10 @@ namespace Jube.Engine
             }
         }
 
-        private void SyncExhaustiveSearchInstances(DbContext dbContext)
+        private void SyncExhaustiveSearchInstances(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsAdaptations = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -1050,15 +1074,16 @@ namespace Jube.Engine
                                     Log.Debug(
                                         $"Exhaustive, Balance and Currencies: Exhaustive GUID {exhaustive.Id} has received " +
                                         $"the json as {getExhaustiveSearchInstancePromotedTrialInstanceQuery.Json} from the database and will now start to load to Accord.");
-                                    
-                                    exhaustive.TopologyNetwork  = 
+
+                                    exhaustive.TopologyNetwork =
                                         JsonConvert.DeserializeObject<ActivationNetwork>
-                                            (getExhaustiveSearchInstancePromotedTrialInstanceQuery.Json,_jsonSerializerSettings);
+                                        (getExhaustiveSearchInstancePromotedTrialInstanceQuery.Json,
+                                            jsonSerializerSettings);
 
                                     Log.Debug(
                                         $"Exhaustive, Balance and Currencies: Exhaustive GUID {exhaustive.Id} has deserialized " +
                                         $"json and will add to the Exhaustive");
-                                        
+
                                     var getExhaustiveSearchInstancePromotedTrialInstanceVariableQuery
                                         = new GetExhaustiveSearchInstancePromotedTrialInstanceVariableQuery(dbContext);
 
@@ -1088,6 +1113,14 @@ namespace Jube.Engine
                                 }
 
                                 shadowEntityAnalysisModelExhaustive.Add(exhaustive);
+
+                                Log.Debug(
+                                    $"Entity Start: Exhaustive GUID {exhaustive.Id} has added {exhaustive.Name} to shadow collection.");
+
+                                parser.EntityAnalysisModelsAdaptations.TryAdd(exhaustive.Name);
+
+                                Log.Debug(
+                                    $"Entity Start: Exhaustive GUID {exhaustive.Id} has added {exhaustive.Name} to parser.");
                             }
                             else
                             {
@@ -1181,7 +1214,7 @@ namespace Jube.Engine
                                 Log.Debug(
                                     $"Entity Start: Model {key} and Tag {entityAnalysisModelTag.Id} set Name as {entityAnalysisModelTag.ReportTable}.");
                             }
-                            
+
                             shadowEntityAnalysisModelTags.Add(entityAnalysisModelTag);
 
                             Log.Debug(
@@ -1205,8 +1238,8 @@ namespace Jube.Engine
 
             Log.Debug("Entity Start: Completed adding Adaptations and Exhaustive Neural Networks to entity models.");
         }
-                
-        private void SyncEntityAnalysisModelHttpAdaptation(DbContext dbContext)
+
+        private void SyncEntityAnalysisModelHttpAdaptation(DbContext dbContext, Parser.Parser parser)
         {
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
@@ -1232,7 +1265,7 @@ namespace Jube.Engine
                             Log.Debug(
                                 $"Entity Start: Adaptation ID ID {record.Id} returned for model {key} is active.");
 
-                            var entityAnalysisModelAdaptation = new EntityAnalysisModelHttpAdaptation(10,false,1000)
+                            var entityAnalysisModelAdaptation = new EntityAnalysisModelHttpAdaptation(10, false, 1000)
                             {
                                 Id = record.Id
                             };
@@ -1292,16 +1325,16 @@ namespace Jube.Engine
                             }
                             else
                             {
-                                var validHost = JubeEnvironment.AppSettings("HttpAdaptationUrl").EndsWith("/") 
-                                    ? JubeEnvironment.AppSettings("HttpAdaptationUrl") : 
-                                    JubeEnvironment.AppSettings("HttpAdaptationUrl") + "/" ;
-                
+                                var validHost = JubeEnvironment.AppSettings("HttpAdaptationUrl").EndsWith("/")
+                                    ? JubeEnvironment.AppSettings("HttpAdaptationUrl")
+                                    : JubeEnvironment.AppSettings("HttpAdaptationUrl") + "/";
+
                                 var validUrl = record.HttpEndpoint.StartsWith("/")
-                                    ? record.HttpEndpoint.Remove(0,1)
+                                    ? record.HttpEndpoint.Remove(0, 1)
                                     : record.HttpEndpoint;
-                            
+
                                 var rPlumberEndpoint = $"{validHost}{validUrl}";
-                            
+
                                 entityAnalysisModelAdaptation.HttpEndpoint = rPlumberEndpoint;
 
                                 Log.Debug(
@@ -1314,6 +1347,11 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: Model {key} and Exhaustive Search Instance Trial Instance ID  {entityAnalysisModelAdaptation.Id} has been added to a shadow list of Adaptations.");
+
+                            parser.EntityAnalysisModelsAdaptations.Add(entityAnalysisModelAdaptation.Name);
+
+                            Log.Debug(
+                                $"Entity Start: Model {key} and Exhaustive Search Instance Trial Instance ID  {entityAnalysisModelAdaptation.Id} has added {entityAnalysisModelAdaptation.Name} to parser.");
                         }
                     }
                     catch (Exception ex)
@@ -1362,7 +1400,7 @@ namespace Jube.Engine
                             Log.Debug(
                                 $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId} returned for model {key} is Active.");
 
-                            foreach (var addInlineScriptWithinLoop in _inlineScripts)
+                            foreach (var addInlineScriptWithinLoop in inlineScripts)
                             {
                                 Log.Debug(
                                     $"Entity Start: Inline Script ID {record.EntityAnalysisInlineScriptId} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId}.");
@@ -1383,31 +1421,25 @@ namespace Jube.Engine
                                             Log.Debug(
                                                 $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId.Value} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId} grouping ket {searchKey.SearchKey}.");
 
-                                            if (!value.DistinctSearchKeys.ContainsKey(
-                                                    searchKey.SearchKey))
+                                            if (value.DistinctSearchKeys.TryAdd(searchKey.SearchKey, searchKey))
                                             {
-                                                value.DistinctSearchKeys.Add(searchKey.SearchKey,
-                                                    searchKey);
-
                                                 Log.Debug(
                                                     $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId.Value} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId} grouping key {searchKey.SearchKey} has been matched.");
                                             }
                                             else
                                             {
-                                                value.DistinctSearchKeys[searchKey.SearchKey] =
-                                                    searchKey;
+                                                value.DistinctSearchKeys[searchKey.SearchKey] = searchKey;
                                             }
                                         }
 
                                         Log.Debug(
                                             $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId.Value} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId} is in the cache.");
 
-                                        if (addInlineScriptWithinLoop != null)
-                                        {
-                                            shadowEntityAnalysisModelInlineScripts.Add(addInlineScriptWithinLoop);
-                                            Log.Debug(
-                                                $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId.Value} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId} is in the cache and has been added to a shadow list of inline scripts for this model.");
-                                        }
+                                        if (addInlineScriptWithinLoop == null) continue;
+
+                                        shadowEntityAnalysisModelInlineScripts.Add(addInlineScriptWithinLoop);
+                                        Log.Debug(
+                                            $"Entity Start: Inline Script ID ID {record.EntityAnalysisInlineScriptId.Value} returned for model {key} checking inline script {addInlineScriptWithinLoop.InlineScriptId} is in the cache and has been added to a shadow list of inline scripts for this model.");
                                     }
                                 }
                             }
@@ -1428,8 +1460,10 @@ namespace Jube.Engine
             Log.Debug("Entity Start: Completed adding Inline Scripts to entity models.");
         }
 
-        private void SyncEntityAnalysisModelTtlCounters(DbContext dbContext)
+        private void SyncEntityAnalysisModelTtlCounters(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsTtlCounters = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -1583,6 +1617,11 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: Model {key} and TTL Counter Interval {entityAnalysisModelTtlCounter.Id} has been added to a shadow collection of TTL Counters.");
+
+                            parser.EntityAnalysisModelsTtlCounters.TryAdd(entityAnalysisModelTtlCounter.Name);
+
+                            Log.Debug(
+                                $"Entity Start: Model {key} and TTL Counter Interval {entityAnalysisModelTtlCounter.Id} has {entityAnalysisModelTtlCounter.Name} to parser.");
                         }
                     }
                     catch (Exception ex)
@@ -1600,8 +1639,10 @@ namespace Jube.Engine
             Log.Debug("Entity Start: Completed adding TTL Counters to entity models.");
         }
 
-        private void SyncEntityAnalysisModelSanctions(DbContext dbContext)
+        private void SyncEntityAnalysisModelSanctions(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsSanctions = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -1739,6 +1780,11 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: Model {key} and Sanctions {entityAnalysisModelSanctions.EntityAnalysisModelSanctionsId} has been added to a shadow list of Sanctions.");
+
+                            parser.EntityAnalysisModelsSanctions.TryAdd(entityAnalysisModelSanctions.Name);
+
+                            Log.Debug(
+                                $"Entity Start: Model {key} and Sanctions {entityAnalysisModelSanctions.EntityAnalysisModelSanctionsId} has added {entityAnalysisModelSanctions.Name} to parser.");
                         }
                     }
                     catch (Exception ex)
@@ -1760,6 +1806,8 @@ namespace Jube.Engine
         private void SyncEntityAnalysisModelAbstractionCalculations(DbContext dbContext, string strPath,
             Parser.Parser parser)
         {
+            parser.EntityAnalysisModelAbstractionCalculations = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -2004,6 +2052,12 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: Model {key} and Calculation {entityAnalysisModelAbstractionCalculation.Id} has been added to a shadow list of Abstraction Calculations.");
+
+                            parser.EntityAnalysisModelAbstractionCalculations.TryAdd(
+                                entityAnalysisModelAbstractionCalculation.Name);
+
+                            Log.Debug(
+                                $"Entity Start: Model {key} and Calculation {entityAnalysisModelAbstractionCalculation.Id} has added {entityAnalysisModelAbstractionCalculation.Name} to parser.");
                         }
                         else
                         {
@@ -3255,6 +3309,8 @@ namespace Jube.Engine
 
         private void SyncEntityAnalysisModelAbstractionRules(DbContext dbContext, string strPath, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelsAbstractionRule = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -3268,6 +3324,7 @@ namespace Jube.Engine
                 var records = repository.GetByEntityAnalysisModelId(key);
 
                 var shadowEntityModelAbstractionRule = new List<EntityAnalysisModelAbstractionRule>();
+                var shadowDistinctSearchKeys = value.DistinctSearchKeys;
 
                 foreach (var record in records)
                     try
@@ -3377,57 +3434,46 @@ namespace Jube.Engine
                                 modelAbstractionRule.Search = record.Search.Value == 1;
 
                                 Log.Debug(
-                                    $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} set Abstraction Rule Search Extrapolation Type value as {modelAbstractionRule.Search}.");
-
-                                Log.Debug(
                                     $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} set Abstraction Rule Search Extrapolation Type value is greater than 1, {modelAbstractionRule.Search}.  Checking to see if already added to the distinct search keys available to this abstraction rule.");
 
-                                var distinctSearchKey = new DistinctSearchKey();
                                 foreach (var requestXPath in value.EntityAnalysisModelRequestXPaths)
                                 {
                                     Log.Debug(
                                         $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} checking {requestXPath.Name}.");
 
-                                    if (requestXPath.Name == modelAbstractionRule.SearchKey)
+                                    if (requestXPath.Name != modelAbstractionRule.SearchKey) continue;
+
+                                    var distinctSearchKey = new DistinctSearchKey();
+
+                                    Log.Debug(
+                                        $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} matched {requestXPath.Name}.");
+
+                                    distinctSearchKey.SearchKeyCacheIntervalType =
+                                        requestXPath.SearchKeyCacheInterval;
+                                    distinctSearchKey.SearchKeyCacheIntervalValue =
+                                        requestXPath.SearchKeyCacheValue;
+                                    distinctSearchKey.SearchKeyCacheTtlIntervalValue =
+                                        requestXPath.SearchKeyCacheTtlValue;
+                                    distinctSearchKey.SearchKeyCache = requestXPath.SearchKeyCache;
+                                    distinctSearchKey.SearchKeyCacheFetchLimit =
+                                        requestXPath.SearchKeyCacheFetchLimit;
+                                    distinctSearchKey.SearchKey = modelAbstractionRule.SearchKey;
+                                    distinctSearchKey.SearchKeyCacheSample = requestXPath.SearchKeyCacheSample;
+
+                                    if (!shadowDistinctSearchKeys.ContainsKey(modelAbstractionRule
+                                            .SearchKey))
                                     {
-                                        Log.Debug(
-                                            $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} matched {requestXPath.Name}.");
-
-                                        distinctSearchKey.SearchKeyCacheIntervalType =
-                                            requestXPath.SearchKeyCacheInterval;
-                                        distinctSearchKey.SearchKeyCacheIntervalValue =
-                                            requestXPath.SearchKeyCacheValue;
-                                        distinctSearchKey.SearchKeyCacheTtlIntervalValue =
-                                            requestXPath.SearchKeyCacheTtlValue;
-                                        distinctSearchKey.SearchKeyCache = requestXPath.SearchKeyCache;
-                                        distinctSearchKey.SearchKeyCacheFetchLimit =
-                                            requestXPath.SearchKeyCacheFetchLimit;
-                                        distinctSearchKey.SearchKey = modelAbstractionRule.SearchKey;
-                                        distinctSearchKey.SearchKeyCacheSample = requestXPath.SearchKeyCacheSample;
-
-                                        if (!value.DistinctSearchKeys.ContainsKey(modelAbstractionRule
-                                                .SearchKey))
-                                        {
-                                            value.DistinctSearchKeys.Add(distinctSearchKey.SearchKey,
-                                                distinctSearchKey);
-
-                                            Log.Debug(
-                                                $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} set Abstraction Rule Search Extrapolation Type value is greater than 1, {modelAbstractionRule.Search}.  Not added to distinct search keys,  adding.");
-                                        }
-                                        else
-                                        {
-                                            value.DistinctSearchKeys[distinctSearchKey.SearchKey] =
-                                                distinctSearchKey;
-
-                                            Log.Debug(
-                                                $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} set Abstraction Rule Search Extrapolation Type value is greater than 1, {modelAbstractionRule.Search}.  Not added to distinct search keys,  merging.");
-                                        }
+                                        shadowDistinctSearchKeys.Add(distinctSearchKey.SearchKey,
+                                            distinctSearchKey);
 
                                         Log.Debug(
-                                            $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} matched {requestXPath.Name} and added the grouping key to the distinct list being used by the rule.  Will not check any further in the available XPath.");
-
-                                        break;
+                                            $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} set Abstraction Rule Search Extrapolation Type value is greater than 1, {modelAbstractionRule.Search}.  Not added to distinct search keys,  adding.");
                                     }
+
+                                    Log.Debug(
+                                        $"Entity Start: Entity Model {key} and Abstraction Rule {modelAbstractionRule.Id} matched {requestXPath.Name} and added the grouping key to the distinct list being used by the rule.  Will not check any further in the available XPath.");
+
+                                    break;
                                 }
                             }
                             else
@@ -3532,15 +3578,14 @@ namespace Jube.Engine
                             }
 
                             var hasRuleScript = false;
+                            var parsedRule = new ParsedRule
+                            {
+                                ErrorSpans = new List<ErrorSpan>()
+                            };
+
                             if (record.BuilderRuleScript != null && modelAbstractionRule.RuleScriptTypeId == 1)
                             {
-                                /*var rule = Parser.TranslateFromDotNotation(record.BuilderRuleScript,value.EntityAnalysisModelRequestXPaths);
-                                if (Parser.Parse(rule))*/
-                                var parsedRule = new ParsedRule
-                                {
-                                    OriginalRuleText = record.BuilderRuleScript,
-                                    ErrorSpans = new List<ErrorSpan>()
-                                };
+                                parsedRule.OriginalRuleText = record.BuilderRuleScript;
                                 parsedRule = parser.TranslateFromDotNotation(parsedRule);
                                 parsedRule = parser.Parse(parsedRule);
 
@@ -3555,11 +3600,7 @@ namespace Jube.Engine
                             }
                             else if (record.CoderRuleScript != null && modelAbstractionRule.RuleScriptTypeId == 2)
                             {
-                                var parsedRule = new ParsedRule
-                                {
-                                    OriginalRuleText = record.CoderRuleScript,
-                                    ErrorSpans = new List<ErrorSpan>()
-                                };
+                                parsedRule.OriginalRuleText = record.CoderRuleScript;
                                 parsedRule = parser.TranslateFromDotNotation(parsedRule);
                                 parsedRule = parser.Parse(parsedRule);
 
@@ -3569,8 +3610,66 @@ namespace Jube.Engine
 
                                     Log.Debug(
                                         $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} set coder script as {modelAbstractionRule.AbstractionRuleScript}.");
+
                                     hasRuleScript = true;
                                 }
+                            }
+
+                            if (modelAbstractionRule.Search)
+                            {
+                                if (shadowDistinctSearchKeys.ContainsKey(modelAbstractionRule.SearchKey))
+                                {
+                                    if (!shadowDistinctSearchKeys[modelAbstractionRule.SearchKey]
+                                            .SelectedPayloadData.ContainsKey(modelAbstractionRule.SearchFunctionKey))
+                                    {
+                                        Log.Debug(
+                                            $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} has recognised {modelAbstractionRule.SearchFunctionKey} as being required of the select given function key with a cast of float.");
+
+                                        shadowDistinctSearchKeys[modelAbstractionRule.SearchKey]
+                                            .SelectedPayloadData.Add(modelAbstractionRule.SearchFunctionKey,
+                                                new SelectedPayloadData()
+                                                {
+                                                    Name = modelAbstractionRule.SearchFunctionKey,
+                                                    DatabaseCast = "::float8",
+                                                    DefaultValue = "0"
+                                                }
+                                            );
+                                    }
+                                    else
+                                    {
+                                        Log.Debug(
+                                            $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} has recognised {modelAbstractionRule.SearchFunctionKey} already exists for select as function key.");
+                                    }
+
+                                    foreach (var selectedPayloadData in parsedRule.SelectedPayloadData)
+                                    {
+                                        if (!shadowDistinctSearchKeys[modelAbstractionRule.SearchKey]
+                                                .SelectedPayloadData.ContainsKey(selectedPayloadData.Value.Name))
+                                        {
+                                            Log.Debug(
+                                                $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} has recognised {selectedPayloadData.Value.Name} as being required of the select with a cast of {selectedPayloadData.Value.DatabaseCast}.");
+
+                                            shadowDistinctSearchKeys[modelAbstractionRule.SearchKey]
+                                                .SelectedPayloadData.Add(selectedPayloadData.Value.Name,
+                                                    selectedPayloadData.Value);
+                                        }
+                                        else
+                                        {
+                                            Log.Debug(
+                                                $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} has recognised {selectedPayloadData.Value.Name} already exists for select.");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    Log.Debug(
+                                        $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} has looked for search key {modelAbstractionRule.SearchKey} but it is not there.");
+                                }
+                            }
+                            else
+                            {
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} does not need to compile data into a search key as it is not a search abstraction rule.");
                             }
 
                             if (hasRuleScript)
@@ -3670,6 +3769,11 @@ namespace Jube.Engine
 
                                 Log.Debug(
                                     $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} hash {modelAbstractionRule.LogicHash} has been attached to the rule to avoid duplication in execution of abstraction rules.");
+
+                                parser.EntityAnalysisModelsAbstractionRule.TryAdd(modelAbstractionRule.Name);
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and Abstraction Rule Model {modelAbstractionRule.Id} name {modelAbstractionRule.Name} added to parser");
                             }
                         }
                     }
@@ -3679,7 +3783,28 @@ namespace Jube.Engine
                             $"Entity Start: Abstraction Rules ID {record.Id} returned for model {key} has created an error as {ex}.");
                     }
 
+                foreach (var distinctSearchKey in shadowDistinctSearchKeys)
+                {
+                    var cachePayloadSql =
+                        $"select * from (select \"CreatedDate\",\"ReferenceDate\" AS \"{value.ReferenceDateName}\"";
+
+                    foreach (var selectedPayloadData in distinctSearchKey.Value.SelectedPayloadData)
+                    {
+                        cachePayloadSql +=
+                            $",COALESCE((\"Json\" ->> '{selectedPayloadData.Key}'){selectedPayloadData.Value.DatabaseCast}," +
+                            $"{selectedPayloadData.Value.DefaultValue}) AS \"{selectedPayloadData.Key}\"";
+                    }
+
+                    cachePayloadSql += " From \"CachePayload\" where \"EntityAnalysisModelId\" = "
+                                       + value.Id +
+                                       " and \"Json\" ->> (@key) = (@value) "
+                                       + " order by (@order) desc limit (@limit)) c order by 2 desc;";
+
+                    distinctSearchKey.Value.Sql = cachePayloadSql;
+                }
+
                 value.ModelAbstractionRules = shadowEntityModelAbstractionRule;
+                value.DistinctSearchKeys = shadowDistinctSearchKeys;
 
                 Log.Debug(
                     $"Entity Start: Entity Model {key} and Abstraction Rule Model has replaced the Abstraction Rule list with the shadow values and closed the reader.");
@@ -3688,8 +3813,10 @@ namespace Jube.Engine
             Log.Debug("Entity Start: Completed adding Abstraction Rules to entity models.");
         }
 
-        private void SyncEntityAnalysisModelRequestXPath(DbContext dbContext)
+        private void SyncEntityAnalysisModelRequestXPath(DbContext dbContext, Parser.Parser parser)
         {
+            parser.EntityAnalysisModelRequestXPaths = new();
+
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
@@ -3704,8 +3831,7 @@ namespace Jube.Engine
                     repository.GetByEntityAnalysisModelId(
                         key);
 
-                var shadowEntityAnalysisModelRequestXPath = new List<EntityAnalysisModelRequestXPath>();
-                var cachePayloadSql = $"select \"CreatedDate\",\"ReferenceDate\" AS \"{value.ReferenceDateName}\"";
+                var shadowEntityAnalysisModelRequestXPath = new List<Model.EntityAnalysisModelRequestXPath>();
                 var archivePayloadSql = "select \"EntityAnalysisModelInstanceEntryGuid\"," +
                                         $"\"CreatedDate\",\"ReferenceDate\" AS \"{value.ReferenceDateName}\"";
                 foreach (var record in records)
@@ -3719,7 +3845,7 @@ namespace Jube.Engine
                             Log.Debug(
                                 $"Entity Start: XPath ID {record.Id} returned for model {key} is active.");
 
-                            var entityAnalysisModelRequestXPath = new EntityAnalysisModelRequestXPath
+                            var entityAnalysisModelRequestXPath = new Model.EntityAnalysisModelRequestXPath
                             {
                                 Id = record.Id
                             };
@@ -3998,9 +4124,6 @@ namespace Jube.Engine
                                 _ => ""
                             };
 
-                            cachePayloadSql +=
-                                $",(\"Json\" ->> '{entityAnalysisModelRequestXPath.Name}'){databaseType} AS \"{entityAnalysisModelRequestXPath.Name}\"";
-
                             archivePayloadSql +=
                                 $",(\"Json\" -> 'payload' ->> '{entityAnalysisModelRequestXPath.Name}'){databaseType} AS \"{entityAnalysisModelRequestXPath.Name}\"";
 
@@ -4008,6 +4131,20 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: XPath ID {entityAnalysisModelRequestXPath.Id} added to shadow list for model {key}.");
+
+                            if (!parser.EntityAnalysisModelRequestXPaths.ContainsKey(entityAnalysisModelRequestXPath
+                                    .Name))
+                            {
+                                parser.EntityAnalysisModelRequestXPaths.Add(entityAnalysisModelRequestXPath.Name,
+                                    new Parser.EntityAnalysisModelRequestXPath()
+                                    {
+                                        DataTypeId = entityAnalysisModelRequestXPath.DataTypeId,
+                                        DefaultValue = entityAnalysisModelRequestXPath.DefaultValue
+                                    });
+                            }
+
+                            Log.Debug(
+                                $"Entity Start: XPath ID {entityAnalysisModelRequestXPath.Id} added {key} with data type {entityAnalysisModelRequestXPath.DataTypeId} to parser.");
                         }
                     }
                     catch (Exception ex)
@@ -4015,11 +4152,6 @@ namespace Jube.Engine
                         Log.Error(
                             $"Entity Start: XPath ID {record.Id} returned for model {key} has created an error as {ex}.");
                     }
-
-                value.CachePayloadSql = cachePayloadSql + " From \"CachePayload\" where \"EntityAnalysisModelId\" = "
-                                                        + value.Id +
-                                                        " and \"Json\" ->> (@key) = (@value) "
-                                                        + " order by (@order) limit (@limit);";
 
                 value.ArchivePayloadSql = archivePayloadSql + " From \"Archive\" where \"EntityAnalysisModelId\" = "
                                                             + value.Id
@@ -4069,13 +4201,13 @@ namespace Jube.Engine
 
                             entityAnalysisModel = new EntityAnalysisModel
                             {
-                                EntityAnalysisInstanceGuid = _entityAnalysisInstanceGuid,
+                                EntityAnalysisInstanceGuid = entityAnalysisInstanceGuid,
                                 SanctionsEntries = SanctionsEntries,
                                 Log = Log,
                                 PersistToActivationWatcherAsync = PersistToActivationWatcherAsync,
                                 PendingTagging = PendingTagging,
                                 JubeEnvironment = JubeEnvironment,
-                                ContractResolver =  ContractResolver
+                                ContractResolver = ContractResolver
                             };
                         }
                         else
@@ -4518,7 +4650,7 @@ namespace Jube.Engine
                     Log.Debug(
                         $"Entity Start: Found an inline script with the id of {record.Id} and will proceed to check if already have this inline script available.");
 
-                    var inlineScript = _inlineScripts.Find(x => x.InlineScriptId == record.Id);
+                    var inlineScript = inlineScripts.Find(x => x.InlineScriptId == record.Id);
                     if (inlineScript == null)
                     {
                         inlineScript = new EntityAnalysisModelInlineScript();
@@ -4616,7 +4748,7 @@ namespace Jube.Engine
                                 $"Entity Start: Inline Script {record.Id} has dll dependency specification of {record.Dependency}.");
 
                             inlineScript.Dependencies = record.Dependency;
-                            
+
                             foreach (var file in inlineScript.Dependencies.Split(",".ToCharArray()))
                             {
                                 Array.Resize(ref dependencyArray, dependencyArray.Length + 1);
@@ -4679,7 +4811,7 @@ namespace Jube.Engine
                                     inlineScript.InlineScriptType.GetMethod(inlineScript.MethodName,
                                         new[] {typeof(Dictionary<string, object>), typeof(ILog)});
 
-                                _inlineScripts.Add(inlineScript);
+                                inlineScripts.Add(inlineScript);
                                 HashCacheAssembly.Add(inlineScriptHash, compile.CompiledAssembly);
                                 compiled = true;
 
@@ -4795,7 +4927,7 @@ namespace Jube.Engine
                                         }
                                     }
                                 }
-                                
+
                                 inlineScript.ActivatedObject =
                                     Activator.CreateInstance(inlineScript.InlineScriptType, Log);
 
@@ -4817,7 +4949,8 @@ namespace Jube.Engine
         private List<GetEntityAnalysisModelsSynchronisationSchedulesByInstanceNameQuery.Dto> GetTenantRegistrySchedule(
             DbContext dbContext)
         {
-            Log.Debug("Entity Start: Executing a fetch of all tenant schedules for the entity sub system using GetEntityAnalysisModelsSynchronisationSchedulesByInstanceNameQuery.");
+            Log.Debug(
+                "Entity Start: Executing a fetch of all tenant schedules for the entity sub system using GetEntityAnalysisModelsSynchronisationSchedulesByInstanceNameQuery.");
 
             var query = new GetEntityAnalysisModelsSynchronisationSchedulesByInstanceNameQuery(dbContext);
             var values = query.Execute(Dns.GetHostName()).ToList();
@@ -4847,7 +4980,7 @@ namespace Jube.Engine
 
         private void AbstractionRuleCaching()
         {
-            while (!_stopping)
+            while (!stopping)
                 try
                 {
                     foreach (var (key, value) in
@@ -4951,14 +5084,15 @@ namespace Jube.Engine
                 var adjustedStartDate = default(DateTime);
                 var lastUpdated = default(DateTime);
 
-                while (!_stopping)
+                while (!stopping)
                 {
                     var dbContext =
-                        DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
+                        DataConnectionDbContext.GetDbContextDataConnection(
+                            JubeEnvironment.AppSettings("ConnectionString"));
                     try
                     {
                         Log.Debug("Entity Reprocessing:  About to make a database connection.");
-                        
+
                         Log.Debug(
                             "Entity Reprocessing:  Has made a database connection.  Will now proceed to loop around the models and see if there are any reprocessing requests.");
 
@@ -5103,7 +5237,6 @@ namespace Jube.Engine
                                             deleted = LogAndGetTerminate(dbContext,
                                                 entityAnalysisModelRuleReprocessingInstance,
                                                 processed, sampled, matched, errors, lastReferenceDate);
-                                            
                                         } while (!deleted);
 
                                         FinishReprocessBatchChunk(dbContext,
@@ -5133,7 +5266,6 @@ namespace Jube.Engine
                         Log.Info("Entity Reprocessing: Awake again.");
                     }
                 }
-
             }
             catch (Exception ex)
             {
@@ -5255,7 +5387,8 @@ namespace Jube.Engine
             Log.Info(
                 $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} is creating invoke instance. EntityAnalysisModelInstanceEntryGUID is {entityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid}.");
 
-            entityAnalysisModelInvoke = new EntityAnalysisModelInvoke(Log, JubeEnvironment, RabbitMqChannel,PendingNotification, Seeded,
+            entityAnalysisModelInvoke = new EntityAnalysisModelInvoke(Log, JubeEnvironment, RabbitMqChannel,
+                PendingNotification, Seeded,
                 ActiveEntityAnalysisModels);
             cachePayloadDocumentStore = new Dictionary<string, object>();
             cachePayloadDocumentResponse = new Dictionary<string, object>();
@@ -5648,7 +5781,7 @@ namespace Jube.Engine
                     }
                 }
             }
-            
+
             Log.Debug(
                 $"Entity Reprocessing:  Has finished loading reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId}.  Will now proceed to select the counts and date ranges.");
         }
@@ -5656,7 +5789,7 @@ namespace Jube.Engine
         private void PersistToActivationWatcher()
         {
             var activationWatchers = new List<ActivationWatcher>();
-            while (!_stopping)
+            while (!stopping)
                 try
                 {
                     PersistToActivationWatcherAsync.TryDequeue(out var payload);
@@ -5739,7 +5872,7 @@ namespace Jube.Engine
 
         private void TtlCounterAdministration()
         {
-            while (!_stopping)
+            while (!stopping)
                 try
                 {
                     var activeModelsForLoopWithoutEnumError = ActiveEntityAnalysisModels.ToList();
