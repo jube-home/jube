@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading.Tasks;
 using AutoMapper;
 using FluentMigrator.Runner;
 using FluentValidation;
@@ -86,7 +87,7 @@ namespace Jube.App.Controllers.Session
         }
 
         [HttpGet("ByGuid/{guid:Guid}")]
-        public ActionResult<List<dynamic>> ExecuteByGuid(Guid guid)
+        public async Task<ActionResult<List<dynamic>>> ExecuteByGuid(Guid guid)
         {
             try
             {
@@ -101,7 +102,7 @@ namespace Jube.App.Controllers.Session
                 var sw = new StopWatch();
                 sw.Start();
 
-                var value = postgres.ExecuteByOrderedParameters(modelCompiled.SelectSqlSearch + " "
+                var value = await postgres.ExecuteByOrderedParameters(modelCompiled.SelectSqlSearch + " "
                     + modelCompiled.WhereSql
                     + " " + modelCompiled.OrderSql, tokens);
 

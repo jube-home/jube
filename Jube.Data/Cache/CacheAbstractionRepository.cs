@@ -12,26 +12,18 @@
  */
 
 using System;
+using System.Threading.Tasks;
 using Jube.Data.Extension;
 using log4net;
 using Npgsql;
 
 namespace Jube.Data.Cache
 {
-    public class CacheAbstractionRepository
+    public class CacheAbstractionRepository(string connectionString, ILog log)
     {
-        private readonly string _connectionString;
-        private readonly ILog _log;
-
-        public CacheAbstractionRepository(string connectionString, ILog log)
+        public async Task Delete(long id)
         {
-            _connectionString = connectionString;
-            _log = log;
-        }
-
-        public void Delete(long id)
-        {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
                 connection.Open();
@@ -42,27 +34,27 @@ namespace Jube.Data.Cache
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
                 command.Parameters.AddWithValue("Id", id);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public void Insert(int entityAnalysisModelId, string searchKey, string searchValue, string name, double value)
+        public async Task InsertAsync(int entityAnalysisModelId, string searchKey, string searchValue, string name, double value)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "insert into\"CacheAbstraction\"(\"EntityAnalysisModelId\",\"SearchKey\"," +
                           "\"SearchValue\",\"Name\",\"Value\",\"CreatedDate\")" +
@@ -77,27 +69,27 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("name", name);
                 command.Parameters.AddWithValue("value", value);
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public void Update(long id, double value)
+        public async Task UpdateAsync(long id, double value)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "update \"CacheAbstraction\"" +
                           $" set \"Value\" = {value},\"CreatedDate\" = (@createdDate)" +
@@ -108,29 +100,29 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("id", id);
                 command.Parameters.AddWithValue("value", value);
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public CacheAbstractionIdValueDto GetByNameSearchNameSearchValue(int entityAnalysisModelId, string name,
+        public async Task<CacheAbstractionIdValueDto> GetByNameSearchNameSearchValueAsync(int entityAnalysisModelId, string name,
             string searchKey, string searchValue)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             CacheAbstractionIdValueDto value = null;
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"Id\",\"Value\" from \"CacheAbstraction\"" +
                           " where \"Name\" = (@name) and \"SearchKey\" = (@searchKey)" +
@@ -143,40 +135,41 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("searchKey", searchKey);
                 command.Parameters.AddWithValue("searchValue", searchValue);
                 command.Parameters.AddWithValue("name", name);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     value = new CacheAbstractionIdValueDto
                     {
                         Id = (long) reader.GetValue(0),
                         Value = (double) reader.GetValue(1)
                     };
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public double GetByNameSearchNameSearchValueReturnValueOnly(int entityAnalysisModelId, string name,
+        public async Task<double> GetByNameSearchNameSearchValueReturnValueOnlyAsync(int entityAnalysisModelId, string name,
             string searchKey, string searchValue)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = 0d;
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"Value\" from \"CacheAbstraction\"" +
                           " where \"Name\" = (@name) and \"SearchKey\" = (@searchKey)" +
@@ -189,19 +182,19 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("searchKey", searchKey);
                 command.Parameters.AddWithValue("searchValue", searchValue);
                 command.Parameters.AddWithValue("name", name);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var returnScalarValue = command.ExecuteScalar();
+                var returnScalarValue = await command.ExecuteScalarAsync();
                 if (returnScalarValue != null) value = returnScalarValue.AsDouble();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;

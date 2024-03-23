@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Jube.App.Code;
 using Jube.Data.Context;
 using Jube.Data.Poco;
@@ -67,13 +68,13 @@ namespace Jube.App.Controllers.Query
         }
 
         [HttpGet("{guid:Guid}")]
-        public ActionResult<CaseQueryDto> Get(Guid guid)
+        public async Task<ActionResult<CaseQueryDto>> Get(Guid guid)
         {
             try
             {
                 if (!_permissionValidation.Validate(new[] {1})) return Forbid();
 
-                var query = _query.Execute(guid);
+                var query = await _query.Execute(guid);
 
                 if (query == null) return NotFound();
 

@@ -15,28 +15,22 @@ using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using System.Threading.Tasks;
 using Jube.Data.Extension;
 using Newtonsoft.Json;
 using Npgsql;
 
 namespace Jube.Data.Reporting
 {
-    public class Postgres
+    public class Postgres(string connectionString)
     {
-        private readonly string _connectionString;
-
-        public Postgres(string connectionString)
+        public async Task<Dictionary<string, string>> Introspect(string sql, Dictionary<string, object> parameters)
         {
-            _connectionString = connectionString;
-        }
-
-        public Dictionary<string, string> Introspect(string sql, Dictionary<string, object> parameters)
-        {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var values = new Dictionary<string, string>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var tableName = "Temp_" + Guid.NewGuid().ToString("N");
 
@@ -47,7 +41,7 @@ namespace Jube.Data.Reporting
                 foreach (var (key, value) in parameters.Where(parameter => sql.Contains("@" + parameter.Key)))
                     commandTempTable.Parameters.AddWithValue(key, value);
 
-                commandTempTable.ExecuteNonQuery();
+                await commandTempTable.ExecuteNonQueryAsync();
 
                 var introspectionSql = "SELECT attname, format_type(atttypid, atttypmod) AS type" +
                                        " FROM pg_attribute" +
@@ -60,33 +54,34 @@ namespace Jube.Data.Reporting
                 var command = new NpgsqlCommand(introspectionSql);
                 command.Connection = connection;
 
-                var reader = command.ExecuteReader();
-                while (reader.Read()) values.Add(reader.GetValue(0).AsString(), reader.GetValue(1).AsString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) values.Add(reader.GetValue(0).AsString(), reader.GetValue(1).AsString());
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return values;
         }
 
-        public void Prepare(string sql, List<object> parameters)
+        public async Task Prepare(string sql, List<object> parameters)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
@@ -94,31 +89,31 @@ namespace Jube.Data.Reporting
                 for (var i = 0; i < parameters.Count; i++)
                     command.Parameters.AddWithValue("@" + (i + 1), parameters[i]);
 
-                command.Prepare();
+                await command.PrepareAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public List<string> ExecuteReturnOnlyJsonFromArchiveSample(int entityAnalysisModelId,
+        public async Task<List<string>> ExecuteReturnOnlyJsonFromArchiveSample(int entityAnalysisModelId,
             string filterSql,
             string filterTokens,
             int limit,bool mockData)
         {
             var value = new List<string>();
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var tokens = JsonConvert.DeserializeObject<List<object>>(filterTokens);
                 tokens.Add(entityAnalysisModelId);
@@ -135,49 +130,50 @@ namespace Jube.Data.Reporting
 
                 for (var i = 0; i < tokens.Count; i++) command.Parameters.AddWithValue("@" + (i + 1), tokens[i]);
 
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read()) value.Add(reader.GetValue(0).AsString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) value.Add(reader.GetValue(0).AsString());
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
         
-        public List<IDictionary<string, object>> ExecuteReturnPayloadFromArchiveWithSkipLimit(string sql,
+        public async Task<List<IDictionary<string, object>>> ExecuteReturnPayloadFromArchiveWithSkipLimit(string sql,
             DateTime adjustedStartDate,
             int skip,
             int limit)
         {
             var value = new List<IDictionary<string, object>>();
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection; 
                 command.Parameters.AddWithValue("adjustedStartDate", adjustedStartDate);
                 command.Parameters.AddWithValue("limit", limit);
                 command.Parameters.AddWithValue("skip", skip);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     var eo = new ExpandoObject() as IDictionary<string, object>;
                     for (var index = 0; index < reader.FieldCount; index++)
@@ -187,33 +183,34 @@ namespace Jube.Data.Reporting
                         }
                     value.Add(eo);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public List<IDictionary<string, object>> ExecuteByNamedParameters(string sql,
+        public async Task<List<IDictionary<string, object>>> ExecuteByNamedParameters(string sql,
             Dictionary<string, object> parameters)
         {
             var value = new List<IDictionary<string, object>>();
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
@@ -221,10 +218,10 @@ namespace Jube.Data.Reporting
                 foreach (var (key, o) in parameters)
                     command.Parameters.AddWithValue("@" + key, o);
 
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     var eo = new ExpandoObject() as IDictionary<string, object>;
                     for (var index = 0; index < reader.FieldCount; index++)
@@ -234,32 +231,33 @@ namespace Jube.Data.Reporting
                         }
                     value.Add(eo);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public List<IDictionary<string, object>> ExecuteByOrderedParameters(string sql, List<object> parameters)
+        public async Task<List<IDictionary<string, object>>> ExecuteByOrderedParameters(string sql, List<object> parameters)
         {
             var value = new List<IDictionary<string, object>>();
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
@@ -267,10 +265,10 @@ namespace Jube.Data.Reporting
                 for (var i = 0; i < parameters.Count; i++)
                     command.Parameters.AddWithValue("@" + (i + 1), parameters[i]);
 
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     var eo = new ExpandoObject() as IDictionary<string, object>;
                     for (var index = 0; index < reader.FieldCount; index++)
@@ -280,20 +278,21 @@ namespace Jube.Data.Reporting
                         }
                     value.Add(eo);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;

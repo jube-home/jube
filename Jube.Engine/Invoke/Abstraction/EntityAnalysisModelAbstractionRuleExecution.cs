@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading.Tasks;
 using Jube.Data.Cache;
 using Jube.Data.Extension;
 using Jube.Engine.Invoke.Reflect;
@@ -37,11 +38,11 @@ namespace Jube.Engine.Invoke.Abstraction
         public ILog Log { get; init; }
         public CachePayloadRepository CachePayloadRepository { get; set; }
 
-        public void Start()
+        public async Task Start()
         {
             try
             {
-                var documents = CachePayloadRepository
+                var documents = await CachePayloadRepository
                     .GetSqlByKeyValueLimit(DistinctSearchKey.Sql,
                         AbstractionRuleGroupingKey, CachePayloadDocument[AbstractionRuleGroupingKey].AsString(),"ReferenceDate", EntityAnalysisModel.CacheTtlLimit);
                 

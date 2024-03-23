@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using FluentMigrator.Runner;
 using Jube.Data.Context;
 using Jube.Data.Poco;
@@ -33,7 +34,7 @@ namespace Jube.Data.Query
             _userName = user;
         }
 
-        public dynamic Execute(int id, Dictionary<int, object> parametersById)
+        public async Task<dynamic> Execute(int id, Dictionary<int, object> parametersById)
         {
             var values = new List<IDictionary<string, object>>();
             var visualisationRegistryDatasourceRepository =
@@ -60,7 +61,7 @@ namespace Jube.Data.Query
                 try
                 {
                     var postgres = new Postgres(_dbContext.ConnectionString);
-                    values = postgres.ExecuteByNamedParameters(visualisationRegistryDatasource.Command,
+                    values = await postgres.ExecuteByNamedParameters(visualisationRegistryDatasource.Command,
                         parametersByName);
                 }
                 catch (Exception ex)

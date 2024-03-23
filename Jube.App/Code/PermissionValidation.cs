@@ -25,13 +25,13 @@ namespace Jube.App.Code
         public PermissionValidation(DbContext dbContext, string userName)
         {
             var permissionValidation = new Data.Security.PermissionValidation();
-            _permissionValidationDto = permissionValidation.GetPermissions(dbContext, userName);
+            _permissionValidationDto = permissionValidation.GetPermissions(dbContext, userName).Result;
         }
         
         public PermissionValidation(string connectionString, string userName)
         {
             var permissionValidation = new Data.Security.PermissionValidation();
-            _permissionValidationDto = permissionValidation.GetPermissions(connectionString, userName);
+            _permissionValidationDto = permissionValidation.GetPermissions(connectionString, userName).Result;
         }
         
         public bool Validate(int[] testPermissionSpecifications, bool write = false)

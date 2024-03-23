@@ -27,6 +27,7 @@ using Jube.Engine.Exhaustive.Variables;
 using Jube.Engine.Helpers;
 using log4net;
 using System.Threading;
+using System.Threading.Tasks;
 using Accord.Statistics.Distributions.Univariate;
 using Jube.Data.Context;
 using Jube.Data.Query;
@@ -54,7 +55,7 @@ namespace Jube.Engine.Exhaustive
             _contractResolver = contractResolver;
         }
 
-        public void Start()
+        public async Task Start()
         {
             while (!Stopping)
             {
@@ -123,14 +124,15 @@ namespace Jube.Engine.Exhaustive
                         }
                         else
                         {
-                            Data.Extraction.GetSampleData(dbContext,
+                            var getSampleDataResponse = await Data.Extraction.GetSampleData(dbContext,
                                 exhaustiveSearchInstance.TenantRegistryId,
                                 exhaustiveSearchInstance.EntityAnalysisModelId,
                                 exhaustiveSearchInstance.FilterSql,
                                 exhaustiveSearchInstance.FilterTokens,
-                                mockData,
-                                out variables,
-                                out data);
+                                mockData);
+                            
+                            variables = getSampleDataResponse.Item1;
+                            data = getSampleDataResponse.Item2;
                         }
 
                         _log.Info(
@@ -204,15 +206,16 @@ namespace Jube.Engine.Exhaustive
                                 $"from data for {exhaustiveSearchInstance.Id} updating status to 7 for filtering.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 7);
-                            
-                            Data.Extraction.GetClassData(dbContext,
+
+                            var getClassDataResponse = await Data.Extraction.GetClassData(dbContext,
                                 exhaustiveSearchInstance.EntityAnalysisModelId,
                                 exhaustiveSearchInstance.FilterSql,
                                 exhaustiveSearchInstance.FilterTokens,
                                 variables,
-                                mockData,
-                                out var dataClassificationFilter,
-                                out var outputsClassificationFilter);
+                                mockData);
+
+                            var dataClassificationFilter = getClassDataResponse.Item1;
+                            var outputsClassificationFilter = getClassDataResponse.Item2;
                             
                             var repositoryExhaustiveSearchInstanceVariablesClassification =
                                 new ExhaustiveSearchInstanceVariableClassificationRepository(dbContext);

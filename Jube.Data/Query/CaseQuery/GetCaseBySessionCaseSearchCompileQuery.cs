@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FluentMigrator.Runner;
 using Jube.Data.Context;
 using Jube.Data.Extension;
@@ -37,7 +38,7 @@ namespace Jube.Data.Query.CaseQuery
             _processCaseQuery = new ProcessCaseQuery(_dbContext, _userName);
         }
 
-        public CaseQueryDto Execute(Guid guid)
+        public async Task<CaseQueryDto> Execute(Guid guid)
         {
             var sessionCaseSearchCompiledSqlRepository =
                 new SessionCaseSearchCompiledSqlRepository(_dbContext, _userName);
@@ -53,7 +54,7 @@ namespace Jube.Data.Query.CaseQuery
 
                 var postgres = new Postgres(_dbContext.ConnectionString);
 
-                var value = postgres.ExecuteByOrderedParameters(modelCompiled.SelectSqlDisplay + " "
+                var value = await postgres.ExecuteByOrderedParameters(modelCompiled.SelectSqlDisplay + " "
                     + modelCompiled.WhereSql
                     + " " + modelCompiled.OrderSql + " limit 1", tokens);
                 sw.Stop();

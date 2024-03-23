@@ -14,6 +14,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Reporting;
 using Newtonsoft.Json.Linq;
@@ -33,7 +34,7 @@ namespace Jube.Data.Query
             _dbContext = dbContext;
         }
 
-        public List<Dictionary<string, object>> Execute(string key, string keyValue, int caseWorkflowId, int limit,
+        public async Task<List<Dictionary<string, object>>> Execute(string key, string keyValue, int caseWorkflowId, int limit,
             int activationRuleCount, double responseElevation)
         {
             var values = new List<Dictionary<string, object>>();
@@ -69,9 +70,9 @@ namespace Jube.Data.Query
 
             var postgres = new Postgres(_connectionString);
 
-            postgres.Prepare(sql, tokens);
+            await postgres.Prepare(sql, tokens);
 
-            foreach (var record in postgres.ExecuteByOrderedParameters(sql, tokens))
+            foreach (var record in await postgres.ExecuteByOrderedParameters(sql, tokens))
             {
                 var json = JObject.Parse(record["Json"].ToString());
 

@@ -17,6 +17,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentMigrator.Runner;
 using Jube.App.Code;
@@ -54,6 +55,8 @@ namespace Jube.App
         
         public void ConfigureServices(IServiceCollection services)
         {
+            ThreadPool.SetMinThreads(workerThreads: 100, completionPortThreads: 5);
+            
             var contractResolver = new DefaultContractResolver
             {
                 NamingStrategy = new CamelCaseNamingStrategy()
@@ -266,9 +269,9 @@ namespace Jube.App
             
             app.UseWhen(
                 httpContext => !httpContext.Request.Path.StartsWithSegments("/api/invoke",StringComparison.OrdinalIgnoreCase),
-#pragma warning disable CS1998
-                appBuilder => appBuilder.UseStatusCodePages(async context =>
-#pragma warning restore CS1998
+
+                appBuilder => appBuilder.UseStatusCodePages(context =>
+
                 {
                     var request = context.HttpContext.Request;
                     var response = context.HttpContext.Response;
@@ -280,6 +283,8 @@ namespace Jube.App
                             response.Redirect("/Account/Login");
                         }
                     }
+
+                    return Task.CompletedTask;
                 })
             );            
             

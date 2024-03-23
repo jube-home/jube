@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Validation;
 using Jube.Data.Poco;
@@ -68,14 +69,14 @@ namespace Jube.Data.Repository
                    && (w.Deleted == 0 || w.Deleted == null));
         }
 
-        public VisualisationRegistryDatasource Insert(VisualisationRegistryDatasource model)
+        public async Task<VisualisationRegistryDatasource> Insert(VisualisationRegistryDatasource model)
         {
             if (model.VisualisationRegistryId != null)
             {
                 Dictionary<string, string> columns;
                 try
                 {
-                    columns = ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
+                    columns = await ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
                 }
                 catch (Exception e)
                 {
@@ -94,14 +95,14 @@ namespace Jube.Data.Repository
             return model;
         }
 
-        public VisualisationRegistryDatasource Update(VisualisationRegistryDatasource model)
+        public async Task<VisualisationRegistryDatasource> Update(VisualisationRegistryDatasource model)
         {
             if (model.VisualisationRegistryId != null)
             {
                 Dictionary<string, string> columns;
                 try
                 {
-                    columns = ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
+                    columns = await ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
                 }
                 catch (Exception e)
                 {
@@ -172,7 +173,7 @@ namespace Jube.Data.Repository
             }
         }
 
-        private Dictionary<string, string> ValidateSeries(DbContext dbContext, int visualisationRegistryId, string sql)
+        private async Task<Dictionary<string, string>> ValidateSeries(DbContext dbContext, int visualisationRegistryId, string sql)
         {
             var visualisationRegistryParameterRepository = new VisualisationRegistryParameterRepository(_dbContext);
             var parameters =
@@ -195,7 +196,7 @@ namespace Jube.Data.Repository
             }
 
             var postgres = new Postgres(dbContext.ConnectionString);
-            return postgres.Introspect(sql, parametersDefaultValues);
+            return await postgres.Introspect(sql, parametersDefaultValues);
         }
         
         public void Delete(int id)
