@@ -676,6 +676,8 @@ namespace Jube.Engine
 
                     Thread.Sleep(100);
                 }
+
+            return Task.CompletedTask;
         }
 
         private void Sanctions()
@@ -1554,7 +1556,7 @@ namespace Jube.Engine
             try
             {
                 var consumer = new EventingBasicConsumer(rabbitMqChannel);
-                consumer.Received += async (_, ea) =>
+                consumer.Received += (_, ea) =>
                 {
                     try
                     {
@@ -1610,7 +1612,7 @@ namespace Jube.Engine
                                             log.Info(
                                                 $"AMQP Inbound: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} matched for Requested Model GUID {entityAnalysisModelGuid}.  Has built model invocation,  is about to invoke the model.");
 
-                                            await entityModelInvoke.ParseAndInvoke(entityAnalysisModel, inputStream, false,
+                                            entityModelInvoke.ParseAndInvoke(entityAnalysisModel, inputStream, false,
                                                 inputStream.Length,
                                                 null);
 

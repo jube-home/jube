@@ -5138,7 +5138,7 @@ namespace Jube.Engine
                                                                 Convert.ToDateTime(
                                                                     entry[modelKvp.Value.ReferenceDateName]);
 
-                                                            await InvokeReprocessingForDocument(modelKvp,
+                                                            InvokeReprocessingForDocument(modelKvp,
                                                                 entityAnalysisModelRuleReprocessingInstance, processed,
                                                                 entry);
                                                             
@@ -5260,7 +5260,7 @@ namespace Jube.Engine
             return deleted;
         }
 
-        private async Task InvokeReprocessingForDocument(KeyValuePair<int, EntityAnalysisModel> modelKvp,
+        private void InvokeReprocessingForDocument(KeyValuePair<int, EntityAnalysisModel> modelKvp,
             EntityAnalysisModelRuleReprocessingInstance entityAnalysisModelRuleReprocessingInstance, int processed,
             IDictionary<string, object> entry)
         {
@@ -5276,7 +5276,7 @@ namespace Jube.Engine
             ExtractRequestXPathForInvocation(entityAnalysisModelRuleReprocessingInstance, entry, modelKvp,
                 cachePayloadDocumentStore);
 
-            await FinaliseAndInvokeForReprocess(entityAnalysisModelRuleReprocessingInstance, entityInstanceEntryPayloadStore,
+            FinaliseAndInvokeForReprocess(entityAnalysisModelRuleReprocessingInstance, entityInstanceEntryPayloadStore,
                 modelKvp, cachePayloadDocumentStore, entityModelInvoke,
                 cachePayloadDocumentResponse, stopwatch);
         }

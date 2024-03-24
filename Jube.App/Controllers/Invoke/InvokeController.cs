@@ -271,7 +271,7 @@ namespace Jube.App.Controllers.Invoke
                         {
                             if (!(Request.ContentLength > 0)) return BadRequest("Content body is zero length.");
                             
-                            await entityModelInvoke.ParseAndInvoke(entityAnalysisModel, ms, async,
+                            entityModelInvoke.ParseAndInvoke(entityAnalysisModel, ms, async,
                                 Request.ContentLength.Value,
                                 pendingEntityInvoke);
 

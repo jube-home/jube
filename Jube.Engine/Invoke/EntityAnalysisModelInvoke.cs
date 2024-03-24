@@ -37,6 +37,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RabbitMQ.Client;
 using EntityAnalysisModel = Jube.Engine.Model.EntityAnalysisModel;
+using EntityAnalysisModelAbstractionRule = Jube.Engine.Model.EntityAnalysisModelAbstractionRule;
 using EntityAnalysisModelActivationRule = Jube.Engine.Model.EntityAnalysisModelActivationRule;
 
 namespace Jube.Engine.Invoke
@@ -697,7 +698,7 @@ namespace Jube.Engine.Invoke
                     var cachePayloadRepository =
                         new CachePayloadRepository(jubeEnvironment.AppSettings(
                             new []{"CacheConnectionString","ConnectionString"}),log);
-                    pendingReadTasks.Add(ExecuteAbstractionRulesWithSearchKeys(cachePayloadRepository));
+                    ExecuteAbstractionRulesWithSearchKeys(cachePayloadRepository);
                     ExecuteAbstractionRulesWithoutSearchKeys();
                     ExecuteAbstractionCalculations();
                     ExecuteExhaustiveModels();
@@ -2432,7 +2433,7 @@ namespace Jube.Engine.Invoke
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Abstraction has concluded in {Stopwatch.ElapsedMilliseconds} ms.");
         }
 
-        private async Task ExecuteAbstractionRulesWithSearchKeys(CachePayloadRepository cachePayloadRepository)
+        private void ExecuteAbstractionRulesWithSearchKeys(CachePayloadRepository cachePayloadRepository)
         {
             var pendingExecutionThreads = new List<Task>();
             if (EntityAnalysisModel.EnableCache)
@@ -2491,8 +2492,6 @@ namespace Jube.Engine.Invoke
                     }
                 }
                 
-                Task.WaitAll(pendingExecutionThreads.ToArray());
-                
                 log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now loop around all of the Abstraction rules for the purposes of performing the aggregations.");
 
@@ -2503,63 +2502,7 @@ namespace Jube.Engine.Invoke
                     {
                         if (abstractionRule.Search)
                         {
-                            log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating abstraction rule {abstractionRule.Id}.");
-
-                            double abstractionValue;
-                            if (EntityAnalysisModel.DistinctSearchKeys.FirstOrDefault(x =>
-                                    x.Key == abstractionRule.SearchKey && x.Value.SearchKeyCache).Value != null)
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has its values in the cache.");
-
-                                abstractionValue = await cacheAbstractionRepository.GetByNameSearchNameSearchValueReturnValueOnlyAsync(EntityAnalysisModel.Id,
-                                    abstractionRule.Name,abstractionRule.SearchKey,
-                                    CachePayloadDocumentStore[abstractionRule.SearchKey].AsString());
-                            }
-                            else
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} using documents in the entities collection of the cache.");
-
-                                abstractionValue = EntityAnalysisModelAbstractionRuleAggregator.Aggregate(EntityAnalysisModelInstanceEntryPayloadStore,
-                                    AbstractionRuleMatches, abstractionRule, log);
-
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} has finished and the value is {abstractionValue}.");
-                            }
-
-                            EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.Add(abstractionRule.Name,
-                                abstractionValue);
-
-                            log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to processing.");
-
-                            if (abstractionRule.ResponsePayload)
-                            {
-                                EntityInstanceEntryAbstractionResponse.Add(abstractionRule.Name, abstractionValue);
-
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to response payload.");
-                            }
-
-                            if (abstractionRule.ReportTable && !Reprocess)
-                            {
-                                ReportDatabaseValues.Add(new ArchiveKey
-                                {
-                                    ProcessingTypeId = 5,
-                                    Key = abstractionRule.Name,
-                                    KeyValueFloat = abstractionValue,
-                                    EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                        .EntityAnalysisModelInstanceEntryGuid
-                                });
-
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to report payload with a column name of {abstractionRule.Name}.");
-                            }
-
-                            log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished aggregating abstraction rule {abstractionRule.Id}.");
+                            pendingExecutionThreads.Add(LookupAbstractionSearchKeyCache(abstractionRule, cacheAbstractionRepository));
                         }
                     }
                     catch (Exception ex)
@@ -2574,8 +2517,72 @@ namespace Jube.Engine.Invoke
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Entity cache storage is not enabled so it cannot fetch anything relating to Abstraction Rules.");
             }
 
+            Task.WaitAll(pendingExecutionThreads.ToArray());
+            
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} all abstraction aggregation has finished, basic rules will now be processed.");
+        }
+
+        private async Task LookupAbstractionSearchKeyCache(EntityAnalysisModelAbstractionRule abstractionRule,
+            CacheAbstractionRepository cacheAbstractionRepository)
+        {
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating abstraction rule {abstractionRule.Id}.");
+
+            double abstractionValue;
+            if (EntityAnalysisModel.DistinctSearchKeys.FirstOrDefault(x =>
+                    x.Key == abstractionRule.SearchKey && x.Value.SearchKeyCache).Value != null)
+            {
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has its values in the cache.");
+
+                abstractionValue = await cacheAbstractionRepository.GetByNameSearchNameSearchValueReturnValueOnlyAsync(EntityAnalysisModel.Id,
+                    abstractionRule.Name,abstractionRule.SearchKey,
+                    CachePayloadDocumentStore[abstractionRule.SearchKey].AsString());
+            }
+            else
+            {
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} using documents in the entities collection of the cache.");
+
+                abstractionValue = EntityAnalysisModelAbstractionRuleAggregator.Aggregate(EntityAnalysisModelInstanceEntryPayloadStore,
+                    AbstractionRuleMatches, abstractionRule, log);
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} has finished and the value is {abstractionValue}.");
+            }
+
+            EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.Add(abstractionRule.Name,
+                abstractionValue);
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to processing.");
+
+            if (abstractionRule.ResponsePayload)
+            {
+                EntityInstanceEntryAbstractionResponse.Add(abstractionRule.Name, abstractionValue);
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to response payload.");
+            }
+
+            if (abstractionRule.ReportTable && !Reprocess)
+            {
+                ReportDatabaseValues.Add(new ArchiveKey
+                {
+                    ProcessingTypeId = 5,
+                    Key = abstractionRule.Name,
+                    KeyValueFloat = abstractionValue,
+                    EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
+                        .EntityAnalysisModelInstanceEntryGuid
+                });
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to report payload with a column name of {abstractionRule.Name}.");
+            }
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished aggregating abstraction rule {abstractionRule.Id}.");
         }
 
         private async Task ExecuteTtlCounters()
