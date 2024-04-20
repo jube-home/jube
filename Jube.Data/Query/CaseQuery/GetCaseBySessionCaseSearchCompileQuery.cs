@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FluentMigrator.Runner;
 using Jube.Data.Context;
 using Jube.Data.Extension;
@@ -26,21 +27,21 @@ namespace Jube.Data.Query.CaseQuery
 {
     public class GetCaseBySessionCaseSearchCompileQuery
     {
-        private readonly DbContext _dbContext;
-        private readonly ProcessCaseQuery _processCaseQuery;
-        private readonly string _userName;
+        private readonly DbContext dbContext;
+        private readonly ProcessCaseQuery processCaseQuery;
+        private readonly string userName;
 
         public GetCaseBySessionCaseSearchCompileQuery(DbContext dbContext, string user)
         {
-            _dbContext = dbContext;
-            _userName = user;
-            _processCaseQuery = new ProcessCaseQuery(_dbContext, _userName);
+            this.dbContext = dbContext;
+            userName = user;
+            processCaseQuery = new ProcessCaseQuery(this.dbContext, userName);
         }
 
-        public CaseQueryDto Execute(Guid guid)
+        public async Task<CaseQueryDto> ExecuteAsync(Guid guid)
         {
             var sessionCaseSearchCompiledSqlRepository =
-                new SessionCaseSearchCompiledSqlRepository(_dbContext, _userName);
+                new SessionCaseSearchCompiledSqlRepository(dbContext, userName);
 
             var modelCompiled = sessionCaseSearchCompiledSqlRepository.GetByGuid(guid);
 
@@ -51,9 +52,9 @@ namespace Jube.Data.Query.CaseQuery
                 var sw = new StopWatch();
                 sw.Start();
 
-                var postgres = new Postgres(_dbContext.ConnectionString);
+                var postgres = new Postgres(dbContext.ConnectionString);
 
-                var value = postgres.ExecuteByOrderedParameters(modelCompiled.SelectSqlDisplay + " "
+                var value = await postgres.ExecuteByOrderedParametersAsync(modelCompiled.SelectSqlDisplay + " "
                     + modelCompiled.WhereSql
                     + " " + modelCompiled.OrderSql + " limit 1", tokens);
                 sw.Stop();
@@ -66,7 +67,7 @@ namespace Jube.Data.Query.CaseQuery
                 };
 
                 var sessionCaseSearchCompiledSqlExecutionRepository =
-                    new SessionCaseSearchCompiledSqlExecutionRepository(_dbContext, _userName);
+                    new SessionCaseSearchCompiledSqlExecutionRepository(dbContext, userName);
 
                 sessionCaseSearchCompiledSqlExecutionRepository.Insert(modelInsert);
 
@@ -182,7 +183,7 @@ namespace Jube.Data.Query.CaseQuery
 
                     caseQueryDto.Json = value[0].ContainsKey("Json") ? value[0]["Json"]?.AsString() : default;
 
-                    return _processCaseQuery.Process(caseQueryDto);
+                    return processCaseQuery.Process(caseQueryDto);
                 }
             }
 

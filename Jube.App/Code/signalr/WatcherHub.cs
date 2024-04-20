@@ -18,7 +18,7 @@ namespace Jube.App.Code.signalr
 {
     public class WatcherHub : Hub
     {
-        public async Task SendMessage(string user, string message)
+        public async Task SendMessageAsync(string user, string message)
         {
             await Clients.All.SendAsync("ReceiveMessage", user, message);
         }

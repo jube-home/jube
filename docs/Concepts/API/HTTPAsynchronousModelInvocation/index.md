@@ -7,11 +7,9 @@ grand_parent: Concepts
 ---
 
 # HTTP API Asynchronous Model Invocation
-Most of the procedures in this documentation makes use of synchronous HTTP requests in which the request is blocked until absolute conclusion of the processing.
+Most of the procedures in this documentation makes use of synchronous HTTP requests in which the request is blocked for the client unitil absolute conclusion of the processing, notwithstanding a significant amount of asynchronous processing taking place in the processing to ensure reasonable response time by eliminating blocking waits on IO.
 
 As the HTTP requests are handled by the Kestrel web server embedded into Jube, this translates to a request being made of a Thread from the .Net managed Thread Pool. 
-
-There is no use of asynchronous methods during model invocation (except in the case of ForkAbstractionKeys, which is not the default setting) hence that thread will be unavailable to the Thread Pool until completion.
 
 The .Net Thread Pool is exceptionally good at sizing itself, however in periods of burst, thread load or saturation can occur,  which may lead to inconsistent - yet not necessarily unreasonable - response times.  The manageability and maintainability of the application becomes difficult should unmarshalled requests be made of the thread pool,  especially in burst.  Henceforth,  as a philosophy, it is a preferred approach to queue work on in the instances internal concurrent queues and manually size thread counts, having detailed knowledge of the underlying hardware infrastructure.  A further benefit of the manual thread sizing approach is to allow for asynchronicity in the client integration, without having to relying on asynchronous methods and thread pools client side,  which may bring about many of the same challenges that this architecture sets out to solve.
 

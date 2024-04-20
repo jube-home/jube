@@ -2,15 +2,16 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Extension;
 using Npgsql;
@@ -19,37 +20,37 @@ namespace Jube.Data.Security
 {
     public class PermissionValidation
     {
-        public PermissionValidationDto GetPermissions(string connectionString, string userName)
+        public async Task<PermissionValidationDto> GetPermissionsAsync(string connectionString, string userName)
         {
             var connection = new NpgsqlConnection(connectionString);
             PermissionValidationDto permissionValidationDto;
             try
             {
-                connection.Open();
-                permissionValidationDto = GetPermissionsFromDatabase(connection, userName);
+                await connection.OpenAsync();
+                permissionValidationDto = await GetPermissionsFromDatabaseAsync(connection, userName);
             }
             catch
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
                 throw;
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return permissionValidationDto;
         }
 
-        public PermissionValidationDto GetPermissions(DbContext dbContext, string userName)
+        public async Task<PermissionValidationDto> GetPermissionsAsync(DbContext dbContext, string userName)
         {
             var connection = (NpgsqlConnection) dbContext.Connection;
-            return GetPermissionsFromDatabase(connection, userName);
+            return await GetPermissionsFromDatabaseAsync(connection, userName);
         }
 
-        private bool Landlord(NpgsqlConnection connection, string userName)
+        private async Task<bool> LandlordAsync(NpgsqlConnection connection, string userName)
         {
             var landlord = false;
 
@@ -65,10 +66,10 @@ namespace Jube.Data.Security
             var commandSqlLandlord = new NpgsqlCommand(sqlLandlord);
             commandSqlLandlord.Connection = connection;
             commandSqlLandlord.Parameters.AddWithValue("userName", userName);
-            commandSqlLandlord.Prepare();
+            await commandSqlLandlord.PrepareAsync();
 
-            var readerLandlord = commandSqlLandlord.ExecuteReader();
-            while (readerLandlord.Read())
+            var readerLandlord = await commandSqlLandlord.ExecuteReaderAsync();
+            while (await readerLandlord.ReadAsync())
             {
                 if (!readerLandlord.IsDBNull(0))
                 {
@@ -81,19 +82,22 @@ namespace Jube.Data.Security
                 break;
             }
 
-            readerLandlord.Close();
+            await readerLandlord.CloseAsync();
+            await readerLandlord.DisposeAsync();
+            await readerLandlord.DisposeAsync();
 
             return landlord;
         }
 
-        private PermissionValidationDto GetPermissionsFromDatabase(NpgsqlConnection connection, string userName)
+        private async Task<PermissionValidationDto> GetPermissionsFromDatabaseAsync(NpgsqlConnection connection,
+            string userName)
         {
             var permissionValidationDto = new PermissionValidationDto();
 
             var command = new NpgsqlCommand();
             command.Connection = connection;
 
-            permissionValidationDto.Landlord = Landlord(connection, userName);
+            permissionValidationDto.Landlord = await LandlordAsync(connection, userName);
 
             if (permissionValidationDto.Landlord)
             {
@@ -120,13 +124,14 @@ namespace Jube.Data.Security
                 command.Parameters.AddWithValue("userName", userName);
             }
 
-            command.Prepare();
+            await command.PrepareAsync();
 
-            var reader = command.ExecuteReader();
-            while (reader.Read()) permissionValidationDto.Permissions.Add(reader.GetValue(0).AsInt());
-            reader.Close();
-            reader.Dispose();
-            command.Dispose();
+            var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) permissionValidationDto.Permissions.Add(reader.GetValue(0).AsInt());
+
+            await reader.CloseAsync();
+            await reader.DisposeAsync();
+            await command.DisposeAsync();
 
             return permissionValidationDto;
         }

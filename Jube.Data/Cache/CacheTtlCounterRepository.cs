@@ -12,27 +12,19 @@
  */
 
 using System;
+using System.Threading.Tasks;
 using Jube.Data.Extension;
 using log4net;
 using Npgsql;
 
 namespace Jube.Data.Cache
 {
-    public class CacheTtlCounterRepository
+    public class CacheTtlCounterRepository(string connectionString, ILog log)
     {
-        private readonly string _connectionString;
-        private readonly ILog _log;
-
-        public CacheTtlCounterRepository(string connectionString, ILog log)
-        {
-            _connectionString = connectionString;
-            _log = log;
-        }
-
-        public void DecrementTtlCounterCache(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
+        public async Task DecrementTtlCounterCacheAsync(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
             string dataName, string dataValue, int decrement, DateTime referenceDate)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
                 connection.Open();
@@ -53,29 +45,29 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("dataValue", dataValue);
                 command.Parameters.AddWithValue("decrement", decrement);
                 command.Parameters.AddWithValue("referenceDate", referenceDate);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public DateTime? GetMostRecentFromTtlCounterCache(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
+        public async Task<DateTime?> GetMostRecentFromTtlCounterCacheAsync(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
             string dataName)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             DateTime? value = null;
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"ReferenceDate\" from \"CacheTtlCounter\"" +
                           " where \"EntityAnalysisModelTtlCounterId\" = (@entityAnalysisModelTtlCounterId) and \"DataName\" = (@dataName)" +
@@ -87,30 +79,30 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("dataName", dataName);
-                command.Prepare();
+                await command.PrepareAsync();
 
                 value = Convert.ToDateTime(command.ExecuteScalar());
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public int GetByNameDataNameDataValue(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId, string dataName, string dataValue)
+        public async Task<int> GetByNameDataNameDataValueAsync(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId, string dataName, string dataValue)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = 0;
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"Value\" from \"CacheTtlCounter\"" +
                           " where \"EntityAnalysisModelTtlCounterId\" = (@entityAnalysisModelTtlCounterId) and \"DataName\" = (@dataName) " +
@@ -122,31 +114,31 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("dataName", dataName);
                 command.Parameters.AddWithValue("dataValue", dataValue);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var scalarReturnValue = command.ExecuteScalar();
+                var scalarReturnValue = await command.ExecuteScalarAsync();
                 if (scalarReturnValue != null) value = scalarReturnValue.AsInt();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public void Upsert(int entityAnalysisModelId, string dataName, string dataValue, int entityAnalysisModelTtlCounterId,
+        public async Task UpsertAsync(int entityAnalysisModelId, string dataName, string dataValue, int entityAnalysisModelTtlCounterId,
             DateTime referenceDate)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "insert into \"CacheTtlCounter\"(\"EntityAnalysisModelId\",\"DataName\",\"DataValue\"," +
                           "\"EntityAnalysisModelTtlCounterId\",\"Value\",\"ReferenceDate\",\"UpdatedDate\")" +
@@ -163,17 +155,17 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("referenceDate", referenceDate);
                 command.Parameters.AddWithValue("updatedDate", DateTime.Now);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
             }
         }
     }

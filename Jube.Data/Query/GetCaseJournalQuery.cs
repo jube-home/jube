@@ -14,32 +14,24 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Reporting;
 using Newtonsoft.Json.Linq;
 
 namespace Jube.Data.Query
 {
-    public class GetCaseJournalQuery
+    public class GetCaseJournalQuery(DbContext dbContext, string user)
     {
-        private readonly string _connectionString;
-        private readonly DbContext _dbContext;
-        private readonly string _userName;
+        private readonly string connectionString = dbContext.ConnectionString;
 
-        public GetCaseJournalQuery(DbContext dbContext, string user)
-        {
-            _connectionString = dbContext.ConnectionString;
-            _userName = user;
-            _dbContext = dbContext;
-        }
-
-        public List<Dictionary<string, object>> Execute(string key, string keyValue, int caseWorkflowId, int limit,
+        public async Task<List<Dictionary<string, object>>> ExecuteAsync(string key, string keyValue, int caseWorkflowId, int limit,
             int activationRuleCount, double responseElevation)
         {
             var values = new List<Dictionary<string, object>>();
 
             var caseWorkflowXPathByCaseWorkflowIdQuery =
-                new GetCaseWorkflowXPathByCaseWorkflowIdQuery(_dbContext, _userName);
+                new GetCaseWorkflowXPathByCaseWorkflowIdQuery(dbContext, user);
 
             var xPaths = caseWorkflowXPathByCaseWorkflowIdQuery
                 .Execute(caseWorkflowId).ToList();
@@ -59,7 +51,7 @@ namespace Jube.Data.Query
             
                 var tokens = new List<object>
             {
-                _userName,
+                user,
                 key,
                 keyValue,
                 responseElevation,
@@ -67,11 +59,11 @@ namespace Jube.Data.Query
                 limit
             };
 
-            var postgres = new Postgres(_connectionString);
+            var postgres = new Postgres(connectionString);
 
-            postgres.Prepare(sql, tokens);
+            await postgres.PrepareAsync(sql, tokens);
 
-            foreach (var record in postgres.ExecuteByOrderedParameters(sql, tokens))
+            foreach (var record in await postgres.ExecuteByOrderedParametersAsync(sql, tokens))
             {
                 var json = JObject.Parse(record["Json"].ToString());
 
@@ -99,10 +91,8 @@ namespace Jube.Data.Query
                             {
                                 var valueToken = jToken.Value<string>();
 
-                                if (!value.ContainsKey(xPath.Name))
+                                if (value.TryAdd(xPath.Name, valueToken))
                                 {
-                                    value.Add(xPath.Name, valueToken);
-
                                     if (xPath.ConditionalRegularExpressionFormatting)
                                         try
                                         {

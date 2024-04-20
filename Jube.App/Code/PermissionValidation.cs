@@ -19,25 +19,25 @@ namespace Jube.App.Code
 {
     public class PermissionValidation
     {
-        private readonly PermissionValidationDto _permissionValidationDto;
-        public bool Landlord => _permissionValidationDto.Landlord;
+        private readonly PermissionValidationDto permissionValidationDto;
+        public bool Landlord => permissionValidationDto.Landlord;
 
         public PermissionValidation(DbContext dbContext, string userName)
         {
             var permissionValidation = new Data.Security.PermissionValidation();
-            _permissionValidationDto = permissionValidation.GetPermissions(dbContext, userName);
+            permissionValidationDto = permissionValidation.GetPermissionsAsync(dbContext, userName).Result;
         }
         
         public PermissionValidation(string connectionString, string userName)
         {
             var permissionValidation = new Data.Security.PermissionValidation();
-            _permissionValidationDto = permissionValidation.GetPermissions(connectionString, userName);
+            permissionValidationDto = permissionValidation.GetPermissionsAsync(connectionString, userName).Result;
         }
         
         public bool Validate(int[] testPermissionSpecifications, bool write = false)
         {
             return testPermissionSpecifications.Any(testPermissionSpecification
-                => _permissionValidationDto.Permissions.Contains(testPermissionSpecification));
+                => permissionValidationDto.Permissions.Contains(testPermissionSpecification));
         }
     }
 }

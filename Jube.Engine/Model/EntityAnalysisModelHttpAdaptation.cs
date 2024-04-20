@@ -23,8 +23,8 @@ namespace Jube.Engine.Model
 {
     public class EntityAnalysisModelHttpAdaptation
     {
-        private HttpClient _httpClient;
-        private Uri _uri;
+        private readonly HttpClient httpClient;
+        private Uri uri;
 
         public EntityAnalysisModelHttpAdaptation(int maxConnections, bool validateSsl,int timeout)
         {
@@ -36,8 +36,8 @@ namespace Jube.Engine.Model
             }
             httpClientHandler.MaxConnectionsPerServer = maxConnections;
 
-            _httpClient = new HttpClient(httpClientHandler);
-            _httpClient.Timeout = TimeSpan.FromMilliseconds(timeout);
+            httpClient = new HttpClient(httpClientHandler);
+            httpClient.Timeout = TimeSpan.FromMilliseconds(timeout);
         }
             
         public int Id { get; init; }
@@ -46,35 +46,35 @@ namespace Jube.Engine.Model
         public bool ReportTable { get; set; }
         public string HttpEndpoint
         {
-            get => _uri.ToString();
-            set => _uri = new Uri(value);
+            get => uri.ToString();
+            set => uri = new Uri(value);
         }
 
-        public async Task<double> Post(Dictionary<string, object> jsonForPlumber, ILog log)
+        public async Task<double> Post(Dictionary<string, object> jsonForPlumberAsync, ILog log)
         {
-            log.Info($"R Plumber Hook: Is about to send to {_uri}.");
+            log.Info($"R Plumber Hook: Is about to send to {uri}.");
         
             var stringContent = new StringContent(
-                JsonConvert.SerializeObject(jsonForPlumber),
+                JsonConvert.SerializeObject(jsonForPlumberAsync),
                 Encoding.UTF8,
                 "application/json");
             
             var request = new HttpRequestMessage
             {
                 Method = HttpMethod.Post,
-                RequestUri = _uri,
+                RequestUri = uri,
                 Content = stringContent
             };
             
-            var task = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+            var task = await httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead);
 
             log.Info(
-                $"R Plumber Hook: Has received data from {_uri} with status {task.StatusCode}.");
+                $"R Plumber Hook: Has received data from {uri} with status {task.StatusCode}.");
             
             var valueString = await task.Content.ReadAsStringAsync();
             
             log.Info(
-                $"R Plumber Hook: Has received data from {_uri} with payload {valueString}. The JSON decoration will now be removed.");
+                $"R Plumber Hook: Has received data from {uri} with payload {valueString}. The JSON decoration will now be removed.");
             
             valueString = valueString.Replace("[", "");
             valueString = valueString.Replace("]", "");

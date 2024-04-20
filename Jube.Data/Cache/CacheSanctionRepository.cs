@@ -12,30 +12,22 @@
  */
 
 using System;
+using System.Threading.Tasks;
 using log4net;
 using Npgsql;
 
 namespace Jube.Data.Cache
 {
-    public class CacheSanctionRepository
+    public class CacheSanctionRepository(string connectionString, ILog log)
     {
-        private readonly string _connectionString;
-        private readonly ILog _log;
-
-        public CacheSanctionRepository(string connectionString, ILog log)
-        {
-            _connectionString = connectionString;
-            _log = log;
-        }
-
-        public CacheSanctionDto GetByMultiPartStringDistanceThreshold(int entityAnalysisModelId, string multiPartString,
+        public async Task<CacheSanctionDto> GetByMultiPartStringDistanceThresholdAsync(int entityAnalysisModelId, string multiPartString,
             int distanceThreshold)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             CacheSanctionDto value = null;
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"Id\",\"Value\",\"CreatedDate\" from\"CacheSanction\"" +
                           " where \"MultiPartString\" = (@multiPartString)" +
@@ -49,10 +41,10 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
                 command.Parameters.AddWithValue("multiPartString", multiPartString);
                 command.Parameters.AddWithValue("distanceThreshold", distanceThreshold);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     value = new CacheSanctionDto
                     {
@@ -62,32 +54,33 @@ namespace Jube.Data.Cache
 
                     if (!reader.IsDBNull(1)) value.Value = (double) reader.GetValue(1);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
 
                 return value;
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public void Insert(int entityAnalysisModelId, string multiPartString,
+        public async Task InsertAsync(int entityAnalysisModelId, string multiPartString,
             int distanceThreshold, double? value)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "insert into \"CacheSanction\"(" +
                           "\"Value\",\"MultiPartString\",\"DistanceThreshold\",\"CreatedDate\"," +
@@ -103,26 +96,26 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
 
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public void Update(long id, double? value)
+        public async Task UpdateAsync(long id, double? value)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "update \"CacheSanction\"" +
                           " set \"Value\" = (@value), " +
@@ -134,17 +127,18 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("Id", id);
                 command.Parameters.AddWithValue("value", value.HasValue ? value : DBNull.Value);
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
-                command.Prepare();
 
-                command.ExecuteNonQuery();
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 

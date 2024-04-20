@@ -13,26 +13,18 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using log4net;
 using Npgsql;
 
 namespace Jube.Data.Cache
 {
-    public class CacheTtlCounterEntryRepository
+    public class CacheTtlCounterEntryRepository(string connectionString, ILog log)
     {
-        private readonly string _connectionString;
-        private readonly ILog _log;
-
-        public CacheTtlCounterEntryRepository(string connectionString, ILog log)
-        {
-            _connectionString = connectionString;
-            _log = log;
-        }
-
-        public void DeleteAfterDecremented(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
+        public async Task DeleteAfterDecrementedAsync(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
             string dataName, DateTime referenceDate)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
                 connection.Open();
@@ -49,28 +41,28 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("dataName", dataName);
                 command.Parameters.AddWithValue("referenceDate", referenceDate);
-                command.Prepare();
-                command.ExecuteNonQuery();
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public Dictionary<string, int> GetExpiredTtlCounterCacheCounts(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
+        public async Task<Dictionary<string, int>> GetExpiredTtlCounterCacheCountsAsync(int entityAnalysisModelId, int entityAnalysisModelTtlCounterId,
             string dataName, DateTime referenceDate)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = new Dictionary<string, int>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select \"DataValue\",count(*)::int Count" +
                           " from \"CacheTtlCounterEntry\"" +
@@ -86,39 +78,39 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("dataName", dataName);
                 command.Parameters.AddWithValue("referenceDate", referenceDate);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     if (!reader.IsDBNull(0))
                         value.Add(reader.GetValue(0).ToString() ?? string.Empty,
                             (int) reader.GetValue(1));
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
                 
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public Dictionary<string, int> GetByNameDataNameDataValue(int entityAnalysisModelId,
+        public async Task<Dictionary<string, int>> GetByNameDataNameDataValueAsync(int entityAnalysisModelId,
             GetByNameDataNameDataValueParams[] getByNameDataNameDataValueParams)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var documents = new Dictionary<string, int>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql =
                     "select c.\"DataName\",count(c.\"DataName\")::int from \"CacheTtlCounterEntry\" c where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
@@ -144,35 +136,36 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
                 command.CommandText = sql;
                 command.Connection = connection;
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     documents.Add(reader.GetValue(0).ToString() ?? string.Empty, (int) reader.GetValue(1));
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+                
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return documents;
         }
 
-        public void Insert(int entityAnalysisModelId, string dataName, string dataValue, int entityAnalysisModelTtlCounterId,
+        public async Task InsertAsync(int entityAnalysisModelId, string dataName, string dataValue, int entityAnalysisModelTtlCounterId,
             DateTime referenceDate)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "insert into\"CacheTtlCounterEntry\"(\"EntityAnalysisModelId\",\"DataName\",\"DataValue\"," +
                           "\"EntityAnalysisModelTtlCounterId\",\"ReferenceDate\",\"CreatedDate\")" +
@@ -187,17 +180,17 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("entityAnalysisModelTtlCounterId", entityAnalysisModelTtlCounterId);
                 command.Parameters.AddWithValue("referenceDate", referenceDate);
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
-                command.Prepare();
-
-                command.ExecuteNonQuery();
+                
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
             }
         }
 

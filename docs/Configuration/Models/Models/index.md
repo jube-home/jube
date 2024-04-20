@@ -186,3 +186,9 @@ In the event that there is an error in processing it will be communicated by HTT
 * Not Ready (204) in the event the engine is not ready to respond to requests from the model,  which may happen when an instance is starting.
 * Not Found (404) in the event a bad Guid has been provided or the Guid cannot be matched to a synchronised model.
 * Internal Error (500) in the event of other unspecified processing error available to the logs.
+
+During model invocation Asynchronous methods are used quite extensively to avoid blocking IO operations,  with the following flow and asynchronous method use:
+
+![InvokeAsyncThreads.png](InvokeAsyncThreads.png)
+
+Note that the invocation flow is written in a manner that achieves a large degree of parallelism in processing, which greatly improves the transaction response times, with the trade off being much more load being placed on the Thread Pool.  Put differently, response times come at a cost of greater thread and compute requirements.  In invocation the request is responded upon a the point att writes have taken place (this is to say that on response the transaction has been concluded durably).  During invocation writes are performed asynchronously and at the earliest possible opportunity, however in some cases (such as TTL Counter writes upon Activation) can only happen later in the process, and in the case where model strategy relies upon TTL Counters, the user of Redis cache instead of PostgresSQL may be more appropriate.

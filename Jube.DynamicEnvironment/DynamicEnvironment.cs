@@ -54,7 +54,6 @@ public class DynamicEnvironment
                 {"ThreadPoolManualControl", "False"},
                 {"MinThreadPoolThreads", "1"},
                 {"MaxThreadPoolThreads", "1000"},
-                {"ForkAbstractionRuleSearchKeys", "False"},
                 {"MaximumModelInvokeAsyncQueue", "10000"},
                 {"SMTPHost", null},
                 {"SMTPPort", "587"},

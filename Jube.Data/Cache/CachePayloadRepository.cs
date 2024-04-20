@@ -2,17 +2,18 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using log4net;
 using Newtonsoft.Json;
 using Npgsql;
@@ -20,23 +21,14 @@ using NpgsqlTypes;
 
 namespace Jube.Data.Cache
 {
-    public class CachePayloadRepository
+    public class CachePayloadRepository(string connectionString, ILog log)
     {
-        private readonly string _connectionString;
-        private readonly ILog _log;
-
-        public CachePayloadRepository(string connectionString, ILog log)
+        public async Task CreateIndexAsync(string name, string date, string expression, int entityAnalysisModelId)
         {
-            _connectionString = connectionString;
-            _log = log;
-        }
-
-        public void CreateIndex(string name, string date, string expression, int entityAnalysisModelId)
-        {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "create index \"" + name + "\" on \"CachePayload\"" +
                           " (\"EntityAnalysisModelId\"," + date + " DESC," + expression + ")" +
@@ -44,26 +36,26 @@ namespace Jube.Data.Cache
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.ExecuteNonQuery();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
         }
 
-        public List<string> GetIndexes()
+        public async Task<List<string>> GetIndexesAsync()
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = new List<string>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "select indexname" +
                           " from pg_indexes " +
@@ -71,36 +63,37 @@ namespace Jube.Data.Cache
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     if (!reader.IsDBNull(0))
                         value.Add(reader.GetValue(0).ToString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public void Insert(int entityAnalysisModelId, Dictionary<string, object> payload,
+        public async Task InsertAsync(int entityAnalysisModelId, Dictionary<string, object> payload,
             DateTime referenceDate, Guid entityAnalysisModelInstanceEntryGuid)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var sql = "insert into\"CachePayload\"(\"EntityAnalysisModelId\",\"Json\",\"ReferenceDate\"," +
                           "\"CreatedDate\",\"EntityAnalysisModelInstanceEntryGuid\")" +
@@ -115,35 +108,35 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
                 command.Parameters.AddWithValue("entityAnalysisModelInstanceEntryGuid",
                     entityAnalysisModelInstanceEntryGuid);
-                command.Prepare();
 
-                command.ExecuteNonQuery();
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
             }
         }
-        
-        public void Upsert(int entityAnalysisModelId, Dictionary<string, object> payload,
+
+        public async Task UpsertAsync(int entityAnalysisModelId, Dictionary<string, object> payload,
             DateTime referenceDate, Guid entityAnalysisModelInstanceEntryGuid)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             try
             {
-                connection.Open();
-                
+                await connection.OpenAsync();
+
                 var sql = "insert into\"CachePayload\"(\"EntityAnalysisModelId\",\"Json\",\"ReferenceDate\"," +
                           "\"CreatedDate\",\"EntityAnalysisModelInstanceEntryGuid\")" +
                           " values((@entityAnalysisModelId),(@json),(@referenceDate),(@createdDate)," +
                           "(@entityAnalysisModelInstanceEntryGuid)) " +
-                          "ON CONFLICT (\"EntityAnalysisModelInstanceEntryGuid\") " + 
+                          "ON CONFLICT (\"EntityAnalysisModelInstanceEntryGuid\") " +
                           " DO UPDATE set \"Json\" = (@json), \"UpdatedDate\" = (@updatedDate)";
-                
+
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
@@ -153,33 +146,35 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("updatedDate", DateTime.Now);
                 command.Parameters.AddWithValue("entityAnalysisModelInstanceEntryGuid",
                     entityAnalysisModelInstanceEntryGuid);
-                command.Prepare();
 
-                command.ExecuteNonQuery();
+                await command.PrepareAsync();
+                await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
+                await connection.CloseAsync();
             }
         }
 
-        public List<string> GetDistinctKeys(int entityAnalysisModelId, string key, DateTime dateFrom, DateTime dateTo)
+        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key, DateTime dateFrom,
+            DateTime dateTo)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = new List<string>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
-                var sql = "select distinct \"Json\" ->> (@key)" +
-                          " from \"CachePayload\"" +
-                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)" +
-                          " and \"CreatedDate\" > (@dateFrom)" +
-                          " and \"CreatedDate\" <= (@dateTo)";
+                var sql = "select \"EntryKeyValue\" " +
+                          " from \"CachePayloadLatest\"" +
+                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId) and " +
+                          "\"EntryKey\" = (@key)" +
+                          " and \"UpdatedDate\" > (@dateFrom)" +
+                          " and \"UpdatedDate\" <= (@dateTo)";
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
@@ -187,118 +182,125 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("dateFrom", dateFrom);
                 command.Parameters.AddWithValue("dateTo", dateTo);
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-                command.Prepare();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                await command.PrepareAsync();
+
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     if (!reader.IsDBNull(0))
                         value.Add(reader.GetValue(0).ToString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public List<string> GetDistinctKeys(int entityAnalysisModelId, string key, DateTime dateBefore)
+        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key, DateTime dateBefore)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = new List<string>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
-                var sql = "select distinct \"Json\" ->> (@key)" +
-                          " from \"CachePayload\"" +
+                var sql = "select \"EntryKeyValue\" " +
+                          " from \"CachePayloadLatest\"" +
                           " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)" +
-                          " and \"CreatedDate\" < (@dateBefore)";
+                          " and \"EntryKey\" = (@key)" +
+                          " and \"UpdatedDate\" < (@dateBefore)";
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
                 command.Parameters.AddWithValue("key", key);
                 command.Parameters.AddWithValue("dateBefore", dateBefore);
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     if (!reader.IsDBNull(0))
                         value.Add(reader.GetValue(0).ToString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
 
-        public List<string> GetDistinctKeys(int entityAnalysisModelId, string key)
+        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var value = new List<string>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
-                var sql = "select distinct \"Json\" ->> (@key)" +
-                          " from \"CachePayload\"" +
-                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
+                var sql = "select \"EntryKeyValue\" ->> (@key)" +
+                          " from \"CachePayloadLatest\"" +
+                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId) " +
+                          " and \"EntryKey\" = (@key) ";
+                          
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
                 command.Parameters.AddWithValue("key", key);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                     if (!reader.IsDBNull(0))
                         value.Add(reader.GetValue(0).ToString());
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return value;
         }
 
-        public List<Dictionary<string, object>> GetSqlByKeyValueLimit(string sql,
+        public async Task<List<Dictionary<string, object>>> GetSqlByKeyValueLimitAsync(string sql,
             string key, string value, string order, int limit)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var documents = new List<Dictionary<string, object>>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
@@ -306,58 +308,114 @@ namespace Jube.Data.Cache
                 command.Parameters.AddWithValue("value", value);
                 command.Parameters.AddWithValue("order", order);
                 command.Parameters.AddWithValue("limit", limit);
-                command.Prepare();
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     var document = new Dictionary<string, object>();
                     for (var index = 0; index < reader.FieldCount; index++)
                         if (!reader.IsDBNull(index))
                         {
-                            if (!document.ContainsKey(reader.GetName(index)))
-                            {
-                                document.Add(reader.GetName(index), reader.GetValue(index));       
-                            }
+                            if (document.ContainsKey(reader.GetName(index))) continue;
+                            
+                            document.Add(reader.GetName(index), reader.GetValue(index));
                         }
+
                     documents.Add(document);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return documents;
         }
         
-        public List<Dictionary<string, object>> GetInitialCounts(int entityAnalysisModelId)
+        public async Task<List<Dictionary<string, object>>> GetSqlByKeyValueLimitAsyncExcludeCurrent(string sqlSelect,
+            string sqlFrom,string sqlOrderBy,
+            string key, string value, string order, int limit,
+            Guid entityInconsistentAnalysisModelInstanceEntryGuid)
         {
-            var connection = new NpgsqlConnection(_connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             var documents = new List<Dictionary<string, object>>();
             try
             {
-                connection.Open();
+                await connection.OpenAsync();
 
-                var sql = "select count(*) as \"Count\",max(\"ReferenceDate\") as \"Max\"," +
-                        "min(\"ReferenceDate\") as \"Min\" from \"CachePayload\" " +
-                        "where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
+                var sql = sqlSelect + sqlFrom + " and \"EntityAnalysisModelInstanceEntryGuid\" " +
+                          "!= @entityAnalysisModelInstanceEntryGuid " + sqlOrderBy;
                 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-                command.Prepare();
+                command.Parameters.AddWithValue("key", key);
+                command.Parameters.AddWithValue("value", value);
+                command.Parameters.AddWithValue("order", order);
+                command.Parameters.AddWithValue("limit", limit);
+                command.Parameters.AddWithValue("entityAnalysisModelInstanceEntryGuid", entityInconsistentAnalysisModelInstanceEntryGuid);
+                await command.PrepareAsync();
 
-                var reader = command.ExecuteReader();
-                while (reader.Read())
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var document = new Dictionary<string, object>();
+                    for (var index = 0; index < reader.FieldCount; index++)
+                        if (!reader.IsDBNull(index))
+                        {
+                            if (document.ContainsKey(reader.GetName(index))) continue;
+
+                            document.Add(reader.GetName(index), reader.GetValue(index));
+                        }
+
+                    documents.Add(document);
+                }
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
+            }
+            finally
+            {
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
+            }
+
+            return documents;
+        }
+
+        public async Task<List<Dictionary<string, object>>> GetInitialCountsAsync(int entityAnalysisModelId)
+        {
+            var connection = new NpgsqlConnection(connectionString);
+            var documents = new List<Dictionary<string, object>>();
+            try
+            {
+                await connection.OpenAsync();
+
+                var sql = "select count(*) as \"Count\",max(\"ReferenceDate\") as \"Max\"," +
+                          "min(\"ReferenceDate\") as \"Min\" from \"CachePayload\" " +
+                          "where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
+
+                var command = new NpgsqlCommand(sql);
+                command.Connection = connection;
+                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
+                await command.PrepareAsync();
+
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
                     var document = new Dictionary<string, object>();
                     for (var index = 0; index < reader.FieldCount; index++)
@@ -365,23 +423,25 @@ namespace Jube.Data.Cache
                         {
                             if (!document.ContainsKey(reader.GetName(index)))
                             {
-                                document.Add(reader.GetName(index), reader.GetValue(index));       
+                                document.Add(reader.GetName(index), reader.GetValue(index));
                             }
                         }
+
                     documents.Add(document);
                 }
-                reader.Close();
-                reader.Dispose();
-                command.Dispose();
+
+                await reader.CloseAsync();
+                await reader.DisposeAsync();
+                await command.DisposeAsync();
             }
             catch (Exception ex)
             {
-                _log.Error($"Cache SQL: Has created an exception as {ex}.");
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
             }
             finally
             {
-                connection.Close();
-                connection.Dispose();
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
             }
 
             return documents;

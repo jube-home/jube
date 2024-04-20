@@ -21,6 +21,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 using Accord.Neuro;
 using AutoMapper.Internal;
@@ -73,7 +74,6 @@ namespace Jube.Engine
         private readonly List<EntityAnalysisModelInlineScript> inlineScripts = new();
 
         // ReSharper disable once CollectionNeverQueried.Local
-        private readonly List<Thread> reprocessingThreads = new();
         private Thread cacheThread;
         private Guid entityAnalysisInstanceGuid;
         private Thread modelSyncThread;
@@ -94,6 +94,11 @@ namespace Jube.Engine
         public bool EntityModelsHasLoadedForStartup { get; set; }
         public ConcurrentDictionary<Guid, Callback> PendingCallbacks { get; set; }
         public DefaultContractResolver ContractResolver;
+        private List<Task> entityReprocessingTasks;
+        private Task abstractionRuleCachingTask;
+        private Task listenForCallbacksTask;
+        private Task modelSyncTask;
+        private Task ttlCounterAdministrationTask;
 
         public void StopMe()
         {
@@ -146,13 +151,7 @@ namespace Jube.Engine
                 var cacheCallbackRepository = new CacheCallbackRepository(JubeEnvironment.AppSettings(
                     new[] {"CacheConnectionString", "ConnectionString"}), Log, PendingCallbacks);
 
-                var startCallbackThread = new ThreadStart(cacheCallbackRepository.ListenForCallbacks);
-                var callbackThread = new Thread(startCallbackThread)
-                {
-                    IsBackground = true,
-                    Priority = ThreadPriority.Normal
-                };
-                callbackThread.Start();
+                listenForCallbacksTask = Task.Run(cacheCallbackRepository.ListenForCallbacksAsync);
             }
         }
 
@@ -162,18 +161,13 @@ namespace Jube.Engine
             {
                 int i;
                 var tempVar = int.Parse(JubeEnvironment.AppSettings("ReprocessingThreads"));
+
+                entityReprocessingTasks = [];
                 for (i = 1; i <= tempVar; i++)
                 {
                     Log.Debug($"Entity Start: Starting Reprocessing routine for thread {i}.");
 
-                    ThreadStart startReprocessingThread = EntityReprocessing;
-                    var reprocessingThread = new Thread(startReprocessingThread)
-                    {
-                        IsBackground = true,
-                        Priority = ThreadPriority.Normal
-                    };
-                    reprocessingThread.Start();
-                    reprocessingThreads.Add(reprocessingThread);
+                    entityReprocessingTasks.Add(Task.Run(EntityReprocessingAsync));
 
                     Log.Debug($"Entity Start: Started Reprocessing in start routine for thread {i}.");
                 }
@@ -206,14 +200,7 @@ namespace Jube.Engine
                 Log.Debug(
                     $"Entity Start: Starting the TTL Counter Administration with a polling rate of {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")}.");
 
-                ThreadStart tsTtlC = TtlCounterAdministration;
-                tTtlCThread = new Thread(tsTtlC)
-                {
-                    IsBackground = false,
-                    Priority = ThreadPriority.Normal
-                };
-
-                tTtlCThread.Start();
+                ttlCounterAdministrationTask = Task.Run(TtlCounterAdministrationAsync);
 
                 Log.Debug("Entity Start: TTL Counter Administration.");
             }
@@ -228,14 +215,7 @@ namespace Jube.Engine
             {
                 Log.Debug("Entity Start: Starting the Rule Cache Engine.");
 
-                ThreadStart tsCache = AbstractionRuleCaching;
-                cacheThread = new Thread(tsCache)
-                {
-                    IsBackground = false,
-                    Priority = ThreadPriority.Normal
-                };
-
-                cacheThread.Start();
+                abstractionRuleCachingTask = Task.Run(AbstractionRuleCachingAsync);
 
                 Log.Debug("Entity Start: Started the Rule Cache Engine.");
             }
@@ -299,13 +279,7 @@ namespace Jube.Engine
         {
             Log.Debug("Entity Start: Starting Model Sync.");
 
-            ThreadStart startModelSyncThread = ModelSync;
-            modelSyncThread = new Thread(startModelSyncThread)
-            {
-                IsBackground = false,
-                Priority = ThreadPriority.Normal
-            };
-            modelSyncThread.Start();
+            modelSyncTask = Task.Run(ModelSyncAsync);
 
             Log.Debug("Entity Start: Started Model Sync in start routine.");
         }
@@ -356,7 +330,7 @@ namespace Jube.Engine
             }
         }
 
-        private void ModelSync()
+        private async Task ModelSyncAsync()
         {
             var startupTenantRegistrySchedule = true;
             try
@@ -422,7 +396,7 @@ namespace Jube.Engine
                                 StoreRuleCounterValues(dbContext);
                                 SyncSuppression(dbContext);
                                 SyncActivationRuleSuppression(dbContext);
-                                StartupModel(dbContext);
+                                await StartupModelAsync(dbContext);
                                 EntityModelsHasLoadedForStartup = true;
                             }
                         }
@@ -432,8 +406,8 @@ namespace Jube.Engine
                         }
                         finally
                         {
-                            dbContext.Close();
-                            dbContext.Dispose();
+                            await dbContext.CloseAsync();
+                            await dbContext.DisposeAsync();
 
                             Log.Debug("Entity Start: Closing the database connection.");
 
@@ -517,14 +491,14 @@ namespace Jube.Engine
             }
         }
 
-        private void StartupModel(DbContext dbContext)
+        private async Task StartupModelAsync(DbContext dbContext)
         {
             foreach (var (key, value) in ActiveEntityAnalysisModels)
             {
                 Log.Debug(
                     "Entity Start: About to perform index synchronisation with model.");
 
-                value.MountCollectionsAndSyncCacheDbIndex();
+                await value.MountCollectionsAndSyncCacheDbIndexAsync();
 
                 Log.Debug(
                     "Entity Start: Has finished index synchronisation with model.");
@@ -653,7 +627,8 @@ namespace Jube.Engine
                                     }
                                 }
 
-                                if (shadowEntityAnalysisModelSuppressionDictionary.ContainsKey(record.SuppressionKey))
+                                if (!shadowEntityAnalysisModelSuppressionDictionary.TryAdd(record.SuppressionKey,
+                                        suppressionDictionary))
                                 {
                                     shadowEntityAnalysisModelSuppressionDictionary[record.SuppressionKey] =
                                         suppressionDictionary;
@@ -663,9 +638,6 @@ namespace Jube.Engine
                                 }
                                 else
                                 {
-                                    shadowEntityAnalysisModelSuppressionDictionary.Add(record.SuppressionKey,
-                                        suppressionDictionary);
-
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and already exists in collection,  added to key.");
                                 }
@@ -720,7 +692,8 @@ namespace Jube.Engine
                                     $"Entity Start: Model {key} and Suppression ID  {record.Id} set Value as {record.SuppressionKeyValue} has been added to a shadow list of suppression.");
                             }
 
-                            if (shadowEntityAnalysisModelSuppressionList.ContainsKey(record.SuppressionKey))
+                            if (!shadowEntityAnalysisModelSuppressionList.TryAdd(record.SuppressionKey,
+                                    suppressionDictionary))
                             {
                                 shadowEntityAnalysisModelSuppressionList[record.SuppressionKey] =
                                     suppressionDictionary;
@@ -731,9 +704,6 @@ namespace Jube.Engine
                             else
                             {
                                 {
-                                    shadowEntityAnalysisModelSuppressionList.Add(record.SuppressionKey,
-                                        suppressionDictionary);
-
                                     Log.Debug(
                                         $"Entity Start: Model {key} and Suppression Activation Rule ID  {record.Id} set Suppression Key Value as {record.SuppressionKey} and does not exist in collection,  created key.");
                                 }
@@ -856,9 +826,7 @@ namespace Jube.Engine
                                 {
                                     var kvpValue = recordDictionaryKvp.KvpValue.Value;
 
-                                    if (!kvpDictionary.KvPs.ContainsKey(kvpKey))
-                                        kvpDictionary.KvPs.Add(kvpKey, kvpValue);
-                                    else
+                                    if (!kvpDictionary.KvPs.TryAdd(kvpKey, kvpValue))
                                         Log.Debug(
                                             $"Entity Start: Dictionary Value entity model key of {key} and Dictionary id {key} has already added the KVP value.");
                                 }
@@ -3785,22 +3753,21 @@ namespace Jube.Engine
 
                 foreach (var distinctSearchKey in shadowDistinctSearchKeys)
                 {
-                    var cachePayloadSql =
+                    distinctSearchKey.Value.SqlSelect =
                         $"select * from (select \"CreatedDate\",\"ReferenceDate\" AS \"{value.ReferenceDateName}\"";
 
                     foreach (var selectedPayloadData in distinctSearchKey.Value.SelectedPayloadData)
                     {
-                        cachePayloadSql +=
+                        distinctSearchKey.Value.SqlSelect +=
                             $",COALESCE((\"Json\" ->> '{selectedPayloadData.Key}'){selectedPayloadData.Value.DatabaseCast}," +
                             $"{selectedPayloadData.Value.DefaultValue}) AS \"{selectedPayloadData.Key}\"";
                     }
 
-                    cachePayloadSql += " From \"CachePayload\" where \"EntityAnalysisModelId\" = "
-                                       + value.Id +
-                                       " and \"Json\" ->> (@key) = (@value) "
-                                       + " order by (@order) desc limit (@limit)) c order by 2 desc;";
+                    distinctSearchKey.Value.SqlSelectFrom = " From \"CachePayload\" where \"EntityAnalysisModelId\" = "
+                                                       + value.Id +
+                                                       " and \"Json\" ->> (@key) = (@value) ";
 
-                    distinctSearchKey.Value.Sql = cachePayloadSql;
+                    distinctSearchKey.Value.SqlSelectOrderBy = " order by (@order) desc limit (@limit)) c order by 2 desc;";
                 }
 
                 value.ModelAbstractionRules = shadowEntityModelAbstractionRule;
@@ -4582,18 +4549,10 @@ namespace Jube.Engine
                                 $"Entity Start: Model {entityAnalysisModel.Id} with DEFAULT Enable Database value {entityAnalysisModel.EnableRdbmsArchive}.");
                         }
 
-                        if (!ActiveEntityAnalysisModels.ContainsKey(entityAnalysisModel.Id))
-                        {
-                            ActiveEntityAnalysisModels.Add(entityAnalysisModel.Id, entityAnalysisModel);
-
-                            Log.Debug(
-                                $"Entity Start: Model {entityAnalysisModel.Id} does not exist in the list of active models,  hence it has just been added.");
-                        }
-                        else
-                        {
-                            Log.Debug(
-                                $"Entity Start: Model {entityAnalysisModel.Id} already exists,  hence it has just been updated.");
-                        }
+                        Log.Debug(
+                            ActiveEntityAnalysisModels.TryAdd(entityAnalysisModel.Id, entityAnalysisModel)
+                                ? $"Entity Start: Model {entityAnalysisModel.Id} does not exist in the list of active models,  hence it has just been added."
+                                : $"Entity Start: Model {entityAnalysisModel.Id} already exists,  hence it has just been updated.");
                     }
                     else
                     {
@@ -4978,7 +4937,7 @@ namespace Jube.Engine
             return value;
         }
 
-        private void AbstractionRuleCaching()
+        private async Task AbstractionRuleCachingAsync()
         {
             while (!stopping)
                 try
@@ -5047,8 +5006,8 @@ namespace Jube.Engine
                             {
                                 value.HasCheckedDatabaseForLastSearchKeyCacheDates = true;
 
-                                dbContext.Close();
-                                dbContext.Dispose();
+                                await dbContext.CloseAsync();
+                                await dbContext.DisposeAsync();
                             }
                         }
                         else
@@ -5060,7 +5019,7 @@ namespace Jube.Engine
                         Log.Debug(
                             $"Entity Abstraction Rule Caching: Entity Model {key} is being started.");
 
-                        value.AbstractionRuleCaching();
+                        await value.AbstractionRuleCachingAsync();
 
                         Log.Debug($"Entity Abstraction Rule Caching: Entity Model {key} has finished.");
                     }
@@ -5075,7 +5034,7 @@ namespace Jube.Engine
                 }
         }
 
-        private void EntityReprocessing()
+        private async Task EntityReprocessingAsync()
         {
             try
             {
@@ -5113,7 +5072,7 @@ namespace Jube.Engine
                                             $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} using created date.");
 
                                         var documentsInitialCounts =
-                                            GetInitialCounts(entityAnalysisModelRuleReprocessingInstance);
+                                            await GetInitialCountsAsync(entityAnalysisModelRuleReprocessingInstance);
 
                                         EstablishProcessingDateRange(entityAnalysisModelRuleReprocessingInstance,
                                             documentsInitialCounts, ref lastReferenceDate, ref allCount,
@@ -5144,7 +5103,7 @@ namespace Jube.Engine
                                                 $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} is about to run a query on cache to bring back all document for filter,  skipping {processed} and limiting {limit}.");
 
                                             var documents =
-                                                archiveDatabase.ExecuteReturnPayloadFromArchiveWithSkipLimit(
+                                                await archiveDatabase.ExecuteReturnPayloadFromArchiveWithSkipLimitAsync(
                                                     modelKvp.Value.ArchivePayloadSql, adjustedStartDate, processed,
                                                     limit);
 
@@ -5182,7 +5141,9 @@ namespace Jube.Engine
 
                                                             InvokeReprocessingForDocument(modelKvp,
                                                                 entityAnalysisModelRuleReprocessingInstance, processed,
-                                                                entry, ref matched);
+                                                                entry);
+
+                                                            matched += 1;
                                                         }
                                                         else
                                                         {
@@ -5258,8 +5219,8 @@ namespace Jube.Engine
                         Log.Info(
                             "Entity Reprocessing: Has finished a cycle and will now sleep for 20 seconds,  the database connection to Database will also be closed.");
 
-                        dbContext.Close();
-                        dbContext.Dispose();
+                        await dbContext.CloseAsync();
+                        await dbContext.DisposeAsync();
 
                         Thread.Sleep(20000);
 
@@ -5302,12 +5263,10 @@ namespace Jube.Engine
 
         private void InvokeReprocessingForDocument(KeyValuePair<int, EntityAnalysisModel> modelKvp,
             EntityAnalysisModelRuleReprocessingInstance entityAnalysisModelRuleReprocessingInstance, int processed,
-            IDictionary<string, object> entry, ref int matched)
+            IDictionary<string, object> entry)
         {
             Log.Info(
                 $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} is processing {processed} and matched the rule and will now invoke.");
-
-            matched += 1;
 
             var stopwatch = new Stopwatch();
 
@@ -5534,14 +5493,14 @@ namespace Jube.Engine
                 }
         }
 
-        private IEnumerable<Dictionary<string, object>> GetInitialCounts(
+        private async Task<IEnumerable<Dictionary<string, object>>> GetInitialCountsAsync(
             EntityAnalysisModelRuleReprocessingInstance entityAnalysisModelRuleReprocessingInstance)
         {
             var cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
                 new[] {"CacheConnectionString", "ConnectionString"}), Log);
 
-            return cachePayloadRepository
-                .GetInitialCounts(entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelId);
+            return await cachePayloadRepository
+                .GetInitialCountsAsync(entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelId);
         }
 
         private void GetEntityAnalysisModelRuleReprocessingInstance(DbContext dbContext,
@@ -5870,7 +5829,7 @@ namespace Jube.Engine
                 }
         }
 
-        private void TtlCounterAdministration()
+        private async Task TtlCounterAdministrationAsync()
         {
             while (!stopping)
                 try
@@ -5884,7 +5843,7 @@ namespace Jube.Engine
                         Log.Debug(
                             $"Entity TTL Counter Administration: Entity Model {key} is being started.");
 
-                        value.TtlCounterServer();
+                        await value.TtlCounterServerAsync();
 
                         Log.Debug(
                             $"Entity TTL Counter Administration: Entity Model {key} has finished will wait for {JubeEnvironment.AppSettings("WaitTtlCounterDecrement")} milliseconds.");

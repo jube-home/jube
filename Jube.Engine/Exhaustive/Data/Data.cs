@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Query;
 using Jube.Data.Reporting;
@@ -25,35 +26,19 @@ namespace Jube.Engine.Exhaustive.Data
 {
     public static class Extraction
     {
-        public static void GetClassData(DbContext dbContext,
+        public static async Task<Tuple<double[][],double[]>> GetClassDataAsync(DbContext dbContext,
             int entityAnalysisModelId,
             string filterSql,
             string filterTokens,
             Dictionary<int, Variable> variables,
-            bool mockData,
-            out double[][] data, 
-            out double[] outputs)
+            bool mockData)
         {
             var dataList = new List<Double[]>();
             var outputsList = new List<double>();
-            // if(existingOutputs != null)
-            // {
-            //     outputsList = existingOutputs.ToList();
-            // }
-            // else
-            // {
-            //     outputsList = new List<double>();
-            //
-            //     for (var i = 0; i < dataList.Count; i++)
-            //     {
-            //         outputsList.Add(0);
-            //     }
-        //}
-            
             var postgres = new Postgres(dbContext.ConnectionString);
             
             foreach (var json in
-                postgres.ExecuteReturnOnlyJsonFromArchiveSample(entityAnalysisModelId, filterSql, filterTokens, 10000,mockData))
+                await postgres.ExecuteReturnOnlyJsonFromArchiveSampleAsync(entityAnalysisModelId, filterSql, filterTokens, 10000,mockData))
             {
                 var jObject = JObject.Parse(json);
 
@@ -81,11 +66,10 @@ namespace Jube.Engine.Exhaustive.Data
                 outputsList.Add(1);
             }
 
-            outputs = outputsList.ToArray();
-            data = dataList.ToArray();
+            return new Tuple<double[][], double[]>(dataList.ToArray(), outputsList.ToArray());
         }
         
-        public static void GetSampleData(DbContext dbContext,
+        public static void GetSampleDataAsync(DbContext dbContext,
             int tenantRegistryId,
             int entityAnalysisModelId,
             bool mockData,
@@ -110,21 +94,22 @@ namespace Jube.Engine.Exhaustive.Data
             }
         }
     
-        public static void GetSampleData(DbContext dbContext, 
+        public static async Task<Tuple<Dictionary<int, Variable>,double[][]>> GetSampleDataAsync(DbContext dbContext, 
             int tenantRegistryId,
             int entityAnalysisModelId,
             string filterSql,
             string filterTokens,
-            bool mockData,
-            out Dictionary<int, Variable> variables, 
-            out double[][] data)
+            bool mockData)
         {
             var postgres = new Postgres(dbContext.ConnectionString);
-            var jsonList = postgres.ExecuteReturnOnlyJsonFromArchiveSample(entityAnalysisModelId,
+            var jsonList = await postgres.ExecuteReturnOnlyJsonFromArchiveSampleAsync(entityAnalysisModelId,
                 "NOT (" + filterSql + ")",
                 filterTokens, 10000,mockData);
             
-            ProcessJson(dbContext, tenantRegistryId, entityAnalysisModelId,mockData, out variables, out data, jsonList);
+            ProcessJson(dbContext, tenantRegistryId, entityAnalysisModelId,mockData,
+                out var variables,out var data, jsonList);
+
+            return new Tuple<Dictionary<int, Variable>, double[][]>(variables, data);
         }
 
         private static void ProcessJson(DbContext dbContext, int tenantRegistryId, int entityAnalysisModelId,

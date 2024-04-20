@@ -13,7 +13,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Threading.Tasks;
 using Jube.Data.Cache;
 using Jube.Data.Extension;
 using Jube.Engine.Invoke.Reflect;
@@ -37,13 +37,15 @@ namespace Jube.Engine.Invoke.Abstraction
         public ILog Log { get; init; }
         public CachePayloadRepository CachePayloadRepository { get; set; }
 
-        public void Start()
+        public async Task StartAsync()
         {
             try
             {
-                var documents = CachePayloadRepository
-                    .GetSqlByKeyValueLimit(DistinctSearchKey.Sql,
-                        AbstractionRuleGroupingKey, CachePayloadDocument[AbstractionRuleGroupingKey].AsString(),"ReferenceDate", EntityAnalysisModel.CacheTtlLimit);
+                var documents = await CachePayloadRepository
+                    .GetSqlByKeyValueLimitAsyncExcludeCurrent(DistinctSearchKey.SqlSelect,DistinctSearchKey.SqlSelectFrom,
+                        DistinctSearchKey.SqlSelectOrderBy,
+                        AbstractionRuleGroupingKey, CachePayloadDocument[AbstractionRuleGroupingKey].AsString(),"ReferenceDate", 
+                        EntityAnalysisModel.CacheTtlLimit,EntityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid);
                 
                 documents.Add(CachePayloadDocument);
 

@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -20,7 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using Jube.Data.Cache;
 using Jube.Data.Extension;
 using Jube.Data.Messaging;
@@ -28,6 +28,7 @@ using Jube.Data.Poco;
 using Jube.Engine.Helpers;
 using Jube.Engine.Invoke.Abstraction;
 using Jube.Engine.Invoke.Reflect;
+using Jube.Engine.Model;
 using Jube.Engine.Model.Processing;
 using Jube.Engine.Model.Processing.CaseManagement;
 using Jube.Engine.Model.Processing.Payload;
@@ -37,31 +38,19 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RabbitMQ.Client;
 using EntityAnalysisModel = Jube.Engine.Model.EntityAnalysisModel;
+using EntityAnalysisModelAbstractionRule = Jube.Engine.Model.EntityAnalysisModelAbstractionRule;
 using EntityAnalysisModelActivationRule = Jube.Engine.Model.EntityAnalysisModelActivationRule;
 
 namespace Jube.Engine.Invoke
 {
-    public class EntityAnalysisModelInvoke
+    public class EntityAnalysisModelInvoke(
+        ILog log,
+        DynamicEnvironment.DynamicEnvironment jubeEnvironment,
+        IModel rabbitMqChannel,
+        ConcurrentQueue<Notification> pendingNotification,
+        Random seeded,
+        Dictionary<int, EntityAnalysisModel> models)
     {
-        private readonly DynamicEnvironment.DynamicEnvironment _jubeEnvironment;
-        private readonly ILog _log;
-        private readonly IModel _rabbitMqChannel;
-        private ConcurrentQueue<Notification> _pendingNotification;
-        
-        public EntityAnalysisModelInvoke(ILog log, DynamicEnvironment.DynamicEnvironment jubeEnvironment,
-            IModel rabbitMqChannel,
-            ConcurrentQueue<Notification> pendingNotification,
-            Random seeded,
-            Dictionary<int, EntityAnalysisModel> models)
-        {
-            _log = log;
-            _jubeEnvironment = jubeEnvironment;
-            _rabbitMqChannel = rabbitMqChannel;
-            _pendingNotification = pendingNotification;
-            Seeded = seeded;
-            Models = models;
-        }
-
         public MemoryStream ResponseJson { get; set; }
         public Dictionary<string, object> CachePayloadDocumentStore { get; set; }
         public Dictionary<string, object> CachePayloadDocumentResponse { get; set; }
@@ -71,11 +60,8 @@ namespace Jube.Engine.Invoke
         public EntityAnalysisModelInstanceEntryPayload EntityAnalysisModelInstanceEntryPayloadStore { get; set; }
         private Dictionary<int, List<Dictionary<string, object>>> AbstractionRuleMatches { get; } = new();
 
-        public Dictionary<string, Dictionary<string, double>> EntityInstanceEntryAdaptationResponses
-        {
-            get;
-            set;
-        } = new();
+        public Dictionary<string, Dictionary<string, double>> EntityInstanceEntryAdaptationResponses { get; set; } =
+            new();
 
         public Dictionary<string, double> EntityInstanceEntryAbstractionResponse { get; } = new();
         public Dictionary<string, int> EntityInstanceEntryTtlCountersResponse { get; } = new();
@@ -83,36 +69,40 @@ namespace Jube.Engine.Invoke
         public Dictionary<string, double> EntityInstanceEntrySanctionsResponse { get; } = new();
         private Dictionary<string, double> EntityInstanceEntryDictionaryKvPs { get; } = new();
         public Dictionary<string, double> EntityInstanceEntryDictionaryKvPsResponse { get; } = new();
+
         public Dictionary<int, EntityAnalysisModelActivationRule> EntityInstanceEntryActivationResponse { get; } =
             new();
+
         public Dictionary<string, double> EntityInstanceEntryAbstractionCalculationResponse { get; } =
             new();
-        public Dictionary<int, EntityAnalysisModel> Models { get; set; }
+
+        public Dictionary<int, EntityAnalysisModel> Models { get; set; } = models;
         private bool Finished { get; set; }
-        public Random Seeded { get; set; }
+        public Random Seeded { get; set; } = seeded;
         public List<ArchiveKey> ReportDatabaseValues { get; set; } = new();
         public Stopwatch Stopwatch { get; set; } = new();
         public bool Reprocess { get; set; }
         public bool InError { get; set; }
         public string ErrorMessage { get; set; }
         public bool AsyncEnableCallback { get; set; }
-        
-        public void ParseAndInvoke(EntityAnalysisModel entityAnalysisModel, MemoryStream inputStream, 
+
+        public void ParseAndInvoke(EntityAnalysisModel entityAnalysisModel, MemoryStream inputStream,
             bool async, long inputLength,
             ConcurrentQueue<EntityAnalysisModelInvoke> pendingEntityInvoke)
         {
             EntityAnalysisModel = entityAnalysisModel;
-            
+
             var entityInstanceEntryPayloadStore = new EntityAnalysisModelInstanceEntryPayload
             {
+                EntityAnalysisModelId = EntityAnalysisModel.Id,
                 EntityAnalysisModelInstanceEntryGuid = Guid.NewGuid(),
                 EntityAnalysisModelGuid = entityAnalysisModel.Guid
             };
-            
+
             var cachePayloadDocumentStore = new Dictionary<string, object>();
             var cachePayloadDocumentResponse = new Dictionary<string, object>();
             var reportDatabaseValues = new List<ArchiveKey>();
-            
+
             try
             {
                 JObject json = null;
@@ -124,12 +114,12 @@ namespace Jube.Engine.Invoke
                 {
                     json = JObject.Parse(Encoding.UTF8.GetString(inputStream.ToArray()));
 
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} JSON has been parsed.  The outer JSON is {json}");
                 }
                 else
                 {
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} is JSON but has zero content length.");
                 }
 
@@ -138,14 +128,14 @@ namespace Jube.Engine.Invoke
                     if (json != null) jToken = json.SelectToken(entityAnalysisModel.EntryXPath);
                     if (jToken != null) modelEntryValue = jToken.ToString();
 
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} will has extracted the JSON Path for ENTRY identifier {entityAnalysisModel.EntryXPath} with value of {modelEntryValue}.");
                 }
                 catch (Exception ex)
                 {
                     InError = true;
 
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} could not extract the JSON Path or Querystring for ENTRY identifier {entityAnalysisModel.EntryXPath} with exception message of {ex.Message}.");
 
                     ErrorMessage = "Could not locate model entry value.";
@@ -158,7 +148,7 @@ namespace Jube.Engine.Invoke
                         case 3:
                             referenceDateValue = DateTime.Now;
 
-                            _log.Info(
+                            log.Info(
                                 $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} will has extracted the Reference Date {entityAnalysisModel.EntryXPath} with value of {modelEntryValue} with the system time.");
 
                             break;
@@ -172,16 +162,16 @@ namespace Jube.Engine.Invoke
                             else
                             {
                                 if (jToken != null && !DateTime.TryParse(jToken.ToString(),
-                                    out referenceDateValue))
+                                        out referenceDateValue))
                                 {
                                     referenceDateValue = DateTime.Now;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} will has extracted the JSON Path for Reference Date {entityAnalysisModel.EntryXPath} with value of {modelEntryValue} with a promiscuous parse, but it failed,  so it has been set to the system time.");
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} will has extracted the JSON Path for Reference Date {entityAnalysisModel.EntryXPath} with value of {modelEntryValue} with a promiscuous parse.");
                                 }
                             }
@@ -194,7 +184,7 @@ namespace Jube.Engine.Invoke
                 {
                     InError = true;
 
-                    _log.Error($"Could not locate model date value {ex}.");
+                    log.Error($"Could not locate model date value {ex}.");
 
                     ErrorMessage = "Could not locate model date value.";
                 }
@@ -209,7 +199,7 @@ namespace Jube.Engine.Invoke
                     entityInstanceEntryPayloadStore.EntityAnalysisModelName =
                         entityAnalysisModel.Name;
 
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} had added the cache db GUID _id to the entry as {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} which is the same as the main GUID.");
 
                     entityInstanceEntryPayloadStore.ReferenceDate = referenceDateValue;
@@ -219,13 +209,13 @@ namespace Jube.Engine.Invoke
                             entityInstanceEntryPayloadStore.ReferenceDate);
                         cachePayloadDocumentResponse.Add(entityAnalysisModel.ReferenceDateName,
                             entityInstanceEntryPayloadStore.ReferenceDate);
-                        
-                        _log.Info(
+
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} added reference date with the field name {entityAnalysisModel.ReferenceDateName} and value {referenceDateValue}.");
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} already contains a reference date with the field name {entityAnalysisModel.ReferenceDateName}. This is not ideal,  try and make distinct.");
                     }
 
@@ -237,40 +227,40 @@ namespace Jube.Engine.Invoke
                         cachePayloadDocumentResponse.Add(entityAnalysisModel.EntryName,
                             entityInstanceEntryPayloadStore.EntityInstanceEntryId);
 
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} added field with the name {entityAnalysisModel.EntryName} and value {modelEntryValue} when adding the Entry.");
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} already contains a field with the name {entityAnalysisModel.EntryName} when adding the Entry. This is not ideal,  try and make distinct.");
                     }
 
                     if (!InError)
                     {
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} is now going to loop around all of the XPath Requests specified to perform extractions of data.");
 
                         foreach (var xPath in entityAnalysisModel.EntityAnalysisModelRequestXPaths)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} evaluating {xPath.Name}.");
 
                             if (!cachePayloadDocumentStore.ContainsKey(xPath.Name))
                             {
-                                _log.Info(
+                                log.Info(
                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} no duplication on {xPath.Name}.");
 
                                 string value;
                                 var defaultFallback = false;
                                 try
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name} is in the body of the POST.");
 
                                     value = json.SelectToken(xPath.XPath).ToString();
 
-                                    _log.Info(
+                                    log.Info(
                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}JSON Path {xPath.XPath} has extracted value {value}.");
                                 }
                                 catch (Exception ex)
@@ -278,7 +268,7 @@ namespace Jube.Engine.Invoke
                                     value = xPath.DefaultValue;
                                     defaultFallback = true;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name} Querystring {xPath.XPath} has caused an error of {ex.Message} and has fallen back to default value of {xPath.DefaultValue}.");
                                 }
 
@@ -292,7 +282,7 @@ namespace Jube.Engine.Invoke
                                             {
                                                 cachePayloadDocumentStore.Add(xPath.Name, value);
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as a string.");
 
                                                 if (xPath.ResponsePayload)
@@ -300,7 +290,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, value);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -316,7 +306,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -327,7 +317,7 @@ namespace Jube.Engine.Invoke
                                             {
                                                 cachePayloadDocumentStore.Add(xPath.Name, int.Parse(value));
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as an integer.");
 
                                                 if (xPath.ResponsePayload)
@@ -335,7 +325,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, int.Parse(value));
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -350,7 +340,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
 
                                                 break;
@@ -360,7 +350,7 @@ namespace Jube.Engine.Invoke
                                             {
                                                 cachePayloadDocumentStore.Add(xPath.Name, double.Parse(value));
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as Float.");
 
                                                 if (xPath.ResponsePayload)
@@ -368,7 +358,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, double.Parse(value));
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -384,7 +374,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -399,7 +389,7 @@ namespace Jube.Engine.Invoke
                                                 cachePayloadDocumentStore.Add(xPath.Name,
                                                     fallbackDate);
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as an Date.");
 
                                                 if (xPath.ResponsePayload)
@@ -407,7 +397,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, fallbackDate);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -423,7 +413,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -434,7 +424,7 @@ namespace Jube.Engine.Invoke
                                             {
                                                 cachePayloadDocumentStore.Add(xPath.Name, dateValue);
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as an Date.");
 
                                                 if (xPath.ResponsePayload)
@@ -442,7 +432,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, dateValue);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -458,7 +448,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -472,7 +462,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, DateTime.Now);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -488,7 +478,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -497,10 +487,12 @@ namespace Jube.Engine.Invoke
                                             //'Boolean
                                             case 5:
                                             {
-                                                var valueBoolean = value.Equals("True",StringComparison.OrdinalIgnoreCase) || value == "1";
+                                                var valueBoolean =
+                                                    value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
+                                                    value == "1";
                                                 cachePayloadDocumentStore.Add(xPath.Name, valueBoolean);
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {valueBoolean} and been typed in the BSON document as an Boolean.");
 
                                                 if (xPath.ResponsePayload)
@@ -519,7 +511,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {valueBoolean} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -529,7 +521,7 @@ namespace Jube.Engine.Invoke
                                             {
                                                 cachePayloadDocumentStore.Add(xPath.Name, double.Parse(value));
 
-                                                _log.Info(
+                                                log.Info(
                                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as Lat or Long.");
 
                                                 if (xPath.ResponsePayload)
@@ -537,7 +529,7 @@ namespace Jube.Engine.Invoke
                                                     cachePayloadDocumentResponse.Add(
                                                         xPath.Name, double.Parse(value));
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                                 }
 
@@ -553,7 +545,7 @@ namespace Jube.Engine.Invoke
                                                                 .EntityAnalysisModelInstanceEntryGuid
                                                     });
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                                 }
 
@@ -561,14 +553,14 @@ namespace Jube.Engine.Invoke
                                                 {
                                                     Latitude = double.Parse(value);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and has set this as the prevailing Latitude.");
                                                 }
                                                 else
                                                 {
                                                     Longitude = double.Parse(value);
 
-                                                    _log.Info(
+                                                    log.Info(
                                                         $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and has set this as the prevailing Longitude.");
                                                 }
 
@@ -578,18 +570,16 @@ namespace Jube.Engine.Invoke
                                 }
                                 catch (Exception ex)
                                 {
-                                    if (!cachePayloadDocumentStore.ContainsKey(xPath.Name))
+                                    if (cachePayloadDocumentStore.TryAdd(xPath.Name, value))
                                     {
-                                        cachePayloadDocumentStore.Add(xPath.Name, value);
-
-                                        _log.Info(
+                                        log.Info(
                                             $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} and been typed in the BSON document as DEFAULT string on error as {ex}.");
 
                                         if (xPath.ResponsePayload)
                                         {
                                             cachePayloadDocumentResponse.Add(xPath.Name, value);
 
-                                            _log.Info(
+                                            log.Info(
                                                 $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} {xPath.Name}XPath Path {xPath.XPath} has extracted value {value} is available to the response payload.");
                                         }
 
@@ -605,7 +595,7 @@ namespace Jube.Engine.Invoke
                                                         .EntityAnalysisModelInstanceEntryGuid
                                             });
 
-                                            _log.Info(
+                                            log.Info(
                                                 $"Entity Invoke: GUID {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {entityAnalysisModel.Id} matching XPath has been located and the value {value} has been added to the report payload with the name of {xPath.Name}.");
                                         }
                                     }
@@ -613,7 +603,7 @@ namespace Jube.Engine.Invoke
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} duplication on {xPath.Name}, stepped over.");
                             }
                         }
@@ -626,18 +616,18 @@ namespace Jube.Engine.Invoke
                 ErrorMessage =
                     "A fatal error has occured in processing.  Please check the logs for more information.";
 
-                _log.Error(
+                log.Error(
                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} has yielded an error in the XPath and Model parsing as {ex}.");
             }
 
             if (!InError)
             {
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} activation promotion is set to {entityAnalysisModel.EnableActivationArchive}.");
 
                 CachePayloadDocumentStore = cachePayloadDocumentStore;
                 entityInstanceEntryPayloadStore.Payload = cachePayloadDocumentStore;
-                    
+
                 CachePayloadDocumentResponse = cachePayloadDocumentResponse;
                 ReportDatabaseValues = reportDatabaseValues;
 
@@ -646,13 +636,13 @@ namespace Jube.Engine.Invoke
 
                 EntityAnalysisModelInstanceEntryPayloadStore = entityInstanceEntryPayloadStore;
 
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} has instantiated a model invocation object and is launching it.");
 
                 if (async)
                 {
                     if (pendingEntityInvoke.Count >=
-                        int.Parse(_jubeEnvironment.AppSettings("MaximumModelInvokeAsyncQueue")))
+                        int.Parse(jubeEnvironment.AppSettings("MaximumModelInvokeAsyncQueue")))
                     {
                         InError = true;
                         ErrorMessage =
@@ -660,11 +650,13 @@ namespace Jube.Engine.Invoke
                     }
                     else
                     {
-                        AsyncEnableCallback = _jubeEnvironment.AppSettings("EnableCallback").Equals("True",StringComparison.OrdinalIgnoreCase);
+                        AsyncEnableCallback = jubeEnvironment.AppSettings("EnableCallback")
+                            .Equals("True", StringComparison.OrdinalIgnoreCase);
                         pendingEntityInvoke.Enqueue(this);
-                        
+
                         var payloadJsonResponse = new EntityAnalysisModelInstanceEntryPayloadJson();
-                        ResponseJson = payloadJsonResponse.BuildJson(EntityAnalysisModelInstanceEntryPayloadStore,entityAnalysisModel.ContractResolver);
+                        ResponseJson = payloadJsonResponse.BuildJson(EntityAnalysisModelInstanceEntryPayloadStore,
+                            entityAnalysisModel.ContractResolver);
                     }
                 }
                 else
@@ -672,7 +664,7 @@ namespace Jube.Engine.Invoke
                     Start();
                 }
 
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {entityInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {entityAnalysisModel.Id} has finished model invocation.");
             }
         }
@@ -683,7 +675,7 @@ namespace Jube.Engine.Invoke
             {
                 Stopwatch.Start();
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has started invocation timer.");
 
                 var matchedGateway = false;
@@ -691,55 +683,88 @@ namespace Jube.Engine.Invoke
                 EntityAnalysisModel.ModelInvokeCounter += 1;
                 EntityAnalysisModelInstanceEntryPayloadStore.Reprocess = Reprocess;
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                     $"has configured startup options.  The model invocation counter is {EntityAnalysisModel.ModelInvokeCounter} and " +
                     $"reprocessing is set to {EntityAnalysisModelInstanceEntryPayloadStore.Reprocess}.  Will now proceed" +
-                    "to execute inline functions.");
+                    " execute inline functions.");
 
                 ExecuteInlineFunctions();
                 ExecuteInlineScripts();
                 ExecuteGatewayRules(ref maxGatewayResponseElevation, ref matchedGateway);
 
+                var pendingReadTasks = new List<Task>();
+                var pendingWriteTasks = new List<Task>();
+
                 if (matchedGateway)
                 {
-                    ExecuteDictionaryKvPs();
-                    ExecuteTtlCounters();
                     var cachePayloadRepository =
-                        new CachePayloadRepository(_jubeEnvironment.AppSettings(
-                            new []{"CacheConnectionString","ConnectionString"}),_log);
-                    ExecuteAbstractionRulesWithSearchKeys(cachePayloadRepository);
+                        new CachePayloadRepository(jubeEnvironment.AppSettings(
+                            new[] {"CacheConnectionString", "ConnectionString"}), log);
+                    
+                    ExecuteCacheDbStorage(cachePayloadRepository, EntityAnalysisModelInstanceEntryPayloadStore,
+                        pendingWriteTasks,EntityAnalysisModel.DistinctSearchKeys);
+                    pendingReadTasks.Add(ExecuteSanctionsAsync(pendingWriteTasks));
+                    ExecuteDictionaryKvPs();
+                    pendingReadTasks.Add(ExecuteTtlCountersAsync());
+                    pendingReadTasks.Add(ExecuteAbstractionRulesWithSearchKeys(cachePayloadRepository));
                     ExecuteAbstractionRulesWithoutSearchKeys();
                     ExecuteAbstractionCalculations();
                     ExecuteExhaustiveModels();
                     ExecuteAdaptations();
-                    ExecuteSanctions();
-                    ExecuteActivations(maxGatewayResponseElevation);
-                    ExecuteCacheDbStorage(cachePayloadRepository, EntityAnalysisModelInstanceEntryPayloadStore);
+                    WaitReadTasks(pendingReadTasks);
+                    ExecuteActivations(maxGatewayResponseElevation, pendingWriteTasks);
                 }
 
-                QueueAsynchronousResponseMessage();
+                QueueAsynchronousResponseMessage(pendingWriteTasks);
+                WaitWriteTasks(pendingWriteTasks);
             }
             catch (Exception ex)
             {
-                _log.Error(
+                log.Error(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has created a general error as {ex}.");
             }
             finally
             {
                 Finished = true;
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} all model invocation processing has completed.");
             }
         }
 
-        private void QueueAsynchronousResponseMessage()
+        private void WaitWriteTasks(List<Task> pendingWriteTasks)
+        {
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
+                $" is waiting for {pendingWriteTasks.Count} write tasks of which {pendingWriteTasks.Count(c => c.IsCompleted)} are completed.");
+
+            Task.WaitAll(pendingWriteTasks.ToArray());
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
+                $" completed {pendingWriteTasks.Count} write tasks.");
+        }
+
+        private void WaitReadTasks(List<Task> pendingReadTasks)
+        {
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
+                $" is waiting for {pendingReadTasks.Count} read tasks of which {pendingReadTasks.Count(c => c.IsCompleted)} are completed.");
+
+            Task.WaitAll(pendingReadTasks.ToArray());
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
+                $" completed {pendingReadTasks.Count}.");
+        }
+
+        private void QueueAsynchronousResponseMessage(List<Task> pendingWriteTasks)
         {
             if (EntityAnalysisModel.OutputTransform) //'Output Transform Script
             {
                 var activationsForTransform = new Dictionary<int, string>();
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} has an outbound transformation routine and the transformation will now begin.");
 
                 ResponseJson = EntityAnalysisModel.OutputTransformDelegate(
@@ -751,103 +776,135 @@ namespace Jube.Engine.Invoke
                     CachePayloadDocumentResponse,
                     EntityInstanceEntryAbstractionResponse,
                     EntityInstanceEntryTtlCountersResponse, activationsForTransform,
-                    EntityInstanceEntryAbstractionCalculationResponse, null, _log);
+                    EntityInstanceEntryAbstractionCalculationResponse, null, log);
 
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} has completed the outbound transformation and the memory stream has {ResponseJson.Length} bytes.");
             }
             else
             {
                 var payloadJsonResponse = new EntityAnalysisModelInstanceEntryPayloadJson();
-                ResponseJson = payloadJsonResponse.BuildJson(EntityAnalysisModelInstanceEntryPayloadStore,EntityAnalysisModel.ContractResolver);
+                ResponseJson = payloadJsonResponse.BuildJson(EntityAnalysisModelInstanceEntryPayloadStore,
+                    EntityAnalysisModel.ContractResolver);
             }
 
-            if (_jubeEnvironment.AppSettings("AMQP").Equals("True",StringComparison.OrdinalIgnoreCase) && !Reprocess)
+            if (jubeEnvironment.AppSettings("AMQP").Equals("True", StringComparison.OrdinalIgnoreCase) && !Reprocess)
             {
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} is about to publish the response to the Outbound Exchange.");
 
-                var props = _rabbitMqChannel.CreateBasicProperties();
+                var props = rabbitMqChannel.CreateBasicProperties();
                 props.Headers = new Dictionary<string, object>();
 
                 ResponseJson.Position = 0;
-                _rabbitMqChannel.BasicPublish("jubeOutbound", "", props, ResponseJson.ToArray());
+                rabbitMqChannel.BasicPublish("jubeOutbound", "", props, ResponseJson.ToArray());
 
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} has published the response to the Outbound Exchange.");
             }
             else
             {
-                _log.Info(
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} does not have AMQP configured to dispatch messages to an exchange.");
             }
-            
-            if (AsyncEnableCallback) {
+
+            if (AsyncEnableCallback)
+            {
                 var cacheCallbackRepository =
-                    new CacheCallbackRepository(_jubeEnvironment.AppSettings(
-                        new []{"CacheConnectionString","ConnectionString"}),_log);
-                
-                cacheCallbackRepository.Insert(ResponseJson.ToArray(),EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid);
-                
-                _log.Info(
+                    new CacheCallbackRepository(jubeEnvironment.AppSettings(
+                        new[] {"CacheConnectionString", "ConnectionString"}), log);
+
+                pendingWriteTasks.Add(cacheCallbackRepository.InsertAsync(ResponseJson.ToArray(),
+                    EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid));
+
+                log.Info(
                     $"HTTP Handler Entity: GUID payload {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} model id is {EntityAnalysisModel.Id} will store the callback in the database.");
             }
         }
 
         private void ExecuteCacheDbStorage(CachePayloadRepository cachePayloadRepository,
-            EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload)
+            EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
+            List<Task> pendingWriteTasks,Dictionary<string, DistinctSearchKey> distinctSearchKeys)
         {
-            InsertOrReplaceCacheEntries(cachePayloadRepository, entityAnalysisModelInstanceEntryPayload);
+            InsertOrReplaceCacheEntries(cachePayloadRepository, entityAnalysisModelInstanceEntryPayload,
+                pendingWriteTasks);
+
+            UpsertCachePayloadLatest(entityAnalysisModelInstanceEntryPayload, pendingWriteTasks, distinctSearchKeys);
+        }
+
+        private void UpsertCachePayloadLatest(EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
+            List<Task> pendingWriteTasks, Dictionary<string, DistinctSearchKey> distinctSearchKeys)
+        {
+            var cachePayloadLatestRepository =
+                new CachePayloadLatestRepository(jubeEnvironment.AppSettings("ConnectionString"), log);
+
+            foreach (var (key,_) in distinctSearchKeys)
+            {
+                entityAnalysisModelInstanceEntryPayload.Payload.TryGetValue(key, out var searchKeyValue);
+                
+                pendingWriteTasks.Add(cachePayloadLatestRepository.UpsertAsync(
+                    entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelId,
+                    entityAnalysisModelInstanceEntryPayload.Payload,
+                    entityAnalysisModelInstanceEntryPayload.ReferenceDate,
+                    entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid,
+                    key,searchKeyValue?.ToString()));
+            }
         }
 
         private void InsertOrReplaceCacheEntries(CachePayloadRepository cachePayloadRepository,
-            EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload)
+            EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
+            List<Task> pendingWriteTasks)
         {
             if (EntityAnalysisModel.EnableCache)
             {
                 if (Reprocess)
                 {
-                    cachePayloadRepository.Upsert(entityAnalysisModelInstanceEntryPayload.TenantRegistryId,
-                        entityAnalysisModelInstanceEntryPayload.Payload, entityAnalysisModelInstanceEntryPayload.ReferenceDate,
-                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid);                    
-                    
-                    _log.Info(
+                    pendingWriteTasks.Add(cachePayloadRepository.UpsertAsync(
+                        entityAnalysisModelInstanceEntryPayload.TenantRegistryId,
+                        entityAnalysisModelInstanceEntryPayload.Payload,
+                        entityAnalysisModelInstanceEntryPayload.ReferenceDate,
+                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid));
+
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has replaced the entity into the cache db serially.");
                 }
                 else
                 {
-                    cachePayloadRepository.Insert(entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelId,
-                        entityAnalysisModelInstanceEntryPayload.Payload, entityAnalysisModelInstanceEntryPayload.ReferenceDate,
-                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid);
+                    pendingWriteTasks.Add(cachePayloadRepository.InsertAsync(
+                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelId,
+                        entityAnalysisModelInstanceEntryPayload.Payload,
+                        entityAnalysisModelInstanceEntryPayload.ReferenceDate,
+                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid));
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has inserted the entity into the cache db serially.");
                 }
             }
             else
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} does not allow entity storage in the cache.");
             }
         }
 
         private bool CheckSuppressedResponseElevation()
         {
-            if (EntityAnalysisModel.BillingResponseElevationBalanceEntries.Count > EntityAnalysisModel.ResponseElevationFrequencyLimitCounter)
+            if (EntityAnalysisModel.BillingResponseElevationBalanceEntries.Count >
+                EntityAnalysisModel.ResponseElevationFrequencyLimitCounter)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has an activation balance of {EntityAnalysisModel.BillingResponseElevationBalanceEntries.Count} and has exceeded threshold.");
 
                 return true;
             }
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has an activation balance of {EntityAnalysisModel.BillingResponseElevationBalanceEntries.Count} and has not exceeded threshold.");
 
             return false;
         }
 
-        private void ExecuteActivations(double maxGatewayResponseElevation)
+        private void ExecuteActivations(double maxGatewayResponseElevation, List<Task> pendingWriteTasks)
         {
             var suppressedActivationRules = new List<string>();
             CreateCase createCase = null;
@@ -861,14 +918,16 @@ namespace Jube.Engine.Invoke
             var suppressedModel = ActivationRuleGetSuppressedModel(ref suppressedActivationRules);
             var suppressedResponseElevation = CheckSuppressedResponseElevation();
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now process {EntityAnalysisModel.ModelActivationRules.Count} Activation Rules .");
-    
-            for (iActivationRule = 0; iActivationRule < EntityAnalysisModel.ModelActivationRules.Count; iActivationRule++)
+
+            for (iActivationRule = 0;
+                 iActivationRule < EntityAnalysisModel.ModelActivationRules.Count;
+                 iActivationRule++)
                 try
                 {
                     var evaluateActivationRule = EntityAnalysisModel.ModelActivationRules[iActivationRule];
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating activation rule {evaluateActivationRule.Id}.");
 
                     var suppressed = false;
@@ -876,26 +935,26 @@ namespace Jube.Engine.Invoke
                     {
                         suppressed = true;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} activation rule {evaluateActivationRule.Id} is suppressed at the model level or has exceeded response elevation counter at {EntityAnalysisModel.BillingResponseElevationBalanceEntries.Count} or {EntityAnalysisModel.BillingResponseElevationBalance}.");
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} activation rule {evaluateActivationRule.Id} is not suppressed at the model level, will test at rule level.");
 
                         if (!evaluateActivationRule.EnableReprocessing && Reprocess)
                         {
                             suppressed = true;
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} activation rule {evaluateActivationRule.Id} is suppressed at the activation rule level because of reprocessing.");
                         }
                         else if (suppressedActivationRules != null)
                         {
                             suppressed = suppressedActivationRules.Contains(evaluateActivationRule.Name);
 
-                            _log.Info(
+                            log.Info(
                                 suppressedModel
                                     ? $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} activation rule {evaluateActivationRule.Id} is suppressed at the activation rule level."
                                     : $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} activation rule {evaluateActivationRule.Id} is not suppressed at the activation rule level.");
@@ -907,23 +966,23 @@ namespace Jube.Engine.Invoke
                     {
                         activationSample = true;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id}  has passed sampling and is eligible for activation.");
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id}  has failed in sampling so certain activations will not take place even if there is a match on the activation rule.");
                     }
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id}  is starting to test the activation rule match.");
 
                     var matched = ReflectRule.Execute(evaluateActivationRule, EntityAnalysisModel,
                         EntityAnalysisModelInstanceEntryPayloadStore,
-                        EntityInstanceEntryDictionaryKvPs, _log);
+                        EntityInstanceEntryDictionaryKvPs, log);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id}  has finished testing the activation rule and it has a matched status of {matched}.");
 
                     if (matched)
@@ -935,7 +994,7 @@ namespace Jube.Engine.Invoke
                                 Visible = evaluateActivationRule.Visible
                             });
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} and has added the activation rule {evaluateActivationRule.Id} flag to the activation buffer for processing.");
 
                         if (evaluateActivationRule.ResponsePayload)
@@ -944,7 +1003,7 @@ namespace Jube.Engine.Invoke
                                 evaluateActivationRule.Id,
                                 evaluateActivationRule);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} and has added the activation rule {evaluateActivationRule.Id} flag to the response payload also.");
                         }
 
@@ -959,7 +1018,7 @@ namespace Jube.Engine.Invoke
                                     .EntityAnalysisModelInstanceEntryGuid
                             });
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} and has added the activation rule {evaluateActivationRule.Id} flag to the response payload also.");
                         }
 
@@ -978,19 +1037,20 @@ namespace Jube.Engine.Invoke
 
                         createCase ??= ActivationRuleCreateCaseObject(evaluateActivationRule, suppressed,
                             activationSample);
-                        
-                        ActivationRuleTtlCounter(evaluateActivationRule);
+
+                        ActivationRuleTtlCounter(evaluateActivationRule, pendingWriteTasks);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} error in TTL Counter processing as {ex} .");
                 }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Activation", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Activation",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has added the response elevation for use in bidding against other models if called by model inheritance.");
 
             ActivationRuleFinishResponseElevation(EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value);
@@ -1006,28 +1066,29 @@ namespace Jube.Engine.Invoke
                 EntityAnalysisModel.BillingResponseElevationCount += 1;
                 EntityAnalysisModel.BillingResponseElevationJournal.Enqueue(DateTime.Now);
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the response elevation is greater than 0 and has incremented counters for throttling.  The Billing Response Elevation Count is {EntityAnalysisModel.BillingResponseElevationCount}.");
             }
         }
 
-        private void ActivationRuleBuildArchivePayload(int activationRuleCount, int? prevailingActivationRuleId, CreateCase createCase)
+        private void ActivationRuleBuildArchivePayload(int activationRuleCount, int? prevailingActivationRuleId,
+            CreateCase createCase)
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has been selected for sampling or case creation is been specified. Is building the XML payload from the payload created.");
 
             EntityAnalysisModelInstanceEntryPayloadStore.TenantRegistryId = EntityAnalysisModel.TenantRegistryId;
-            EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelId = EntityAnalysisModel.Id;
             EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelName = EntityAnalysisModel.Name;
             EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelActivationRuleCount = activationRuleCount;
-            EntityAnalysisModelInstanceEntryPayloadStore.PrevailingEntityAnalysisModelActivationRuleId = prevailingActivationRuleId;
+            EntityAnalysisModelInstanceEntryPayloadStore.PrevailingEntityAnalysisModelActivationRuleId =
+                prevailingActivationRuleId;
             EntityAnalysisModelInstanceEntryPayloadStore.ReportDatabaseValues = ReportDatabaseValues;
             EntityAnalysisModelInstanceEntryPayloadStore.Payload = CachePayloadDocumentStore;
             EntityAnalysisModelInstanceEntryPayloadStore.ArchiveEnqueueDate = DateTime.Now;
             EntityAnalysisModelInstanceEntryPayloadStore.CreateCasePayload = createCase;
             EntityAnalysisModelInstanceEntryPayloadStore.StoreInRdbms = EntityAnalysisModel.EnableRdbmsArchive;
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} a payload has been created for archive.");
 
             if (Reprocess)
@@ -1035,14 +1096,14 @@ namespace Jube.Engine.Invoke
                 EntityAnalysisModel.CaseCreationAndArchiver(EntityAnalysisModelInstanceEntryPayloadStore,
                     null); //It does not matter that the insert buffer is nothing,  as reprocess will always Upsert for SQL Server.
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} a payload has been added for archive synchronously as it is set for reprocessing.");
             }
             else
             {
                 EntityAnalysisModel.PersistToDatabaseAsync.Enqueue(EntityAnalysisModelInstanceEntryPayloadStore);
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} a payload has been added for archive asynchronously.");
             }
         }
@@ -1054,24 +1115,25 @@ namespace Jube.Engine.Invoke
                 EntityAnalysisModel.ModelResponseElevationCounter += 1;
                 EntityAnalysisModel.ModelResponseElevationSum += responseElevation;
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation is greater than zero and has incremented Response Elevation Counter which has a value of {EntityAnalysisModel.ModelResponseElevationCounter} and Model Response Elevation Sum which has a value of {EntityAnalysisModel.ModelResponseElevationSum}.");
             }
         }
 
-        private void ActivationRuleTtlCounter(EntityAnalysisModelActivationRule evaluateActivationRule)
+        private void ActivationRuleTtlCounter(EntityAnalysisModelActivationRule evaluateActivationRule,
+            List<Task> pendingWriteTasks)
         {
             if (!evaluateActivationRule.EnableTtlCounter || Reprocess) return;
-            
+
             var cacheTtlCounterRepository = new CacheTtlCounterRepository(
-                _jubeEnvironment.AppSettings(
-                    new []{"CacheConnectionString","ConnectionString"}),_log);
+                jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
 
             var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(
-                _jubeEnvironment.AppSettings(
-                    new []{"CacheConnectionString","ConnectionString"}),_log);
+                jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is incrementing TTL counter {evaluateActivationRule.EntityAnalysisModelTtlCounterId} as this is enabled in the activation rule.");
 
             var found = false;
@@ -1087,66 +1149,66 @@ namespace Jube.Engine.Invoke
                     {
                         try
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has matched the name in the activation rule to the TTL counters loaded for {EntityAnalysisModel.Name} in model id {value.Id}.");
 
                             if (CachePayloadDocumentStore.ContainsKey(foundTtlCounter.TtlCounterDataName))
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} found a value a value for TTL counter name {foundTtlCounter.Name} as {CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]}.");
-                                    
+
                                 if (value.EnableTtlCounter)
                                 {
                                     if (evaluateActivationRule.EntityAnalysisModelIdTtlCounter ==
                                         key)
                                     {
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has built a TTL Counter insert payload of TTLCounterName as {foundTtlCounter.Name}, TTLCounterDataName as {foundTtlCounter.TtlCounterDataName} and TTLCounterDataNameValue as {CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]}.  Is about to insert the entry.");
 
                                         if (!foundTtlCounter.EnableLiveForever)
                                         {
-                                            cacheTtlCounterEntryRepository.Insert(
+                                            pendingWriteTasks.Add(cacheTtlCounterEntryRepository.InsertAsync(
                                                 EntityAnalysisModel.Id,
                                                 foundTtlCounter.TtlCounterDataName,
                                                 CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]
                                                     .AsString(),
                                                 foundTtlCounter.Id,
-                                                EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate);
+                                                EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate));
                                         }
                                         else
                                         {
-                                            _log.Info(
+                                            log.Info(
                                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has built a TTL Counter insert payload of TTLCounterName as {foundTtlCounter.Name}, TTLCounterDataName as {foundTtlCounter.TtlCounterDataName} and TTLCounterDataNameValue as {CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]} is set to live forever so no entry has been made to wind back counters.");
                                         }
 
-                                        cacheTtlCounterRepository.Upsert(
+                                        pendingWriteTasks.Add(cacheTtlCounterRepository.UpsertAsync(
                                             EntityAnalysisModel.Id,
                                             foundTtlCounter.TtlCounterDataName,
                                             CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName].AsString(),
                                             foundTtlCounter.Id,
                                             EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate
-                                        );
+                                        ));
                                     }
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} cannot create a TTL counter for name {value.Name} as TTL Counter Storage is disabled for the model id {value.Id}.");
                                 }
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} could not find a value for TTL counter name {foundTtlCounter.Name}.");
                             }
                         }
                         catch (Exception ex)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} error performing insertion on match for a TTL Counter by name of {foundTtlCounter.Name} and id of {foundTtlCounter.Id} with exception message of {ex.Message}.");
                         }
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has matched the name in the activation rule to the TTL counters loaded for {EntityAnalysisModel.Name} and has finished processing.");
 
                         found = true;
@@ -1160,60 +1222,68 @@ namespace Jube.Engine.Invoke
         }
 
         private void ActivationRuleResponseElevationHighest(
-            EntityAnalysisModelActivationRule evaluateActivationRule, double responseElevationHighWaterMark, bool suppressed,
+            EntityAnalysisModelActivationRule evaluateActivationRule, double responseElevationHighWaterMark,
+            bool suppressed,
             bool activationSample, double maxGatewayResponseElevation)
         {
             if (responseElevationHighWaterMark > EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value &&
                 !suppressed &&
                 activationSample && evaluateActivationRule.EnableResponseElevation)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} is the current largest Response Elevation {EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation} but is less than the new value of {responseElevationHighWaterMark} so it will be elevated.  Some integrity checks will also be performed.");
 
                 if (responseElevationHighWaterMark > EntityAnalysisModel.MaxResponseElevation)
                 {
-                    EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value = EntityAnalysisModel.MaxResponseElevation;
+                    EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value =
+                        EntityAnalysisModel.MaxResponseElevation;
                     EntityAnalysisModel.ResponseElevationValueLimitCounter += 1;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the response elevation exceeds the maximum allowed in the model of {EntityAnalysisModel.MaxResponseElevation}, so has been truncated to {EntityAnalysisModel.MaxResponseElevation} and the Response Elevation Value Limit Counter incremented.");
                 }
                 else
                 {
                     if (responseElevationHighWaterMark > maxGatewayResponseElevation)
                     {
-                        EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value = maxGatewayResponseElevation;
+                        EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value =
+                            maxGatewayResponseElevation;
                         EntityAnalysisModel.ResponseElevationValueGatewayLimitCounter += 1;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the response elevation exceeds the maximum allowed in the gateway rule of {maxGatewayResponseElevation}, so has been truncated to {maxGatewayResponseElevation} and the Response Elevation Value Gateway Limit counter incremented.");
                     }
                     else
                     {
-                        EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value = responseElevationHighWaterMark;
+                        EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value =
+                            responseElevationHighWaterMark;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the response elevation has tested the limits and the response elevation is being carried forward as {responseElevationHighWaterMark}.");
                     }
                 }
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} is being tested against the current limits and cap to zero if exceeded.");
 
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Content = evaluateActivationRule.ResponseElevationContent;
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Redirect = evaluateActivationRule.ResponseElevationRedirect;
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Content =
+                    evaluateActivationRule.ResponseElevationContent;
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Redirect =
+                    evaluateActivationRule.ResponseElevationRedirect;
                 EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.BackColor =
                     evaluateActivationRule.ResponseElevationBackColor;
                 EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.ForeColor =
                     evaluateActivationRule.ResponseElevationForeColor;
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Content = evaluateActivationRule.ResponseElevationContent;
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Redirect = evaluateActivationRule.ResponseElevationRedirect;
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Content =
+                    evaluateActivationRule.ResponseElevationContent;
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Redirect =
+                    evaluateActivationRule.ResponseElevationRedirect;
                 EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.ForeColor =
                     evaluateActivationRule.ResponseElevationForeColor;
                 EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.BackColor =
                     evaluateActivationRule.ResponseElevationBackColor;
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} updated the response elevation to {EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation}.");
 
                 if (EntityAnalysisModel.EnableResponseElevationLimit)
@@ -1224,21 +1294,22 @@ namespace Jube.Engine.Invoke
                         Value = EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation.Value
                     });
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has noted the response elevation date on the counter queue. There are {EntityAnalysisModel.ActivationWatcherCountJournal.Count} in queue.");
                 }
                 else
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} does not have response elevation limit enabled,  so has not noted the response elevation date.");
                 }
             }
         }
 
-        private void ActivationRuleNotification(EntityAnalysisModelActivationRule evaluateActivationRule, bool suppressed,
+        private void ActivationRuleNotification(EntityAnalysisModelActivationRule evaluateActivationRule,
+            bool suppressed,
             bool activationSample)
         {
-            if (_jubeEnvironment.AppSettings("EnableNotification").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (jubeEnvironment.AppSettings("EnableNotification").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 if (!suppressed && activationSample && evaluateActivationRule.EnableNotification && !Reprocess)
                 {
@@ -1247,31 +1318,30 @@ namespace Jube.Engine.Invoke
                         NotificationBody = ReplaceTokens(evaluateActivationRule.NotificationBody),
                         NotificationDestination = ReplaceTokens(evaluateActivationRule.NotificationDestination),
                         NotificationSubject = ReplaceTokens(evaluateActivationRule.NotificationSubject),
-                        NotificationTypeId= evaluateActivationRule.NotificationTypeId
+                        NotificationTypeId = evaluateActivationRule.NotificationTypeId
                     };
-                
-                    if (_jubeEnvironment.AppSettings("AMQP").Equals("True",StringComparison.OrdinalIgnoreCase))
-                    {
 
+                    if (jubeEnvironment.AppSettings("AMQP").Equals("True", StringComparison.OrdinalIgnoreCase))
+                    {
                         var jsonString = JsonConvert.SerializeObject(notification);
                         var bodyBytes = Encoding.UTF8.GetBytes(jsonString);
-                        _rabbitMqChannel.BasicPublish("", "jubeNotifications", null, bodyBytes);
+                        rabbitMqChannel.BasicPublish("", "jubeNotifications", null, bodyBytes);
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has sent a message to the notification dispatcher as {jsonString}.");
                     }
                     else
                     {
-                        _pendingNotification.Enqueue(notification);
-                    
-                        _log.Info(
+                        pendingNotification.Enqueue(notification);
+
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has not sent a message to the internal notification dispatcher because AMQP is not enabled.");
                     }
                 }
             }
             else
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has not sent a message as notification disabled.");
             }
         }
@@ -1280,7 +1350,7 @@ namespace Jube.Engine.Invoke
         {
             var notificationTokenizationList = NotificationTokenization.ReturnTokens(message);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has found {notificationTokenizationList.Count} tokens in message {message}.");
 
             foreach (var notificationToken in notificationTokenizationList)
@@ -1288,28 +1358,32 @@ namespace Jube.Engine.Invoke
                 var notificationTokenValue = "";
                 if (CachePayloadDocumentStore.TryGetValue(notificationToken, out var valuePayload))
                     notificationTokenValue = valuePayload.ToString();
-                else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(notificationToken, out var valueAbstraction))
+                else if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(notificationToken,
+                             out var valueAbstraction))
                     notificationTokenValue = valueAbstraction.ToString(CultureInfo.InvariantCulture);
-                else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryGetValue(notificationToken, out var valueTtlCounter))
+                else if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryGetValue(notificationToken,
+                             out var valueTtlCounter))
                     notificationTokenValue = valueTtlCounter.ToString();
                 else if (
-                    EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.TryGetValue(notificationToken, out var valueAbstractionCalculation))
+                    EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.TryGetValue(notificationToken,
+                        out var valueAbstractionCalculation))
                     notificationTokenValue = valueAbstractionCalculation
                         .ToString(CultureInfo.InvariantCulture);
                 var notificationReplaceToken = $"[@{notificationToken}@]";
                 message = message.Replace(notificationReplaceToken, notificationTokenValue);
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finalized notification message {message}.");
             }
 
             return message;
         }
 
-        private void ActivationRuleGetResponseElevationHighWaterMark(EntityAnalysisModelActivationRule evaluateActivationRule,
+        private void ActivationRuleGetResponseElevationHighWaterMark(
+            EntityAnalysisModelActivationRule evaluateActivationRule,
             ref double responseElevationHighWaterMark)
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                 $"and model {EntityAnalysisModel.Id} will begin processing of response elevation for activation " +
                 $"rule {evaluateActivationRule.Id}. " +
@@ -1317,16 +1391,17 @@ namespace Jube.Engine.Invoke
 
             responseElevationHighWaterMark = evaluateActivationRule.ResponseElevation;
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} is the current largest Response Elevation {EntityAnalysisModelInstanceEntryPayloadStore.ResponseElevation} and will be tested against the new one of {responseElevationHighWaterMark} .");
         }
 
         private bool ActivationRuleGetSuppressedModel(ref List<string> suppressedActivationRules)
         {
             var suppressedModelValue = false;
-            foreach (var xpath in EntityAnalysisModel.EntityAnalysisModelRequestXPaths.Where(w => w.EnableSuppression).ToList())
+            foreach (var xpath in EntityAnalysisModel.EntityAnalysisModelRequestXPaths.Where(w => w.EnableSuppression)
+                         .ToList())
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression key is {xpath.Name}.  Will now check to see if has a suppressed value.");
 
                 if (CachePayloadDocumentStore.ContainsKey(xpath.Name))
@@ -1339,40 +1414,40 @@ namespace Jube.Engine.Invoke
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression key is {xpath.Name} but it has no keys.");
                     }
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression status is {suppressedModelValue}.");
 
                     if (EntityAnalysisModel.EntityAnalysisModelSuppressionRules.ContainsKey(xpath.Name))
                     {
                         if (EntityAnalysisModel.EntityAnalysisModelSuppressionRules[xpath.Name].ContainsKey(
-                            CachePayloadDocumentStore[xpath.Name].AsString()))
+                                CachePayloadDocumentStore[xpath.Name].AsString()))
                         {
                             suppressedActivationRules =
                                 EntityAnalysisModel.EntityAnalysisModelSuppressionRules[xpath.Name][
                                     CachePayloadDocumentStore[xpath.Name].AsString()];
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression status is {suppressedModelValue}.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression status is {suppressedModelValue}.");
                         }
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression key is {xpath.Name} but it has no keys.");
                     }
                 }
                 else
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Suppression key is {xpath.Name} but could not locate the value in the data payload.");
                 }
             }
@@ -1396,7 +1471,7 @@ namespace Jube.Engine.Invoke
                 if (evaluateActivationRule.BypassSuspendSample > Seeded.NextDouble())
                 {
                     createCase.SuspendBypass = true;
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has been selected for bypass.");
 
                     switch (evaluateActivationRule.BypassSuspendInterval)
@@ -1405,7 +1480,7 @@ namespace Jube.Engine.Invoke
                             createCase.SuspendBypassDate =
                                 DateTime.Now.AddMinutes(evaluateActivationRule.BypassSuspendValue);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has a bypass interval of n to create a date of {createCase.SuspendBypassDate}.");
 
                             break;
@@ -1413,7 +1488,7 @@ namespace Jube.Engine.Invoke
                             createCase.SuspendBypassDate =
                                 DateTime.Now.AddHours(evaluateActivationRule.BypassSuspendValue);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has a bypass interval of h to create a date of {createCase.SuspendBypassDate}.");
 
                             break;
@@ -1421,7 +1496,7 @@ namespace Jube.Engine.Invoke
                             createCase.SuspendBypassDate =
                                 DateTime.Now.AddDays(evaluateActivationRule.BypassSuspendValue);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has a bypass interval of d to create a date of {createCase.SuspendBypassDate}.");
 
                             break;
@@ -1429,7 +1504,7 @@ namespace Jube.Engine.Invoke
                             createCase.SuspendBypassDate =
                                 DateTime.Now.AddMonths(evaluateActivationRule.BypassSuspendValue);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has a bypass interval of m to create a date of {createCase.SuspendBypassDate}.");
 
                             break;
@@ -1439,23 +1514,24 @@ namespace Jube.Engine.Invoke
                 {
                     createCase.SuspendBypass = false;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} has been selected for open.");
 
                     createCase.SuspendBypassDate = DateTime.Now;
                 }
 
-                _log.Info(
-                     string.IsNullOrEmpty(evaluateActivationRule.CaseKey)
+                log.Info(
+                    string.IsNullOrEmpty(evaluateActivationRule.CaseKey)
                         ? $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} which is an entry foreign key."
                         : $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} which is not a entry foreign key.");
 
-                if (evaluateActivationRule.CaseKey != null && CachePayloadDocumentStore.ContainsKey(evaluateActivationRule.CaseKey))
+                if (evaluateActivationRule.CaseKey != null &&
+                    CachePayloadDocumentStore.ContainsKey(evaluateActivationRule.CaseKey))
                 {
                     createCase.CaseKey = evaluateActivationRule.CaseKey;
                     createCase.CaseKeyValue = CachePayloadDocumentStore[evaluateActivationRule.CaseKey].ToString();
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} and case key value is {CachePayloadDocumentStore[evaluateActivationRule.CaseKey]}.");
                 }
                 else
@@ -1463,31 +1539,33 @@ namespace Jube.Engine.Invoke
                     createCase.CaseKeyValue = EntityAnalysisModelInstanceEntryPayloadStore.EntityInstanceEntryId;
                     createCase.CaseKey = null;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and case key is {evaluateActivationRule.CaseKey} does not have a value,  has fallen back to the entity id of {EntityAnalysisModelInstanceEntryPayloadStore.EntityInstanceEntryId}.");
                 }
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has flagged that a case needs to be created for case workflow id {createCase.CaseWorkflowId} and case status id {createCase.CaseWorkflowStatusId}.  The case will be queued later after the archive XML has been created.");
             }
 
             return createCase;
         }
 
-        private void ActivationRuleActivationWatcher(EntityAnalysisModelActivationRule evaluateActivationRule, bool suppressed,
+        private void ActivationRuleActivationWatcher(EntityAnalysisModelActivationRule evaluateActivationRule,
+            bool suppressed,
             bool activationSample, double responseElevationNotAdjustedHighWaterMark)
         {
             if (evaluateActivationRule.SendToActivationWatcher && !suppressed && activationSample && !Reprocess &&
                 EntityAnalysisModel.EnableActivationWatcher)
                 try
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the current activation watch count is {EntityAnalysisModel.ActivationWatcherCount} which will be tested against the threshold {EntityAnalysisModel.MaxActivationWatcherThreshold}.");
 
-                    if (EntityAnalysisModel.ActivationWatcherCount < EntityAnalysisModel.MaxActivationWatcherThreshold &&
+                    if (EntityAnalysisModel.ActivationWatcherCount <
+                        EntityAnalysisModel.MaxActivationWatcherThreshold &&
                         EntityAnalysisModel.ActivationWatcherSample >= Seeded.NextDouble())
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} the current activation watch count is {EntityAnalysisModel.ActivationWatcherCount} which will be tested against the threshold {EntityAnalysisModel.MaxActivationWatcherThreshold} and selected via random sampling.");
 
                         var activationWatcher = new ActivationWatcher
@@ -1506,14 +1584,14 @@ namespace Jube.Engine.Invoke
                         };
 
                         if (CachePayloadDocumentStore.ContainsKey(evaluateActivationRule
-                            .ResponseElevationKey))
+                                .ResponseElevationKey))
                         {
                             activationWatcher.Key = evaluateActivationRule.ResponseElevationKey;
                             activationWatcher.KeyValue =
                                 CachePayloadDocumentStore[evaluateActivationRule
                                     .ResponseElevationKey].AsString();
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} found key of {activationWatcher.Key} and key value of {activationWatcher.KeyValue}.");
                         }
                         else
@@ -1521,72 +1599,74 @@ namespace Jube.Engine.Invoke
                             activationWatcher.Key = evaluateActivationRule.ResponseElevationKey;
                             activationWatcher.KeyValue = "Missing";
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} fallen back to key of {activationWatcher.Key} and key value of {activationWatcher.KeyValue}.");
                         }
-                        
+
                         var jsonString = JsonConvert.SerializeObject(activationWatcher, new JsonSerializerSettings
                         {
-                            ContractResolver = EntityAnalysisModel.ContractResolver 
+                            ContractResolver = EntityAnalysisModel.ContractResolver
                         });
-                        
+
                         var bodyBytes = Encoding.UTF8.GetBytes(jsonString);
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has serialized the Activation Watcher Object to be dispatched.");
 
-                        if (_jubeEnvironment.AppSettings("ActivationWatcherAllowPersist").Equals("True",StringComparison.OrdinalIgnoreCase))
+                        if (jubeEnvironment.AppSettings("ActivationWatcherAllowPersist")
+                            .Equals("True", StringComparison.OrdinalIgnoreCase))
                         {
                             EntityAnalysisModel.PersistToActivationWatcherAsync.Enqueue(activationWatcher);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} replay is  allowed so it has been sent to the database. {EntityAnalysisModel.ActivationWatcherCount}.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} replay is not allowed so it has not been sent to the database. {EntityAnalysisModel.ActivationWatcherCount}.");
                         }
 
-                        if (_jubeEnvironment.AppSettings("StreamingActivationWatcher").Equals("True",StringComparison.OrdinalIgnoreCase))
+                        if (jubeEnvironment.AppSettings("StreamingActivationWatcher")
+                            .Equals("True", StringComparison.OrdinalIgnoreCase))
                         {
-                            var messaging = new Messaging(_jubeEnvironment.AppSettings("ConnectionString"),_log);
-                            
+                            var messaging = new Messaging(jubeEnvironment.AppSettings("ConnectionString"), log);
+
                             messaging.SendActivation(bodyBytes);
-                            
-                            _log.Info(
+
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} streaming is allowed so it has been sent to the database as a notification in the activation channel. {EntityAnalysisModel.ActivationWatcherCount}.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} streaming is not allowed so it has not been sent to the database as a notification in the activation channel. {EntityAnalysisModel.ActivationWatcherCount}.");
                         }
-                        
+
                         EntityAnalysisModel.ActivationWatcherCount += 1;
 
-                        if (_jubeEnvironment.AppSettings("AMQP").Equals("True",StringComparison.OrdinalIgnoreCase))
+                        if (jubeEnvironment.AppSettings("AMQP").Equals("True", StringComparison.OrdinalIgnoreCase))
                         {
-                            var properties = _rabbitMqChannel.CreateBasicProperties();
+                            var properties = rabbitMqChannel.CreateBasicProperties();
 
-                            _rabbitMqChannel.BasicPublish("jubeActivations", "", properties, bodyBytes);
+                            rabbitMqChannel.BasicPublish("jubeActivations", "", properties, bodyBytes);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} AMQP is  allowed so it has been published to the RabbitMQ.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} AMQP is not allowed, so publish has been stepped over.");
                         }
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has sent a message to the watcher as {jsonString} the activation watcher counter has been incremented and is currently {EntityAnalysisModel.ActivationWatcherCount}.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} there has been an error in Activation Watcher processing {ex}.");
                 }
         }
@@ -1603,42 +1683,42 @@ namespace Jube.Engine.Invoke
                 {
                     prevailingActivationRuleId = EntityAnalysisModel.ModelActivationRules[iActivationRule].Id;
                     prevailingActivationRuleName = EntityAnalysisModel.ModelActivationRules[iActivationRule].Name;
-                                        
+
                     activationRuleCount += 1;
                 }
                 else
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} has not been included in the local count as the rule is not set to visible{prevailingActivationRuleId}.  This activation rule count is {activationRuleCount}.");
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} response elevation for activation rule {evaluateActivationRule.Id} activation counter has been incremented and the prevailing activation rule has been set to {prevailingActivationRuleId}.  This activation rule count is {activationRuleCount}.");
             }
         }
 
-        private void ExecuteSanctions()
+        private async Task ExecuteSanctionsAsync(List<Task> pendingWriteTasks)
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is starting Sanctions processing.");
 
-            var cacheSanctionRepository = new CacheSanctionRepository(_jubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),_log);
+            var cacheSanctionRepository = new CacheSanctionRepository(jubeEnvironment.AppSettings(
+                new[] {"CacheConnectionString", "ConnectionString"}), log);
 
             double sumLevenshteinDistance = 0;
             foreach (var entityAnalysisModelSanction in EntityAnalysisModel.EntityAnalysisModelSanctions)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name}.");
 
                 try
                 {
                     if (CachePayloadDocumentStore.ContainsKey(entityAnalysisModelSanction.MultipartStringDataName))
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to look for Sanctions Match in the Cache.");
 
                         if (CachePayloadDocumentStore[entityAnalysisModelSanction.MultipartStringDataName] == null)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has an entry but is a null value.");
                         }
                         else
@@ -1646,12 +1726,12 @@ namespace Jube.Engine.Invoke
                             var multiPartStringValue = CachePayloadDocumentStore
                                 [entityAnalysisModelSanction.MultipartStringDataName].AsString();
 
-                            var sanction = cacheSanctionRepository.GetByMultiPartStringDistanceThreshold(
+                            var sanction = await cacheSanctionRepository.GetByMultiPartStringDistanceThresholdAsync(
                                 EntityAnalysisModel.Id, multiPartStringValue,
                                 entityAnalysisModelSanction.Distance
                             );
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} and has found sanction as {sanction != null}.");
 
                             var foundCacheSanctions = false;
@@ -1659,7 +1739,7 @@ namespace Jube.Engine.Invoke
                             {
                                 var deleteLineCacheKeys = sanction.CreatedDate;
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} has a cache interval of {entityAnalysisModelSanction.CacheInterval} and value of {entityAnalysisModelSanction.CacheValue}.");
 
                                 deleteLineCacheKeys = entityAnalysisModelSanction.CacheInterval switch
@@ -1673,27 +1753,27 @@ namespace Jube.Engine.Invoke
                                     _ => deleteLineCacheKeys.AddDays(entityAnalysisModelSanction.CacheValue)
                                 };
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} has an expiry date of {deleteLineCacheKeys}");
 
                                 if (deleteLineCacheKeys <= DateTime.Now)
                                 {
                                     foundCacheSanctions = false;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} cache is not available because of expiration.");
                                 }
                                 else
                                 {
                                     foundCacheSanctions = true;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} cache is available.");
                                 }
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} cache is not available.");
                             }
 
@@ -1703,9 +1783,10 @@ namespace Jube.Engine.Invoke
                                 {
                                     if (sanction.Value.HasValue)
                                     {
-                                        EntityInstanceEntrySanctions.Add(entityAnalysisModelSanction.Name, sanction.Value.Value);
+                                        EntityInstanceEntrySanctions.Add(entityAnalysisModelSanction.Name,
+                                            sanction.Value.Value);
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} is adding cache value of {sanction.Value} to processing. Reprocessing will not take place.");
 
                                         if (entityAnalysisModelSanction.ResponsePayload)
@@ -1713,45 +1794,45 @@ namespace Jube.Engine.Invoke
                                             EntityInstanceEntrySanctionsResponse.Add(entityAnalysisModelSanction.Name,
                                                 sanction.Value.Value);
 
-                                            _log.Info(
+                                            log.Info(
                                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {sanction.Value} to the response payload.");
-                                        }   
+                                        }
                                     }
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has extracted multi part string name value as {multiPartStringValue} is not adding cache value of {sanction.Value} to processing as is a duplicate. Reprocessing will not take place.");
                                 }
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and is about to execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance}.");
 
                                 var sanctionEntryReturns = LevenshteinDistance.CheckMultipartString(
                                     multiPartStringValue,
                                     entityAnalysisModelSanction.Distance, EntityAnalysisModel.SanctionsEntries);
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} and found {sanctionEntryReturns.Count} matches.");
 
                                 double? averageLevenshteinDistance = null;
                                 if (sanctionEntryReturns.Count == 0)
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} found no matches average distance set to 5.");
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} is about to calculate the average.");
 
                                     sumLevenshteinDistance = sanctionEntryReturns.Aggregate(sumLevenshteinDistance,
                                         (current, sanctionEntryReturn) =>
                                             current + sanctionEntryReturn.LevenshteinDistance);
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has a sum of {sumLevenshteinDistance}.");
 
                                     if (!((sumLevenshteinDistance == 0) | double.IsNaN(sumLevenshteinDistance)))
@@ -1759,17 +1840,17 @@ namespace Jube.Engine.Invoke
                                         averageLevenshteinDistance =
                                             sumLevenshteinDistance / sanctionEntryReturns.Count;
 
-                                        _log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has a sum of {sumLevenshteinDistance} and calculated average as {averageLevenshteinDistance?? null}.");
+                                        log.Info(
+                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has a sum of {sumLevenshteinDistance} and calculated average as {averageLevenshteinDistance ?? null}.");
                                     }
                                     else
                                     {
                                         averageLevenshteinDistance = 0;
-                                        
-                                        _log.Info(
+
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has a sum of {sumLevenshteinDistance} but is an invalid number.");
                                     }
-                                    
+
                                     if (!EntityInstanceEntrySanctions.ContainsKey(entityAnalysisModelSanction.Name))
                                     {
                                         if (averageLevenshteinDistance.HasValue)
@@ -1777,48 +1858,51 @@ namespace Jube.Engine.Invoke
                                             EntityInstanceEntrySanctions.Add(entityAnalysisModelSanction.Name,
                                                 averageLevenshteinDistance.Value);
 
-                                            _log.Info(
-                                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance?? null} to the payload.");
+                                            log.Info(
+                                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance ?? null} to the payload.");
 
                                             if (entityAnalysisModelSanction.ResponsePayload)
                                             {
-                                                EntityInstanceEntrySanctionsResponse.Add(entityAnalysisModelSanction.Name,
+                                                EntityInstanceEntrySanctionsResponse.Add(
+                                                    entityAnalysisModelSanction.Name,
                                                     averageLevenshteinDistance.Value);
 
-                                                _log.Info(
-                                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance?? null} to the response payload.");
-                                            }   
+                                                log.Info(
+                                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance ?? null} to the response payload.");
+                                            }
                                         }
                                     }
                                     else
                                     {
-                                        _log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance?? null} but has not been added to payload as it is a duplicate.");
+                                        log.Info(
+                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} and finished execute the fuzzy logic with a distance of {entityAnalysisModelSanction.Distance} has added the average of {averageLevenshteinDistance ?? null} but has not been added to payload as it is a duplicate.");
                                     }
                                 }
 
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has constructed a cache payload as Distance of {averageLevenshteinDistance?? null}, MultiPartString of {multiPartStringValue} and a created date of now.");
+                                log.Info(
+                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has constructed a cache payload as Distance of {averageLevenshteinDistance ?? null}, MultiPartString of {multiPartStringValue} and a created date of now.");
 
                                 if (sanction == null)
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to insert cache payload.");
 
-                                    cacheSanctionRepository.Insert(EntityAnalysisModel.Id, multiPartStringValue,
-                                        entityAnalysisModelSanction.Distance,averageLevenshteinDistance);
+                                    pendingWriteTasks.Add(cacheSanctionRepository.InsertAsync(EntityAnalysisModel.Id,
+                                        multiPartStringValue,
+                                        entityAnalysisModelSanction.Distance, averageLevenshteinDistance));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has inserted cache payload.");
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to update cache payload for {sanction.Id}.");
 
-                                    cacheSanctionRepository.Update(sanction.Id,averageLevenshteinDistance);
+                                    pendingWriteTasks.Add(
+                                        cacheSanctionRepository.UpdateAsync(sanction.Id, averageLevenshteinDistance));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has updated cache payload.");
                                 }
                             }
@@ -1826,27 +1910,28 @@ namespace Jube.Engine.Invoke
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating Sanctions {entityAnalysisModelSanction.Name} but could not find it in the payload.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has seen an error in sanctions checking as {ex}.");
                 }
             }
 
             EntityAnalysisModelInstanceEntryPayloadStore.Sanction = EntityInstanceEntrySanctions;
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Sanction", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Sanction",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finished sanctions processing.");
         }
 
         private void ExecuteAdaptations()
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will begin processing adaptations.");
 
             foreach (var (adaptationKey, modelAdaptation) in EntityAnalysisModel.EntityAnalysisModelAdaptations)
@@ -1854,52 +1939,46 @@ namespace Jube.Engine.Invoke
                 {
                     var jsonForPlumber = new Dictionary<string, object>();
 
-                    /*_log.Info(
-                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} is starting to prepare R Plumber post.");
-
-                    foreach (var (key, value) in CachePayloadDocumentStore)
-                        if (!jsonForPlumber.ContainsKey(key))
-                            jsonForPlumber.Add(key, value);*/
-
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has finished allocating the Data collection for R Plumber POST.");
 
                     foreach (var (key, value) in EntityAnalysisModelInstanceEntryPayloadStore
-                        .Abstraction.Where(jsonForPlumberCacheElement => !jsonForPlumber.ContainsKey(jsonForPlumberCacheElement.Key)))
+                                 .Abstraction.Where(jsonForPlumberCacheElement =>
+                                     !jsonForPlumber.ContainsKey(jsonForPlumberCacheElement.Key)))
                         jsonForPlumber.Add(key, value);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has finished allocating the Abstractions for R Plumber POST.");
 
                     foreach (var (key, value) in
-                        from jsonForPlumberKvpInteger in EntityAnalysisModelInstanceEntryPayloadStore
-                            .TtlCounter
-                        where !jsonForPlumber.ContainsKey(jsonForPlumberKvpInteger.Key)
-                        select jsonForPlumberKvpInteger)
+                             from jsonForPlumberKvpInteger in EntityAnalysisModelInstanceEntryPayloadStore
+                                 .TtlCounter
+                             where !jsonForPlumber.ContainsKey(jsonForPlumberKvpInteger.Key)
+                             select jsonForPlumberKvpInteger)
                         jsonForPlumber.Add(key, value);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has finished allocating the TTL Counters for R Plumber POST.");
 
                     foreach (var (key, value) in
-                        from jsonForPlumberKvpDouble in EntityAnalysisModelInstanceEntryPayloadStore
-                            .AbstractionCalculation
-                        where !jsonForPlumber.ContainsKey(jsonForPlumberKvpDouble.Key)
-                        select jsonForPlumberKvpDouble)
+                             from jsonForPlumberKvpDouble in EntityAnalysisModelInstanceEntryPayloadStore
+                                 .AbstractionCalculation
+                             where !jsonForPlumber.ContainsKey(jsonForPlumberKvpDouble.Key)
+                             select jsonForPlumberKvpDouble)
                         jsonForPlumber.Add(key, value);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has finished allocating the Abstraction Calculations for R Plumber POST.");
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has finished allocating and created JSON for R Plumber:{jsonForPlumber}.");
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} is about to post to R Plumber.");
 
-                    var adaptationSimulation = modelAdaptation.Post(jsonForPlumber, _log);
+                    var adaptationSimulation = modelAdaptation.Post(jsonForPlumber, log);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has called R Plumber with a response of {adaptationSimulation}.");
 
                     EntityAnalysisModelInstanceEntryPayloadStore.HttpAdaptation.Add(
@@ -1914,7 +1993,7 @@ namespace Jube.Engine.Invoke
                         EntityInstanceEntryAdaptationResponses.Add(modelAdaptation.Name,
                             simulations);
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has called R Plumber with a response of {adaptationSimulation} and added it to the response payload.");
                     }
 
@@ -1929,61 +2008,62 @@ namespace Jube.Engine.Invoke
                                 EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid
                         });
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} has called R Plumber with a response of {adaptationSimulation} and has added it to the SQL report payload.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating {adaptationKey} produced an error {ex}.");
                 }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Adaptation", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Adaptation",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Adaptations have concluded.");
         }
 
 
         private void ExecuteExhaustiveModels()
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now perform Exhaustive and will loop through each.");
-            
+
             foreach (var exhaustive in EntityAnalysisModel.ExhaustiveModels)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}.");
-                
+
                 try
                 {
                     var data = new double[exhaustive.NetworkVariablesInOrder.Count];
                     for (var i = 0; i < exhaustive.NetworkVariablesInOrder.Count; i++)
                     {
-                        var cleanName = exhaustive.NetworkVariablesInOrder[i].Name.Contains('.') 
-                            ? exhaustive.NetworkVariablesInOrder[i].Name.Split(".")[1] 
+                        var cleanName = exhaustive.NetworkVariablesInOrder[i].Name.Contains('.')
+                            ? exhaustive.NetworkVariablesInOrder[i].Name.Split(".")[1]
                             : exhaustive.NetworkVariablesInOrder[i].Name;
-                        
-                        _log.Info(
+
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                             $"  Will look up {cleanName} for processing type id {exhaustive.NetworkVariablesInOrder[i].ProcessingTypeId}.");
-                        
+
                         switch (exhaustive.NetworkVariablesInOrder[i].ProcessingTypeId)
                         {
                             case 1:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for payload.");
-                                
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .Payload.ContainsKey(cleanName))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         EntityAnalysisModelInstanceEntryPayloadStore.Payload[cleanName].AsDouble());
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -1992,16 +2072,16 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                        
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
                                 }
-                                
+
                                 break;
                             case 2:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for KVP.");
@@ -2011,8 +2091,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueKvp);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2021,8 +2101,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                        
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2030,18 +2110,18 @@ namespace Jube.Engine.Invoke
 
                                 break;
                             case 3:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Ttl Counter.");
-                                
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .TtlCounter.TryGetValue(cleanName, out var valueTtl))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueTtl);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2050,8 +2130,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                        
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2059,18 +2139,18 @@ namespace Jube.Engine.Invoke
 
                                 break;
                             case 4:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Ttl Counter.");
-                                
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .Sanction.TryGetValue(cleanName, out var valueSanction))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueSanction);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2079,8 +2159,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2088,18 +2168,18 @@ namespace Jube.Engine.Invoke
 
                                 break;
                             case 5:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Abstraction.");
-                                
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .Abstraction.TryGetValue(cleanName, out var valueAbstraction))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueAbstraction);
-                                        
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2108,8 +2188,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2117,18 +2197,18 @@ namespace Jube.Engine.Invoke
 
                                 break;
                             case 6:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Abstraction Calculation.");
-                            
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .AbstractionCalculation.TryGetValue(cleanName, out var valueAbstractionCalculation))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueAbstractionCalculation);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2137,8 +2217,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2146,18 +2226,18 @@ namespace Jube.Engine.Invoke
 
                                 break;
                             default:
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                     $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                     $" will look up {cleanName} for Abstraction as the default.");
-                                
+
                                 if (EntityAnalysisModelInstanceEntryPayloadStore
                                     .Abstraction.TryGetValue(cleanName, out var valueAbstractionDefault))
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         valueAbstractionDefault);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} found value {data[i]}.");
@@ -2166,8 +2246,8 @@ namespace Jube.Engine.Invoke
                                 {
                                     data[i] = exhaustive.NetworkVariablesInOrder[i].ZScore(
                                         exhaustive.NetworkVariablesInOrder[i].Mean);
-                                    
-                                    _log.Info(
+
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                                         $" and model {EntityAnalysisModel.Id} evaluating Exhaustive Search Instance Id {exhaustive.Id}." +
                                         $" {cleanName} fall back value {data[i]}.");
@@ -2176,47 +2256,48 @@ namespace Jube.Engine.Invoke
                                 break;
                         }
                     }
-                    
-                    _log.Info(
+
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} is about to recall model with {data.Length} variables.");
-                    
+
                     var value = exhaustive.TopologyNetwork.Compute(data)[0];
-                    
-                    _log.Info(
+
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has recalled a score of {value}.  Will proceed to add the value to payload collection.");
-                    
-                    EntityAnalysisModelInstanceEntryPayloadStore.ExhaustiveAdaptation.Add(exhaustive.Name,value);
-                    
+
+                    EntityAnalysisModelInstanceEntryPayloadStore.ExhaustiveAdaptation.Add(exhaustive.Name, value);
                 }
                 catch (Exception ex)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has exception {ex}.");
                 }
-                
-                _log.Info(
+
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has concluded exhaustive recall.");
             }
         }
-        
+
         private void ExecuteAbstractionCalculations()
         {
             double calculationDouble = 0;
-            
-            _log.Info(
+
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now perform entity analysis abstractions calculations and will loop through each.");
 
-            foreach (var entityAnalysisModelAbstractionCalculation in EntityAnalysisModel.EntityAnalysisModelAbstractionCalculations)
+            foreach (var entityAnalysisModelAbstractionCalculation in EntityAnalysisModel
+                         .EntityAnalysisModelAbstractionCalculations)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id}.");
 
                 try
                 {
                     if (entityAnalysisModelAbstractionCalculation.AbstractionCalculationTypeId == 5)
                     {
-                        calculationDouble = ReflectRule.Execute(entityAnalysisModelAbstractionCalculation, EntityAnalysisModel,
-                            EntityAnalysisModelInstanceEntryPayloadStore, EntityInstanceEntryDictionaryKvPs, _log);
+                        calculationDouble = ReflectRule.Execute(entityAnalysisModelAbstractionCalculation,
+                            EntityAnalysisModel,
+                            EntityAnalysisModelInstanceEntryPayloadStore, EntityInstanceEntryDictionaryKvPs, log);
                     }
                     else
                     {
@@ -2230,29 +2311,31 @@ namespace Jube.Engine.Invoke
                             var cleanAbstractionNameRight = entityAnalysisModelAbstractionCalculation
                                 .EntityAnalysisModelAbstractionNameRight.Replace(" ", "_");
 
-                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameLeft, out var valueLeft))
+                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(
+                                    cleanAbstractionNameLeft, out var valueLeft))
                             {
                                 leftDouble = valueLeft;
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has extracted left value of {leftDouble}.");
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} but it does not contain a left value.");
                             }
 
-                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(cleanAbstractionNameRight, out var valueRight))
+                            if (EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.TryGetValue(
+                                    cleanAbstractionNameRight, out var valueRight))
                             {
                                 rightDouble = valueRight;
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and extracted right value of {rightDouble}.");
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} but it does not contain a right value.");
                             }
 
@@ -2261,28 +2344,28 @@ namespace Jube.Engine.Invoke
                                 case 1:
                                     calculationDouble = leftDouble + rightDouble;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} addition, produces value of {calculationDouble}.");
 
                                     break;
                                 case 2:
                                     calculationDouble = leftDouble - rightDouble;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} subtraction, produces value of {calculationDouble}.");
 
                                     break;
                                 case 3:
                                     calculationDouble = leftDouble / rightDouble;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} divide, produces value of {calculationDouble}.");
 
                                     break;
                                 case 4:
                                     calculationDouble = leftDouble * rightDouble;
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} multiply, produces value of {calculationDouble}.");
 
                                     break;
@@ -2292,7 +2375,7 @@ namespace Jube.Engine.Invoke
                         {
                             calculationDouble = 0;
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} has produced an error in calculation and has been set to zero with exception message of {ex.Message}.");
                         }
 
@@ -2300,7 +2383,7 @@ namespace Jube.Engine.Invoke
                         {
                             calculationDouble = 0;
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} has produced IsNaN or IsInfinity and has been set to zero.");
                         }
                     }
@@ -2308,7 +2391,7 @@ namespace Jube.Engine.Invoke
                     EntityAnalysisModelInstanceEntryPayloadStore.AbstractionCalculation.Add(
                         entityAnalysisModelAbstractionCalculation.Name, calculationDouble);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has added the name {entityAnalysisModelAbstractionCalculation.Name} with the value {calculationDouble} to abstractions for processing.");
 
                     if (entityAnalysisModelAbstractionCalculation.ResponsePayload)
@@ -2316,7 +2399,7 @@ namespace Jube.Engine.Invoke
                         EntityInstanceEntryAbstractionCalculationResponse.Add(
                             entityAnalysisModelAbstractionCalculation.Name, calculationDouble);
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has added the name {entityAnalysisModelAbstractionCalculation.Name} with the value {calculationDouble} to response payload also.");
                     }
 
@@ -2331,63 +2414,63 @@ namespace Jube.Engine.Invoke
                                 EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid
                         });
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} and has added the name {entityAnalysisModelAbstractionCalculation.Name} with the value {calculationDouble} to report payload also with a column name of {entityAnalysisModelAbstractionCalculation.Name}.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} evaluating abstraction calculation {entityAnalysisModelAbstractionCalculation.Id} has produced an error as {ex}.");
                 }
             }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Calculation", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Calculation",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Abstraction Calculations have concluded in {Stopwatch.ElapsedMilliseconds} ms.");
         }
 
         private void ExecuteAbstractionRulesWithoutSearchKeys()
         {
-            //var reflectionAbstractionRule = new ReflectRule();
             foreach (var evaluateAbstractionRule in
-                from evaluateAbstractionRuleLinq in EntityAnalysisModel.ModelAbstractionRules
-                where !evaluateAbstractionRuleLinq.Search
-                select evaluateAbstractionRuleLinq)
+                     from evaluateAbstractionRuleLinq in EntityAnalysisModel.ModelAbstractionRules
+                     where !evaluateAbstractionRuleLinq.Search
+                     select evaluateAbstractionRuleLinq)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {evaluateAbstractionRule.Id} is being processed as a basic rule.");
 
                 double abstractionValue;
 
                 if (ReflectRule.Execute(evaluateAbstractionRule, EntityAnalysisModel, CachePayloadDocumentStore,
-                    EntityInstanceEntryTtlCountersResponse, EntityInstanceEntryDictionaryKvPs, _log))
+                        EntityInstanceEntryTtlCountersResponse, EntityInstanceEntryDictionaryKvPs, log))
                 {
                     abstractionValue = 1;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {evaluateAbstractionRule.Id} has returned true and set abstraction value to {abstractionValue}.");
                 }
                 else
                 {
                     abstractionValue = 0;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {evaluateAbstractionRule.Id} has returned false and set abstraction value to {abstractionValue}.");
                 }
 
                 EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.Add(evaluateAbstractionRule.Name,
                     abstractionValue);
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is a basic abstraction rule {evaluateAbstractionRule.Id} added value {abstractionValue} to processing.");
 
                 if (evaluateAbstractionRule.ResponsePayload)
                 {
                     EntityInstanceEntryAbstractionResponse.Add(evaluateAbstractionRule.Name, abstractionValue);
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is a basic abstraction rule {evaluateAbstractionRule.Id} added value {abstractionValue} to response payload.");
                 }
 
@@ -2402,43 +2485,44 @@ namespace Jube.Engine.Invoke
                             EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid
                     });
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is a basic abstraction rule {evaluateAbstractionRule.Id} added value {abstractionValue} to report payload with a column name of {evaluateAbstractionRule.Name}.");
                 }
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished basic abstraction rule {evaluateAbstractionRule.Id}.");
             }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Abstraction", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Abstraction",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Abstraction has concluded in {Stopwatch.ElapsedMilliseconds} ms.");
         }
 
-        private void ExecuteAbstractionRulesWithSearchKeys(CachePayloadRepository cachePayloadRepository)
+        private async Task ExecuteAbstractionRulesWithSearchKeys(CachePayloadRepository cachePayloadRepository)
         {
-            var activeExecutionThreads = new List<Execute>();
+            var pendingExecutionThreads = new List<Task>();
             if (EntityAnalysisModel.EnableCache)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Entity cache storage is enabled so will now proceed to loop through the distinct grouping keys for this model.");
 
                 foreach (var (key, value) in EntityAnalysisModel.DistinctSearchKeys)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating grouping key {key}.");
 
                     try
                     {
                         if (value.SearchKeyCache)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} grouping key {key} is a search key,  so the values will be fetched from the cache later on.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} checking if grouping key {key} exists in the current payload data.");
 
                             if (CachePayloadDocumentStore.ContainsKey(key))
@@ -2449,184 +2533,170 @@ namespace Jube.Engine.Invoke
                                     AbstractionRuleGroupingKey = key,
                                     DistinctSearchKey = value,
                                     CachePayloadDocument = CachePayloadDocumentStore,
-                                    EntityAnalysisModelInstanceEntryPayload = EntityAnalysisModelInstanceEntryPayloadStore,
+                                    EntityAnalysisModelInstanceEntryPayload =
+                                        EntityAnalysisModelInstanceEntryPayloadStore,
                                     AbstractionRuleMatches = AbstractionRuleMatches,
                                     EntityAnalysisModel = EntityAnalysisModel,
-                                    Log = _log,
+                                    Log = log,
                                     CachePayloadRepository = cachePayloadRepository
                                 };
-                                
-                                _log.Info(
+
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has created a execute object to run all the abstraction rules rolling up to the grouping key.  It has been added to a collection to track it when multi threaded abstraction rules are enabled.");
 
-                                switch (_jubeEnvironment.AppSettings("ForkAbstractionRuleSearchKeys"))
-                                {
-                                    case "True":
-                                        activeExecutionThreads.Add(execute);
-                                        ThreadPool.QueueUserWorkItem(ThreadPoolCallBackExecute, execute);
-
-                                        _log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} execute object is set to fork, so it is being launched in its own thread pool thread.");
-
-                                        break;
-                                    default:
-                                        execute.Start();
-
-                                        _log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} execute object is set be serial, so it is being launched now in this thread.");
-
-                                        break;
-                                }
+                                pendingExecutionThreads.Add(execute.StartAsync());
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} grouping key {key} does not exist in the current transaction data being processed.");
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        _log.Error(
+                        log.Error(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} checking if grouping key {key} has created an error as {ex}.");
                     }
                 }
 
-                if (_jubeEnvironment.AppSettings("ForkAbstractionRuleSearchKeys").Equals("True",StringComparison.OrdinalIgnoreCase))
-                {
-                    _log.Info(
-                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} execute object is set to fork, looping through the register and waiting to merge all of these threads on their completion.");
-
-                    var spin = new SpinWait();
-                    do
-                    {
-                        var countFinished =
-                            (from execute in activeExecutionThreads where execute.Finished select execute).Count();
-                        if (countFinished == activeExecutionThreads.Count)
-                        {
-                            _log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has merged all abstraction rule execution objects.");
-
-                            break;
-                        }
-                        spin.SpinOnce();
-                    } while (true);
-                }
-
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now loop around all of the Abstraction rules for the purposes of performing the aggregations.");
-
-                var cacheAbstractionRepository = new CacheAbstractionRepository(_jubeEnvironment.AppSettings("ConnectionString"),_log);
-
-                foreach (var abstractionRule in EntityAnalysisModel.ModelAbstractionRules)
-                    try
-                    {
-                        if (abstractionRule.Search)
-                        {
-                            _log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating abstraction rule {abstractionRule.Id}.");
-
-                            double abstractionValue;
-                            if (EntityAnalysisModel.DistinctSearchKeys.FirstOrDefault(x =>
-                                    x.Key == abstractionRule.SearchKey && x.Value.SearchKeyCache).Value != null)
-                            {
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has its values in the cache.");
-
-                                abstractionValue = cacheAbstractionRepository.GetByNameSearchNameSearchValueReturnValueOnly(EntityAnalysisModel.Id,
-                                    abstractionRule.Name,abstractionRule.SearchKey,
-                                    CachePayloadDocumentStore[abstractionRule.SearchKey].AsString());
-                            }
-                            else
-                            {
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} using documents in the entities collection of the cache.");
-
-                                abstractionValue = EntityAnalysisModelAbstractionRuleAggregator.Aggregate(EntityAnalysisModelInstanceEntryPayloadStore,
-                                    AbstractionRuleMatches, abstractionRule, _log);
-
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} has finished and the value is {abstractionValue}.");
-                            }
-
-                            EntityAnalysisModelInstanceEntryPayloadStore.Abstraction.Add(abstractionRule.Name,
-                                abstractionValue);
-
-                            _log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to processing.");
-
-                            if (abstractionRule.ResponsePayload)
-                            {
-                                EntityInstanceEntryAbstractionResponse.Add(abstractionRule.Name, abstractionValue);
-
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to response payload.");
-                            }
-
-                            if (abstractionRule.ReportTable && !Reprocess)
-                            {
-                                ReportDatabaseValues.Add(new ArchiveKey
-                                {
-                                    ProcessingTypeId = 5,
-                                    Key = abstractionRule.Name,
-                                    KeyValueFloat = abstractionValue,
-                                    EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                        .EntityAnalysisModelInstanceEntryGuid
-                                });
-
-                                _log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {abstractionValue} to report payload with a column name of {abstractionRule.Name}.");
-                            }
-
-                            _log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished aggregating abstraction rule {abstractionRule.Id}.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.Error(
-                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} but has created an error as {ex}.");
-                    }
             }
             else
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Entity cache storage is not enabled so it cannot fetch anything relating to Abstraction Rules.");
             }
 
-            _log.Info(
+            Task.WaitAll(pendingExecutionThreads.ToArray());
+            await CalculateAbstractionRuleValuesOrLookupFromTheCache();
+
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} all abstraction aggregation has finished, basic rules will now be processed.");
         }
 
-        private void ExecuteTtlCounters()
+        private async Task CalculateAbstractionRuleValuesOrLookupFromTheCache()
+        {
+            var listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest =
+                new List<EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto>();
+            foreach (var abstractionRule in EntityAnalysisModel.ModelAbstractionRules)
+                try
+                {
+                    if (abstractionRule.Search)
+                    {
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating abstraction rule {abstractionRule.Id}.");
+
+                        if (EntityAnalysisModel.DistinctSearchKeys.FirstOrDefault(x =>
+                                x.Key == abstractionRule.SearchKey && x.Value.SearchKeyCache).Value != null)
+                        {
+                            log.Info(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has its values in the cache.");
+
+                            listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest.Add(
+                                new EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto
+                                {
+                                    AbstractionRuleName = abstractionRule.Name,
+                                    SearchKey = abstractionRule.SearchKey,
+                                    SearchValue = CachePayloadDocumentStore[abstractionRule.SearchKey].AsString()
+                                });
+
+                            log.Info(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has added " +
+                                $"EntityAnalysisModelId:{EntityAnalysisModel.Id}, AbstractionRuleName:{abstractionRule.Name},SearchKey:{abstractionRule.SearchKey} " +
+                                $"and SearchValue:{CachePayloadDocumentStore[abstractionRule.SearchKey].AsString()} to he bulk select list.");
+                        }
+                        else
+                        {
+                            log.Info(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} using documents in the entities collection of the cache.");
+
+                            AddComputedValuesToAbstractionRulePayload(
+                                EntityAnalysisModelAbstractionRuleAggregator.Aggregate(
+                                    EntityAnalysisModelInstanceEntryPayloadStore,
+                                    AbstractionRuleMatches, abstractionRule, log), abstractionRule);
+                        }
+                    }
+
+                    if (!listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest.Any()) continue;
+
+                    var cacheAbstractionRepository =
+                        new CacheAbstractionRepository(jubeEnvironment.AppSettings("ConnectionString"), log);
+                    
+                    foreach (var abstractionRuleNameValue in await cacheAbstractionRepository
+                                 .GetByNameSearchNameSearchValueReturnValueOnlyTreatingMissingAsNullByReturnZeroRecordAsync(
+                                     EntityAnalysisModel.Id,
+                                     listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest))
+                    {
+                        AddComputedValuesToAbstractionRulePayload(abstractionRuleNameValue.Value, abstractionRule);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log.Error(
+                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} but has created an error as {ex}.");
+                }
+        }
+
+        private void AddComputedValuesToAbstractionRulePayload(double value,
+            EntityAnalysisModelAbstractionRule abstractionRule)
+        {
+            EntityAnalysisModelInstanceEntryPayloadStore.Abstraction
+                .Add(abstractionRule.Name, value);
+
+            if (abstractionRule.ResponsePayload)
+            {
+                EntityInstanceEntryAbstractionResponse.Add(abstractionRule.Name, value);
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {value} to response payload.");
+            }
+
+            if (abstractionRule.ReportTable && !Reprocess)
+            {
+                ReportDatabaseValues.Add(new ArchiveKey
+                {
+                    ProcessingTypeId = 5,
+                    Key = abstractionRule.Name,
+                    KeyValueFloat = value,
+                    EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
+                        .EntityAnalysisModelInstanceEntryGuid
+                });
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} added value {value} to report payload with a column name of {abstractionRule.Name}.");
+            }
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished aggregating abstraction rule {abstractionRule.Id}.");
+        }
+
+        private async Task ExecuteTtlCountersAsync()
         {
             try
             {
                 if (EntityAnalysisModel.EnableTtlCounter)
                 {
-                    var cacheTtlCounterRepository = new CacheTtlCounterRepository(
-                        _jubeEnvironment.AppSettings(
-                            new []{"CacheConnectionString","ConnectionString"}),_log);
-
-                    var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(
-                        _jubeEnvironment.AppSettings(
-                            new []{"CacheConnectionString","ConnectionString"}),_log);
-
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter cache storage is enabled so it will now proceed to return the TTL Counters via MongoDB aggregate query.");
 
                     if (EntityAnalysisModel.ModelTtlCounters.FindAll(x => x.OnlineAggregation).Count > 0)
                     {
+                        var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(
+                            jubeEnvironment.AppSettings(
+                                new[] {"CacheConnectionString", "ConnectionString"}), log);
+
                         var getByNameDataNameDataValueParams =
                             new List<CacheTtlCounterEntryRepository.GetByNameDataNameDataValueParams>();
                         foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} is online aggregation.");
 
                             if (CachePayloadDocumentStore.ContainsKey(ttlCounter.TtlCounterDataName))
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} which has an interval type of {ttlCounter.TtlCounterInterval} and interval value of {ttlCounter.TtlCounterValue}.");
 
                                 var getByNameDataNameDataValueParam =
@@ -2657,31 +2727,31 @@ namespace Jube.Engine.Invoke
 
                                 getByNameDataNameDataValueParams.Add(getByNameDataNameDataValueParam);
 
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} the date threshold from is {adjustedTtlCounterDate} to {EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate}, the TTL Counter Name is {ttlCounter.Name}, the TTL Counter Data Name is {ttlCounter.TtlCounterDataName} and the TTL Counter Data Name Value is {CachePayloadDocumentStore[ttlCounter.TtlCounterDataName]}.");
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} was unable to fine a value for TTL Counter Data Name {ttlCounter.TtlCounterDataName} and TTL Counter Name {ttlCounter.Name}.");
                             }
                         }
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finalized the predicate.");
 
-                        var counts =
-                            cacheTtlCounterEntryRepository.GetByNameDataNameDataValue(EntityAnalysisModel.Id,
+                        var counts = await
+                            cacheTtlCounterEntryRepository.GetByNameDataNameDataValueAsync(EntityAnalysisModel.Id,
                                 getByNameDataNameDataValueParams
                                     .ToArray());
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has executed the group by query for the TTL Counters from the cache.  A loop of all TTL Counter results will now be performed to retrieve the for processing.");
 
                         foreach (var (key, value) in counts)
                             try
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key}.");
 
                                 var modelTtlCounter = EntityAnalysisModel.ModelTtlCounters.Find(x =>
@@ -2691,7 +2761,7 @@ namespace Jube.Engine.Invoke
                                     EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(
                                         modelTtlCounter.Name, value);
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to processing with the name of {modelTtlCounter.Name}.");
 
                                     if (modelTtlCounter.ResponsePayload)
@@ -2699,7 +2769,7 @@ namespace Jube.Engine.Invoke
                                         EntityInstanceEntryTtlCountersResponse.Add(modelTtlCounter.Name,
                                             value);
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to the response payload with the name of {modelTtlCounter.Name}.");
                                     }
 
@@ -2710,27 +2780,28 @@ namespace Jube.Engine.Invoke
                                             ProcessingTypeId = 5,
                                             Key = modelTtlCounter.Name,
                                             KeyValueInteger = value,
-                                            EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                                .EntityAnalysisModelInstanceEntryGuid
+                                            EntityAnalysisModelInstanceEntryGuid =
+                                                EntityAnalysisModelInstanceEntryPayloadStore
+                                                    .EntityAnalysisModelInstanceEntryGuid
                                         });
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to the report payload with the name of {modelTtlCounter.Name}.");
                                     }
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} but it could not be located,  returning nothing.");
                                 }
                             }
                             catch (Exception ex)
                             {
-                                _log.Error(
+                                log.Error(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has created an error as {ex}");
                             }
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will loop through the TTL counter values to make sure that there is at least a zero present for missing values.");
 
                         foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters)
@@ -2741,14 +2812,14 @@ namespace Jube.Engine.Invoke
                                     EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(ttlCounter.Name,
                                         0);
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of zero.");
 
                                     if (ttlCounter.ResponsePayload)
                                     {
                                         EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, 0);
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the response payload also.");
                                     }
 
@@ -2759,59 +2830,62 @@ namespace Jube.Engine.Invoke
                                             ProcessingTypeId = 5,
                                             Key = ttlCounter.Name,
                                             KeyValueInteger = 0,
-                                            EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                                .EntityAnalysisModelInstanceEntryGuid
+                                            EntityAnalysisModelInstanceEntryGuid =
+                                                EntityAnalysisModelInstanceEntryPayloadStore
+                                                    .EntityAnalysisModelInstanceEntryGuid
                                         });
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the report payload also.");
                                     }
                                 }
                                 else
                                 {
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} exists already,  so nothing more added.");
                                 }
                             }
                             catch (Exception ex)
                             {
-                                _log.Error(
+                                log.Error(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has created an error as {ex}.");
                             }
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Does not have any online TTL Counters.");
                     }
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now look for TTL Counters from the cache.");
 
-                    foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters.FindAll(x => x.OnlineAggregation == false))
+                    foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters.FindAll(x =>
+                                 x.OnlineAggregation == false))
                     {
                         try
                         {
-                            var ttlCounterValue = cacheTtlCounterRepository.GetByNameDataNameDataValue(
+                            var cacheTtlCounterRepository = new CacheTtlCounterRepository(
+                                jubeEnvironment.AppSettings(
+                                    new[] {"CacheConnectionString", "ConnectionString"}), log);
+
+                            var ttlCounterValue = await cacheTtlCounterRepository.GetByNameDataNameDataValueAsync(
                                 EntityAnalysisModel.Id,
                                 ttlCounter.Id,
                                 ttlCounter.TtlCounterDataName,
                                 CachePayloadDocumentStore[ttlCounter.TtlCounterDataName].AsString());
 
-                            if (!EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.ContainsKey(
-                                ttlCounter.Name))
+                            if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryAdd(ttlCounter.Name,
+                                    ttlCounterValue))
                             {
-                                EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(ttlCounter.Name,
-                                    ttlCounterValue);
-
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
 
                                 if (ttlCounter.ResponsePayload)
                                 {
                                     EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, ttlCounterValue);
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the response payload also.");
                                 }
 
@@ -2822,77 +2896,79 @@ namespace Jube.Engine.Invoke
                                         ProcessingTypeId = 5,
                                         Key = ttlCounter.Name,
                                         KeyValueInteger = ttlCounterValue,
-                                        EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                            .EntityAnalysisModelInstanceEntryGuid
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
                                     });
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the report payload also.");
                                 }
                             }
                             else
                             {
-                                _log.Info(
+                                log.Info(
                                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
                             }
                         }
                         catch (Exception ex)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has thrown an error as {ex}.");
                         }
                     }
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counters have concluded in{Stopwatch.ElapsedMilliseconds} ms.");
                 }
                 else
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter cache storage is not enabled so it cannot fetch TTL Counter Aggregation.");
                 }
 
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("TTLC", (int) Stopwatch.ElapsedMilliseconds);
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("TTLC",
+                    (int) Stopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                _log.Error(
+                log.Error(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has caused an error in TTL Counters as {ex}.");
             }
         }
 
         private void ExecuteDictionaryKvPs()
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Will now look for KVP Dictionary Values.");
 
             foreach (var (i, kvpDictionary) in EntityAnalysisModel.KvpDictionaries)
                 try
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i}.");
 
                     double value;
                     if (CachePayloadDocumentStore.TryGetValue(kvpDictionary.DataName, out var valueCache))
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload.");
 
                         var key = (string) valueCache;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, which will be used for the lookup.");
 
                         if (kvpDictionary.KvPs.TryGetValue(key, out var p))
                         {
                             value = p;
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, found a lookup value.  The dictionary value has been set to {value}.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has been found in the data payload and has returned a value of {key}, does not contain a lookup value.  The dictionary value has been set to zero.");
 
                             value = 0;
@@ -2900,48 +2976,46 @@ namespace Jube.Engine.Invoke
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} but the payload does not have such a value,  so have set the value to zero.");
 
                         value = 0;
                     }
 
-                    if (!EntityInstanceEntryDictionaryKvPs.ContainsKey(kvpDictionary.Name))
+                    if (EntityInstanceEntryDictionaryKvPs.TryAdd(kvpDictionary.Name, value))
                     {
-                        EntityInstanceEntryDictionaryKvPs.Add(kvpDictionary.Name, value);
-
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has added the name of {kvpDictionary.Name} and value of {value} for processing.");
 
                         if (kvpDictionary.ResponsePayload)
                         {
                             EntityInstanceEntryDictionaryKvPsResponse.Add(kvpDictionary.Name, value);
 
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has added the name of {kvpDictionary.Name} and value of {value} to response payload.");
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has not added the name of {kvpDictionary.Name} and value of {value} to response payload.");
                         }
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is evaluating dictionary kvp key of {i} has already added the name of {kvpDictionary.Name}.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has caused an error in Dictionary KVP as {ex}.");
                 }
 
             EntityAnalysisModelInstanceEntryPayloadStore.Dictionary = EntityInstanceEntryDictionaryKvPs;
             EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("KVP", (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finished looking for Dictionary KVP values.");
         }
 
@@ -2949,20 +3023,21 @@ namespace Jube.Engine.Invoke
         {
             try
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to check for inline functions.");
 
                 foreach (var inlineFunction in EntityAnalysisModel.EntityAnalysisModelInlineFunctions)
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to invoke inline function {inlineFunction.Id}.");
 
                     try
                     {
-                        var output = ReflectRule.Execute(inlineFunction, EntityAnalysisModel, EntityAnalysisModelInstanceEntryPayloadStore,
-                            EntityInstanceEntryDictionaryKvPs, _log);
+                        var output = ReflectRule.Execute(inlineFunction, EntityAnalysisModel,
+                            EntityAnalysisModelInstanceEntryPayloadStore,
+                            EntityInstanceEntryDictionaryKvPs, log);
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} and returned a value of {output}.");
 
                         if (!CachePayloadDocumentStore.ContainsKey(inlineFunction.Name))
@@ -2971,41 +3046,41 @@ namespace Jube.Engine.Invoke
                                 case 1:
                                     CachePayloadDocumentStore.Add(inlineFunction.Name, output);
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to payload as name {inlineFunction.Name} with value of {output} as string.");
 
                                     break;
                                 case 2:
                                     CachePayloadDocumentStore.Add(inlineFunction.Name, Convert.ToInt32(output));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to payload as name {inlineFunction.Name} with value of {output} as integer.");
 
                                     break;
                                 case 3:
                                     CachePayloadDocumentStore.Add(inlineFunction.Name, Convert.ToDouble(output));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to payload as name {inlineFunction.Name} with value of {output} as double.");
 
                                     break;
                                 case 4:
                                     CachePayloadDocumentStore.Add(inlineFunction.Name, Convert.ToDateTime(output));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to payload as name {inlineFunction.Name} with value of {output} as date.");
 
                                     break;
                                 case 5:
                                     CachePayloadDocumentStore.Add(inlineFunction.Name, Convert.ToBoolean(output));
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to payload as name {inlineFunction.Name} with value of {output} as boolean.");
 
                                     break;
                             }
                         else
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has not added to payload as name {inlineFunction.Name} already exists.");
 
 
@@ -3017,21 +3092,21 @@ namespace Jube.Engine.Invoke
                                     case 1:
                                         CachePayloadDocumentResponse.Add(inlineFunction.Name, output);
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to response payload as name {inlineFunction.Name} with value of {output} as string.");
 
                                         break;
                                     case 2:
                                         CachePayloadDocumentResponse.Add(inlineFunction.Name, Convert.ToInt32(output));
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to response payload as name {inlineFunction.Name} with value of {output} as integer.");
 
                                         break;
                                     case 3:
                                         CachePayloadDocumentResponse.Add(inlineFunction.Name, Convert.ToDouble(output));
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to response payload as name {inlineFunction.Name} with value of {output} as double.");
 
                                         break;
@@ -3039,14 +3114,15 @@ namespace Jube.Engine.Invoke
                                         CachePayloadDocumentResponse.Add(inlineFunction.Name,
                                             Convert.ToDateTime(output));
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to response payload as name {inlineFunction.Name} with value of {output} as date.");
 
                                         break;
                                     case 5:
-                                        CachePayloadDocumentResponse.Add(inlineFunction.Name, Convert.ToBoolean(output));
+                                        CachePayloadDocumentResponse.Add(inlineFunction.Name,
+                                            Convert.ToBoolean(output));
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to response payload as name {inlineFunction.Name} with value of {output} as boolean.");
 
                                         break;
@@ -3054,7 +3130,7 @@ namespace Jube.Engine.Invoke
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has not added to response payload as name {inlineFunction.Name} already exists.");
                         }
 
@@ -3068,11 +3144,12 @@ namespace Jube.Engine.Invoke
                                         ProcessingTypeId = 3,
                                         Key = inlineFunction.Name,
                                         KeyValueString = output == null ? null : Convert.ToString(output),
-                                        EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                            .EntityAnalysisModelInstanceEntryGuid
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
                                     });
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to report payload as name {inlineFunction.Name} with value of {output} as string.");
 
                                     break;
@@ -3084,11 +3161,12 @@ namespace Jube.Engine.Invoke
                                             ProcessingTypeId = 3,
                                             Key = inlineFunction.Name,
                                             KeyValueInteger = (int) output,
-                                            EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                                .EntityAnalysisModelInstanceEntryGuid
+                                            EntityAnalysisModelInstanceEntryGuid =
+                                                EntityAnalysisModelInstanceEntryPayloadStore
+                                                    .EntityAnalysisModelInstanceEntryGuid
                                         });
 
-                                        _log.Info(
+                                        log.Info(
                                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to report payload as name {inlineFunction.Name} with value of {output} as integer.");
                                     }
 
@@ -3099,11 +3177,12 @@ namespace Jube.Engine.Invoke
                                         ProcessingTypeId = 3,
                                         Key = inlineFunction.Name,
                                         KeyValueFloat = Convert.ToDouble(output),
-                                        EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                            .EntityAnalysisModelInstanceEntryGuid
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
                                     });
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to report payload as name {inlineFunction.Name} with value of {output} as double.");
 
                                     break;
@@ -3113,11 +3192,12 @@ namespace Jube.Engine.Invoke
                                         ProcessingTypeId = 3,
                                         Key = inlineFunction.Name,
                                         KeyValueDate = Convert.ToDateTime(output),
-                                        EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                            .EntityAnalysisModelInstanceEntryGuid
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
                                     });
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to report payload as name {inlineFunction.Name} with value of {output} as date.");
 
                                     break;
@@ -3127,11 +3207,12 @@ namespace Jube.Engine.Invoke
                                         ProcessingTypeId = 3,
                                         Key = inlineFunction.Name,
                                         KeyValueBoolean = Convert.ToByte(output),
-                                        EntityAnalysisModelInstanceEntryGuid = EntityAnalysisModelInstanceEntryPayloadStore
-                                            .EntityAnalysisModelInstanceEntryGuid
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
                                     });
 
-                                    _log.Info(
+                                    log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} but has added to report payload as name {inlineFunction.Name} with value of {output} as boolean.");
 
                                     break;
@@ -3140,19 +3221,20 @@ namespace Jube.Engine.Invoke
                     }
                     catch (Exception ex)
                     {
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is has invoked inline function {inlineFunction.Id} has created an error as {ex}.");
                     }
                 }
 
-                EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Functions", (int) Stopwatch.ElapsedMilliseconds);
+                EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Functions",
+                    (int) Stopwatch.ElapsedMilliseconds);
 
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has passed inline functions.");
             }
             catch (Exception ex)
             {
-                _log.Info(
+                log.Info(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has experienced an error invoking inline functions as {ex}.");
             }
         }
@@ -3162,17 +3244,17 @@ namespace Jube.Engine.Invoke
             var gatewaySample = Seeded.NextDouble();
             Seeded.NextDouble();
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to invoke Gateway Rules with a gateway sample of {gatewaySample}.");
 
             foreach (var entityModelGatewayRule in EntityAnalysisModel.ModelGatewayRules)
                 try
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to invoke Gateway Rule {entityModelGatewayRule.EntityAnalysisModelGatewayRuleId} with a gateway sample of {gatewaySample}.  The models Gateway Sample is {entityModelGatewayRule.GatewaySample} to be tested against {gatewaySample} .");
 
                     if (entityModelGatewayRule.GatewayRuleCompileDelegate(CachePayloadDocumentStore,
-                            EntityAnalysisModel.EntityAnalysisModelLists, EntityInstanceEntryDictionaryKvPs, _log) &&
+                            EntityAnalysisModel.EntityAnalysisModelLists, EntityInstanceEntryDictionaryKvPs, log) &&
                         gatewaySample < entityModelGatewayRule.GatewaySample)
                     {
                         matchedGateway = true;
@@ -3180,7 +3262,7 @@ namespace Jube.Engine.Invoke
                         EntityAnalysisModel.ModelInvokeGatewayCounter += 1;
                         entityModelGatewayRule.Counter += 1;
 
-                        _log.Info(
+                        log.Info(
                             $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to invoke Gateway Rule {entityModelGatewayRule.EntityAnalysisModelGatewayRuleId} as it has matched. The max response elevation has been set to {maxGatewayResponseElevation} and Model Invoke Gateway Counter has been set to {EntityAnalysisModel.ModelInvokeGatewayCounter}. The Entity Model Gateway Rule Counter has been set to {entityModelGatewayRule.Counter}.");
 
                         break;
@@ -3188,73 +3270,54 @@ namespace Jube.Engine.Invoke
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has tried to invoke Gateway Rule {entityModelGatewayRule.EntityAnalysisModelGatewayRuleId} but it has caused an error as {ex}.");
                 }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Gateway", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Gateway",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Gateway Rules have concluded {Stopwatch.ElapsedMilliseconds} ms and has returned {matchedGateway} to continue processing.");
         }
 
         private void ExecuteInlineScripts()
         {
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model{EntityAnalysisModel.Id}.  Model Invocation Counter is now {EntityAnalysisModel.ModelInvokeCounter}.");
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to search for inline scripts to be invoked.");
 
             foreach (var inlineScript in EntityAnalysisModel.EntityAnalysisModelInlineScripts)
                 try
                 {
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is going to invoke {inlineScript.InlineScriptCode}.");
 
                     var tempVarCachePayloadDocumentStore = CachePayloadDocumentStore;
                     var tempVarCachePayloadDocumentResponse = CachePayloadDocumentResponse;
                     var tempVarReportDatabaseValues = ReportDatabaseValues;
                     ReflectInlineScript.Execute(inlineScript, ref tempVarCachePayloadDocumentStore,
-                        ref tempVarCachePayloadDocumentResponse, _log);
+                        ref tempVarCachePayloadDocumentResponse, log);
                     ReportDatabaseValues = tempVarReportDatabaseValues;
                     CachePayloadDocumentResponse = tempVarCachePayloadDocumentResponse;
                     CachePayloadDocumentStore = tempVarCachePayloadDocumentStore;
 
-                    _log.Info(
+                    log.Info(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has invoked{inlineScript.InlineScriptCode}.");
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has tried to invoke inline script {inlineScript.InlineScriptCode} but it has produced an error as {ex}.");
                 }
 
-            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Scripts", (int) Stopwatch.ElapsedMilliseconds);
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("Scripts",
+                (int) Stopwatch.ElapsedMilliseconds);
 
-            _log.Info(
+            log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} inline script invocation has concluded {Stopwatch.ElapsedMilliseconds} ms.");
-        }
-
-        private void ThreadPoolCallBackExecute(object threadContext)
-        {
-            try
-            {
-                var execute = (Execute) threadContext;
-
-                _log.Info(
-                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Call Back Triggered for Execute on grouping key {execute.AbstractionRuleGroupingKey}.");
-
-                execute.Start();
-
-                _log.Info(
-                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Call Back Completed for Execute on grouping key {execute.AbstractionRuleGroupingKey}.");
-            }
-            catch (Exception ex)
-            {
-                _log.Error(
-                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Execute model Call Back has created an error as {ex}.");
-            }
         }
     }
 }

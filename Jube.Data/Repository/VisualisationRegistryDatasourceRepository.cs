@@ -14,47 +14,49 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Jube.Data.Context;
 using Jube.Data.Validation;
 using Jube.Data.Poco;
 using Jube.Data.Reporting;
 using LinqToDB;
+using LinqToDB.Data;
 
 namespace Jube.Data.Repository
 {
     public class VisualisationRegistryDatasourceRepository
     {
-        private readonly DbContext _dbContext;
-        private readonly int _tenantRegistryId;
-        private readonly string _userName;
+        private readonly DbContext dbContext;
+        private readonly int tenantRegistryId;
+        private readonly string userName;
 
         public VisualisationRegistryDatasourceRepository(DbContext dbContext, string userName)
         {
-            _dbContext = dbContext;
-            _userName = userName;
-            _tenantRegistryId = _dbContext.UserInTenant.Where(w => w.User == _userName)
+            this.dbContext = dbContext;
+            this.userName = userName;
+            tenantRegistryId = this.dbContext.UserInTenant.Where(w => w.User == this.userName)
                 .Select(s => s.TenantRegistryId).FirstOrDefault();
         }
 
         public IEnumerable<VisualisationRegistryDatasource> Get()
         {
-            return _dbContext.VisualisationRegistryDatasource
-                .Where(w => w.VisualisationRegistry.TenantRegistryId == _tenantRegistryId
+            return dbContext.VisualisationRegistryDatasource
+                .Where(w => w.VisualisationRegistry.TenantRegistryId == tenantRegistryId
                             && (w.Deleted == 0 || w.Deleted == null));
         }
 
         public IEnumerable<VisualisationRegistryDatasource> GetByVisualisationRegistryId(int visualisationRegistryId)
         {
-            return _dbContext.VisualisationRegistryDatasource
-                .Where(w => w.VisualisationRegistry.TenantRegistryId == _tenantRegistryId
+            return dbContext.VisualisationRegistryDatasource
+                .Where(w => w.VisualisationRegistry.TenantRegistryId == tenantRegistryId
                             && w.VisualisationRegistryId == visualisationRegistryId &&
                             (w.Deleted == 0 || w.Deleted == null));
         }
 
         public IEnumerable<VisualisationRegistryDatasource> GetByVisualisationRegistryIdActiveOnly(int visualisationRegistryId)
         {
-            return _dbContext.VisualisationRegistryDatasource
-                .Where(w => w.VisualisationRegistry.TenantRegistryId == _tenantRegistryId
+            return dbContext.VisualisationRegistryDatasource
+                .Where(w => w.VisualisationRegistry.TenantRegistryId == tenantRegistryId
                             && w.VisualisationRegistryId == visualisationRegistryId
                             && w.Active == 1 &&
                             (w.Deleted == 0 || w.Deleted == null));
@@ -62,20 +64,20 @@ namespace Jube.Data.Repository
         
         public VisualisationRegistryDatasource GetById(int id)
         {
-            return _dbContext.VisualisationRegistryDatasource.FirstOrDefault(w
-                => w.VisualisationRegistry.TenantRegistryId == _tenantRegistryId
+            return dbContext.VisualisationRegistryDatasource.FirstOrDefault(w
+                => w.VisualisationRegistry.TenantRegistryId == tenantRegistryId
                    && w.Id == id
                    && (w.Deleted == 0 || w.Deleted == null));
         }
 
-        public VisualisationRegistryDatasource Insert(VisualisationRegistryDatasource model)
+        public async Task<VisualisationRegistryDatasource> InsertAsync(VisualisationRegistryDatasource model)
         {
             if (model.VisualisationRegistryId != null)
             {
                 Dictionary<string, string> columns;
                 try
                 {
-                    columns = ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
+                    columns = await ValidateSeriesAsync(dbContext, model.VisualisationRegistryId.Value, model.Command);
                 }
                 catch (Exception e)
                 {
@@ -83,10 +85,10 @@ namespace Jube.Data.Repository
                     throw sqlValidationFailed;
                 }
 
-                model.CreatedUser = _userName;
+                model.CreatedUser = userName;
                 model.CreatedDate = DateTime.Now;
                 model.Version = 1;
-                model.Id = _dbContext.InsertWithInt32Identity(model);
+                model.Id = await dbContext.InsertWithInt32IdentityAsync(model);
 
                 FillSeries(model.Id, columns);
             }
@@ -94,14 +96,14 @@ namespace Jube.Data.Repository
             return model;
         }
 
-        public VisualisationRegistryDatasource Update(VisualisationRegistryDatasource model)
+        public async Task<VisualisationRegistryDatasource> UpdateAsync(VisualisationRegistryDatasource model)
         {
             if (model.VisualisationRegistryId != null)
             {
                 Dictionary<string, string> columns;
                 try
                 {
-                    columns = ValidateSeries(_dbContext, model.VisualisationRegistryId.Value, model.Command);
+                    columns = await ValidateSeriesAsync(dbContext, model.VisualisationRegistryId.Value, model.Command);
                 }
                 catch (Exception e)
                 {
@@ -109,7 +111,7 @@ namespace Jube.Data.Repository
                     throw sqlValidationFailed;
                 }
                 
-                var existing = _dbContext.VisualisationRegistryDatasource
+                var existing = dbContext.VisualisationRegistryDatasource
                     .FirstOrDefault(w => w.Id
                                          == model.Id
                                          && (w.Deleted == 0 || w.Deleted == null)
@@ -118,13 +120,13 @@ namespace Jube.Data.Repository
                 if (existing == null) throw new KeyNotFoundException();
 
                 model.Version = existing.Version + 1;
-                model.CreatedUser = _userName;
+                model.CreatedUser = userName;
                 model.CreatedDate = DateTime.Now;
                 model.InheritedId = existing.Id;
 
                 Delete(existing.Id);
 
-                var id = _dbContext.InsertWithInt32Identity(model);
+                var id = await dbContext.InsertWithInt32IdentityAsync(model);
                 model.Id = id;
                 
                 FillSeries(model.Id, columns);
@@ -168,13 +170,13 @@ namespace Jube.Data.Repository
                     }
                 }
 
-                _dbContext.Insert(visualisationRegistryDatasourceSeries);
+                dbContext.Insert(visualisationRegistryDatasourceSeries);
             }
         }
 
-        private Dictionary<string, string> ValidateSeries(DbContext dbContext, int visualisationRegistryId, string sql)
+        private async Task<Dictionary<string, string>> ValidateSeriesAsync(DataConnection dataConnection, int visualisationRegistryId, string sql)
         {
-            var visualisationRegistryParameterRepository = new VisualisationRegistryParameterRepository(_dbContext);
+            var visualisationRegistryParameterRepository = new VisualisationRegistryParameterRepository(this.dbContext);
             var parameters =
                 visualisationRegistryParameterRepository.GetByVisualisationRegistryId(visualisationRegistryId);
 
@@ -194,20 +196,20 @@ namespace Jube.Data.Repository
                 parametersDefaultValues.Add(parameter.Name.Replace(" ", "_"), defaultValue);
             }
 
-            var postgres = new Postgres(dbContext.ConnectionString);
-            return postgres.Introspect(sql, parametersDefaultValues);
+            var postgres = new Postgres(dataConnection.ConnectionString);
+            return await postgres.IntrospectAsync(sql, parametersDefaultValues);
         }
         
         public void Delete(int id)
         {
-            var records = _dbContext.VisualisationRegistryDatasource
-                .Where(d => d.VisualisationRegistry.TenantRegistryId == _tenantRegistryId
+            var records = dbContext.VisualisationRegistryDatasource
+                .Where(d => d.VisualisationRegistry.TenantRegistryId == tenantRegistryId
                             && d.Id == id
                             && (d.Locked == 0 || d.Locked == null)
                             && (d.Deleted == 0 || d.Deleted == null))
                 .Set(s => s.Deleted, Convert.ToByte(1))
                 .Set(s => s.DeletedDate, DateTime.Now)
-                .Set(s => s.DeletedUser, _userName)
+                .Set(s => s.DeletedUser, userName)
                 .Update();
 
             if (records == 0) throw new KeyNotFoundException();

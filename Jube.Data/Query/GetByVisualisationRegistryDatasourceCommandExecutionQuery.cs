@@ -14,6 +14,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using FluentMigrator.Runner;
 using Jube.Data.Context;
 using Jube.Data.Poco;
@@ -22,26 +23,17 @@ using Jube.Data.Repository;
 
 namespace Jube.Data.Query
 {
-    public class GetByVisualisationRegistryDatasourceCommandExecutionQuery
+    public class GetByVisualisationRegistryDatasourceCommandExecutionQuery(DbContext dbContext, string user)
     {
-        private readonly DbContext _dbContext;
-        private readonly string _userName;
-
-        public GetByVisualisationRegistryDatasourceCommandExecutionQuery(DbContext dbContext, string user)
-        {
-            _dbContext = dbContext;
-            _userName = user;
-        }
-
-        public dynamic Execute(int id, Dictionary<int, object> parametersById)
+        public async Task<dynamic> ExecuteAsync(int id, Dictionary<int, object> parametersById)
         {
             var values = new List<IDictionary<string, object>>();
             var visualisationRegistryDatasourceRepository =
-                new VisualisationRegistryDatasourceRepository(_dbContext, _userName);
+                new VisualisationRegistryDatasourceRepository(dbContext, user);
             var visualisationRegistryDatasource = visualisationRegistryDatasourceRepository.GetById(id);
 
             var visualisationRegistryParameterRepository =
-                new VisualisationRegistryParameterRepository(_dbContext, _userName);
+                new VisualisationRegistryParameterRepository(dbContext, user);
             if (visualisationRegistryDatasource.VisualisationRegistryId != null)
             {
                 var visualisationRegistryParameter
@@ -49,8 +41,8 @@ namespace Jube.Data.Query
                         .GetByVisualisationRegistryId(visualisationRegistryDatasource.VisualisationRegistryId.Value);
 
                 var parametersByName = visualisationRegistryParameter.ToDictionary(
-                    parameter => parameter.Name.Replace(" ", "_"), parameter => parametersById.ContainsKey(parameter.Id)
-                        ? parametersById[parameter.Id]
+                    parameter => parameter.Name.Replace(" ", "_"), parameter => parametersById.TryGetValue(parameter.Id, out var value)
+                        ? value
                         : parameter.DefaultValue);
 
                 var sw = new StopWatch();
@@ -59,8 +51,8 @@ namespace Jube.Data.Query
                 string error = default;
                 try
                 {
-                    var postgres = new Postgres(_dbContext.ConnectionString);
-                    values = postgres.ExecuteByNamedParameters(visualisationRegistryDatasource.Command,
+                    var postgres = new Postgres(dbContext.ConnectionString);
+                    values = await postgres.ExecuteByNamedParametersAsync(visualisationRegistryDatasource.Command,
                         parametersByName);
                 }
                 catch (Exception ex)
@@ -78,18 +70,18 @@ namespace Jube.Data.Query
                         ResponseTime = sw.ElapsedTime().Milliseconds,
                         VisualisationRegistryDatasourceId = visualisationRegistryDatasource.Id,
                         CreatedDate = DateTime.Now,
-                        CreatedUser = _userName
+                        CreatedUser = user
                     };
 
                 var visualisationRegistryDatasourceExecutionLogRepository
-                    = new VisualisationRegistryDatasourceExecutionLogRepository(_dbContext);
+                    = new VisualisationRegistryDatasourceExecutionLogRepository(dbContext);
 
                 visualisationRegistryDatasourceExecutionLog =
                     visualisationRegistryDatasourceExecutionLogRepository.Insert(
                         visualisationRegistryDatasourceExecutionLog);
 
                 var visualisationRegistryDatasourceExecutionLogParameterRepository
-                    = new VisualisationRegistryDatasourceExecutionLogParameterRepository(_dbContext);
+                    = new VisualisationRegistryDatasourceExecutionLogParameterRepository(dbContext);
 
                 foreach (var visualisationRegistryDatasourceExecutionLogParameter in parametersById.Select(parameter =>
                     new VisualisationRegistryDatasourceExecutionLogParameter

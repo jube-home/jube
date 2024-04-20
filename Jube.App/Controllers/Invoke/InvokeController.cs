@@ -39,12 +39,12 @@ namespace Jube.App.Controllers.Invoke
     [Produces("application/json")]
     public class InvokeController : Controller
     {
-        private readonly DynamicEnvironment.DynamicEnvironment _dynamicEnvironment;
-        private readonly Jube.Engine.Program _engine;
-        private readonly ILog _log;
-        private readonly ConcurrentQueue<EntityAnalysisModelInvoke> _pendingEntityInvoke;
-        private readonly IModel _rabbitMqChannel;
-        private readonly Random _seeded;
+        private readonly DynamicEnvironment.DynamicEnvironment dynamicEnvironment;
+        private readonly Jube.Engine.Program engine;
+        private readonly ILog log;
+        private readonly ConcurrentQueue<EntityAnalysisModelInvoke> pendingEntityInvoke;
+        private readonly IModel rabbitMqChannel;
+        private readonly Random seeded;
 
         public InvokeController(ILog log,
             Random seeded, DynamicEnvironment.DynamicEnvironment dynamicEnvironment,
@@ -52,27 +52,27 @@ namespace Jube.App.Controllers.Invoke
             Jube.Engine.Program engine = null,
             IModel rabbitMqChannel = null)
         {
-            _engine = engine;
-            _log = log;
-            _seeded = seeded;
-            _dynamicEnvironment = dynamicEnvironment;
-            _pendingEntityInvoke = pendingEntityInvoke;
-            _rabbitMqChannel = rabbitMqChannel;
-            if (_engine != null) _engine.HttpCounterAllRequests += 1;
+            this.engine = engine;
+            this.log = log;
+            this.seeded = seeded;
+            this.dynamicEnvironment = dynamicEnvironment;
+            this.pendingEntityInvoke = pendingEntityInvoke;
+            this.rabbitMqChannel = rabbitMqChannel;
+            if (this.engine != null) this.engine.HttpCounterAllRequests += 1;
         }
 
         [HttpGet("EntityAnalysisModel/Callback/{guid:Guid}")]
         [ProducesResponseType(typeof(ValidationResult), (int) HttpStatusCode.BadRequest)]
-        public Task<ActionResult> EntityAnalysisModelCallback(Guid guid,int? timeout)
+        public async Task<ActionResult> EntityAnalysisModelCallback(Guid guid,int? timeout)
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
-                    return Task.FromResult<ActionResult>(Forbid());
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                    return await Task.FromResult<ActionResult>(Forbid());
                 
                 timeout ??= 3000;
                 
-                _engine.HttpCounterCallback += 1;
+                engine.HttpCounterCallback += 1;
                 
                 var sw = new Stopwatch();
                 sw.Start();
@@ -80,23 +80,23 @@ namespace Jube.App.Controllers.Invoke
                 var spinWait = new SpinWait();
                 while (true)
                 {
-                    _engine.EntityAnalysisModelManager.PendingCallbacks.TryGetValue(guid,out var value);
+                    engine.EntityAnalysisModelManager.PendingCallbacks.TryGetValue(guid,out var value);
 
                     if (value != null)
                     {
-                        var cacheCallbackRepository = new CacheCallbackRepository(_dynamicEnvironment.AppSettings(new[] {"CacheConnectionString", "ConnectionString"}),
-                            _log);
+                        var cacheCallbackRepository = new CacheCallbackRepository(dynamicEnvironment.AppSettings(new[] {"CacheConnectionString", "ConnectionString"}),
+                            log);
                         
-                        cacheCallbackRepository.Delete(guid);
+                        await cacheCallbackRepository.DeleteAsync(guid);
 
                         Response.ContentType = "application/json";
                         Response.ContentLength = value.Payload.Length;
-                        return Task.FromResult<ActionResult>(Ok(value.Payload));
+                        return await Task.FromResult<ActionResult>(Ok(value.Payload));
                     }
 
                     if (sw.ElapsedMilliseconds > timeout)
                     {
-                        return Task.FromResult<ActionResult>(NotFound());
+                        return await Task.FromResult<ActionResult>(NotFound());
                     }
                     
                     spinWait.SpinOnce();
@@ -104,10 +104,10 @@ namespace Jube.App.Controllers.Invoke
             }
             catch (Exception ex)
             {
-                _log.Error($"Callback Fetch: Has seen an error as {ex}. Returning 500.");
+                log.Error($"Callback Fetch: Has seen an error as {ex}. Returning 500.");
 
-                _engine.HttpCounterCallback += 1;
-                return Task.FromResult<ActionResult>(StatusCode(500));
+                engine.HttpCounterCallback += 1;
+                return await Task.FromResult<ActionResult>(StatusCode(500));
             }
         }
         
@@ -117,24 +117,24 @@ namespace Jube.App.Controllers.Invoke
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
                     return Forbid();
 
-                if (!_engine.SanctionsHasLoadedForStartup) return NotFound();
+                if (!engine.SanctionsHasLoadedForStartup) return NotFound();
 
-                _engine.HttpCounterSanction += 1;
+                engine.HttpCounterSanction += 1;
 
-                _log.Info(
+                log.Info(
                     $"Sanction Fetch: Reached Sanction Get controller with distance of {distance} and string of {multiPartString}.");
 
-                return _engine.HttpHandlerSanctions(multiPartString, distance)
+                return engine.HttpHandlerSanctions(multiPartString, distance)
                     .Select(sanctionEntryReturn => new SanctionEntryDto
                     {
                         Reference = sanctionEntryReturn.SanctionEntryDto.SanctionEntryReference,
                         Value = string.Join(' ', sanctionEntryReturn.SanctionEntryDto.SanctionElementValue),
-                        Source = _engine.SanctionSources.ContainsKey(sanctionEntryReturn.SanctionEntryDto
-                            .SanctionEntrySourceId)
-                            ? _engine.SanctionSources[sanctionEntryReturn.SanctionEntryDto.SanctionEntrySourceId].Name
+                        Source = engine.SanctionSources.TryGetValue(sanctionEntryReturn.SanctionEntryDto
+                            .SanctionEntrySourceId, out var source)
+                            ? source.Name
                             : "Missing",
                         Distance = sanctionEntryReturn.LevenshteinDistance,
                         Id = sanctionEntryReturn.SanctionEntryDto.SanctionEntryId
@@ -143,9 +143,9 @@ namespace Jube.App.Controllers.Invoke
             }
             catch (Exception ex)
             {
-                _log.Error($"Sanction Fetch: Has seen an error as {ex}. Returning 500.");
+                log.Error($"Sanction Fetch: Has seen an error as {ex}. Returning 500.");
 
-                _engine.HttpCounterAllError += 1;
+                engine.HttpCounterAllError += 1;
                 return StatusCode(500);
             }
         }
@@ -156,20 +156,20 @@ namespace Jube.App.Controllers.Invoke
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
                     return Forbid();
 
-                if (!_engine.EntityModelsHasLoadedForStartup) return NotFound();
+                if (!engine.EntityModelsHasLoadedForStartup) return NotFound();
 
-                _log.Info(
+                log.Info(
                     $"Tagging: Controller has Put request with guid {model.EntityAnalysisModelInstanceEntryGuid}," +
                     $" name {model.Name} and value {model.Value}.");
 
-                _engine.HttpCounterTag += 1;
+                engine.HttpCounterTag += 1;
                 
                 var entityAnalysisModelGuid = Guid.Parse(model.EntityAnalysisModelGuid);
                 foreach (var (_, value) in
-                         from modelKvp in _engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels
+                         from modelKvp in engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels
                          where entityAnalysisModelGuid == modelKvp.Value.Guid
                          select modelKvp)
                 {
@@ -183,13 +183,13 @@ namespace Jube.App.Controllers.Invoke
                         EntityAnalysisModelId = value.Id
                     };
                 
-                    _log.Info(
+                    log.Info(
                         "HTTP Handler Entity: GUID matched for Requested Model GUID " +
                         $"{tag.EntityAnalysisModelInstanceEntryGuid} and model {tag.EntityAnalysisModelId}.");
                     
-                    _engine.PendingTagging.Enqueue(tag);
+                    engine.PendingTagging.Enqueue(tag);
 
-                    _log.Info(
+                    log.Info(
                         "Tagging: Controller has put tag in queue with guid " +
                         $"{tag.EntityAnalysisModelInstanceEntryGuid}, model {tag.EntityAnalysisModelId}, " +
                         $"name {model.Name} and value {model.Value}.  Returning Ok.");
@@ -201,12 +201,12 @@ namespace Jube.App.Controllers.Invoke
             }
             catch (Exception ex)
             {
-                _log.Error(
+                log.Error(
                     "Tagging: An error has been created while tagging guid " +
                     $"{model.EntityAnalysisModelInstanceEntryGuid} " +
                     $"and model {model.EntityAnalysisModelGuid} as {ex}.");
 
-                _engine.HttpCounterAllError += 1;
+                engine.HttpCounterAllError += 1;
                 
                 return StatusCode(500);
             }
@@ -215,18 +215,18 @@ namespace Jube.App.Controllers.Invoke
         [HttpPost("EntityAnalysisModel/{guid}")]
         [HttpPost("EntityAnalysisModel/{guid}/{async}")]
         [ProducesResponseType(typeof(ValidationResult), (int) HttpStatusCode.BadRequest)]
-        public async Task<ActionResult> EntityAnalysisModelGuid()
+        public async Task<ActionResult> EntityAnalysisModelGuidAsync()
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
                     return Forbid();
 
-                if (_engine == null) return NotFound();
+                if (engine == null) return NotFound();
 
-                if (!_engine.EntityModelsHasLoadedForStartup) return NotFound();
+                if (!engine.EntityModelsHasLoadedForStartup) return NotFound();
 
-                _engine.HttpCounterModel += 1;
+                engine.HttpCounterModel += 1;
 
                 var ms = new MemoryStream();
                 await Request.Body.CopyToAsync(ms);
@@ -239,18 +239,18 @@ namespace Jube.App.Controllers.Invoke
                     if (Request.RouteValues.ContainsKey("async"))
                     {
                         async = Request.RouteValues["async"].AsString().Equals("Async",StringComparison.OrdinalIgnoreCase);
-                        _engine.HttpCounterModelAsync += 1;   
+                        engine.HttpCounterModelAsync += 1;   
                     }
 
                     EntityAnalysisModel entityAnalysisModel = null;
                     foreach (var (_, value) in
-                             from modelKvp in _engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels
+                             from modelKvp in engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels
                              where guid == modelKvp.Value.Guid
                              select modelKvp)
                     {
                         entityAnalysisModel = value;
 
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID matched for Requested Model GUID {guid}.  Model id is {entityAnalysisModel.Id}.");
 
                         break;
@@ -260,42 +260,36 @@ namespace Jube.App.Controllers.Invoke
                     {
                         if (!entityAnalysisModel.Started) return StatusCode(204);
                         
-                        _log.Info(
+                        log.Info(
                             $"HTTP Handler Entity: GUID payload {guid} model id is {entityAnalysisModel.Id} will now begin payload parsing.");
 
-                        var entityModelInvoke = new EntityAnalysisModelInvoke(_log, _dynamicEnvironment,
-                            _rabbitMqChannel,_engine.PendingNotification, _seeded,
-                            _engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels);
+                        var entityModelInvoke = new EntityAnalysisModelInvoke(log, dynamicEnvironment,
+                            rabbitMqChannel,engine.PendingNotification, seeded,
+                            engine.EntityAnalysisModelManager.ActiveEntityAnalysisModels);
                         
                         if (Request.ContentLength != null)
                         {
-                            if (Request.ContentLength > 0)
-                            {
-                                entityModelInvoke.ParseAndInvoke(entityAnalysisModel, ms, async,
-                                    Request.ContentLength.Value,
-                                    _pendingEntityInvoke);
+                            if (!(Request.ContentLength > 0)) return BadRequest("Content body is zero length.");
+                            
+                            entityModelInvoke.ParseAndInvoke(entityAnalysisModel, ms, async,
+                                Request.ContentLength.Value,
+                                pendingEntityInvoke);
 
-                                if (entityModelInvoke.InError) return BadRequest(entityModelInvoke.ErrorMessage);
-
-                                /*
-                                Response.ContentLength = entityModelInvoke.ResponseJson.Length;
-                                entityModelInvoke.ResponseJson.CopyToAsync(Response.Body).Wait();*/
-                                
-                                Response.ContentType = "application/json";
-                                Response.ContentLength = entityModelInvoke.ResponseJson.Length;
-                                return Ok(entityModelInvoke.ResponseJson);
-                            }
-
-                            return BadRequest("Content body is zero length.");
+                            if (entityModelInvoke.InError) return BadRequest(entityModelInvoke.ErrorMessage);
+                            
+                            Response.ContentType = "application/json";
+                            Response.ContentLength = entityModelInvoke.ResponseJson.Length;
+                            
+                            return Ok(entityModelInvoke.ResponseJson);
                         }
 
-                        _log.Info(
+                        log.Info(
                             "HTTP Handler Entity: Json content body is zero.");
 
                         return BadRequest("Content body is zero length.");
                     }
 
-                    _log.Info(
+                    log.Info(
                         $"HTTP Handler Entity: Could not locate the model for Guid {guid}.");
 
                     return NotFound();
@@ -307,70 +301,70 @@ namespace Jube.App.Controllers.Invoke
             }
             catch (Exception ex)
             {
-                _log.Error(
+                log.Error(
                     $"HTTP Handler Entity: Error as {ex}.  Returning 500.");
 
-                if (_engine != null) _engine.HttpCounterAllError += 1;
+                if (engine != null) engine.HttpCounterAllError += 1;
                 return StatusCode(500);
             }
         }
 
         [HttpPost("ExhaustiveSearchInstance/{guid}")]
         [ProducesResponseType(typeof(ValidationResult), (int) HttpStatusCode.BadRequest)]
-        public async Task<ActionResult<double>> ExhaustiveSearchInstance()
+        public async Task<ActionResult<double>> ExhaustiveSearchInstanceAsync()
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
                     return Forbid();
 
-                if (!_engine.EntityModelsHasLoadedForStartup) return NotFound();
+                if (!engine.EntityModelsHasLoadedForStartup) return NotFound();
 
-                _engine.HttpCounterExhaustive += 1;
+                engine.HttpCounterExhaustive += 1;
 
                 var ms = new MemoryStream();
                 await Request.Body.CopyToAsync(ms);
 
                 var guid = Request.RouteValues["guid"].AsString();
 
-                _log.Info($"Exhaustive Recall:  Recall received for {guid}.  Invoking handler.");
+                log.Info($"Exhaustive Recall:  Recall received for {guid}.  Invoking handler.");
 
-                var value = Math.Round(_engine.ThreadPoolCallBackHttpHandlerExhaustive(
+                var value = Math.Round(engine.ThreadPoolCallBackHttpHandlerExhaustive(
                     Guid.Parse(guid),
                     JObject.Parse(Encoding.UTF8.GetString(ms.ToArray()))), 2);
 
-                _log.Info($"Exhaustive Recall:  Has invoked the handler and returned a value of {value}.  Returning.");
+                log.Info($"Exhaustive Recall:  Has invoked the handler and returned a value of {value}.  Returning.");
 
                 return value;
             }
             catch (Exception ex)
             {
-                _log.Error($"Exhaustive Recall:  An error has been raised as {ex}.  Returning 500.");
+                log.Error($"Exhaustive Recall:  An error has been raised as {ex}.  Returning 500.");
 
-                _engine.HttpCounterAllError += 1;
+                engine.HttpCounterAllError += 1;
                 return StatusCode(500);
             }
         }
 
         [HttpPost("ExampleFraudScoreLocalEndpoint")]
         [ProducesResponseType(typeof(ValidationResult), (int) HttpStatusCode.BadRequest)]
-        public async Task<ActionResult<double>> ExampleFraudScoreLocalEndpoint()
+        public async Task<ActionResult<double>> ExampleFraudScoreLocalEndpointAsync()
         {
             try
             {
-                if (!_dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
+                if (!dynamicEnvironment.AppSettings("EnablePublicInvokeController").Equals("True",StringComparison.OrdinalIgnoreCase))
                     return Forbid();
 
                 var ms = new MemoryStream();
                 await Request.Body.CopyToAsync(ms);
 
-                _log.Info("Example FraudScore Local Endpoint Recall:  Recall received.");
+                log.Info("Example FraudScore Local Endpoint Recall:  Recall received.");
 
                 var jObject = JObject.Parse(Encoding.UTF8.GetString(ms.ToArray()));
 
                 var responseCodeVolumeRatio = jObject.SelectToken("$.ResponseCodeEqual0Volume");
 
-                _log.Info($"Example FraudScore Local Endpoint Recall:  Json parsed as {jObject}.  " +
+                log.Info($"Example FraudScore Local Endpoint Recall:  Json parsed as {jObject}.  " +
                           "This endpoint will just echo back the sqrt of the ResponseCodeVolumeRatio element." +
                           " More typically this would be an R endpoint and it would recall a variety of models.");
 
@@ -383,7 +377,7 @@ namespace Jube.App.Controllers.Invoke
             }
             catch (Exception ex)
             {
-                _log.Error(
+                log.Error(
                     $"Example FraudScore Local Endpoint Recall:  An error has been raised as {ex}.  Returning 500.");
 
                 return StatusCode(500);

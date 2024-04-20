@@ -27,6 +27,7 @@ using Jube.Engine.Exhaustive.Variables;
 using Jube.Engine.Helpers;
 using log4net;
 using System.Threading;
+using System.Threading.Tasks;
 using Accord.Statistics.Distributions.Univariate;
 using Jube.Data.Context;
 using Jube.Data.Query;
@@ -40,27 +41,27 @@ namespace Jube.Engine.Exhaustive
     public class Training
     {
         public bool Stopping;
-        private ILog _log;
-        private Random _seeded;
-        private DynamicEnvironment.DynamicEnvironment _environment;
-        private static DefaultContractResolver _contractResolver;
+        private readonly ILog log;
+        private readonly Random seeded;
+        private readonly DynamicEnvironment.DynamicEnvironment environment;
+        private static DefaultContractResolver contractResolver;
 
         public Training(ILog log, Random seeded, DynamicEnvironment.DynamicEnvironment environment,
             DefaultContractResolver contractResolver)
         {
-            _log = log;
-            _seeded = seeded;
-            _environment = environment;
-            _contractResolver = contractResolver;
+            this.log = log;
+            this.seeded = seeded;
+            this.environment = environment;
+            Training.contractResolver = contractResolver;
         }
 
-        public void Start()
+        public async Task StartAsync()
         {
             while (!Stopping)
             {
                 var dbContext =
-                    DataConnectionDbContext.GetDbContextDataConnection(_environment.AppSettings("ConnectionString"));
-                _log.Info("Exhaustive Training: Opening a database connection.");
+                    DataConnectionDbContext.GetDbContextDataConnection(environment.AppSettings("ConnectionString"));
+                log.Info("Exhaustive Training: Opening a database connection.");
 
                 try
                 {
@@ -76,7 +77,7 @@ namespace Jube.Engine.Exhaustive
                     var repositoryExhaustiveSearchInstanceVariableMultiCollinearities =
                         new ExhaustiveSearchInstanceVariableMultiColiniarityRepository(dbContext);
 
-                    _log.Info(
+                    log.Info(
                         "Exhaustive Training: Opened a database connection. " +
                         "Will proceed to lookup a request for an Exhaustive Instance,  " +
                         "or in the absence of an Exhaustive Instance to create one.");
@@ -85,36 +86,36 @@ namespace Jube.Engine.Exhaustive
 
                     if (exhaustiveSearchInstance != null)
                     {
-                        _log.Info(
+                        log.Info(
                             $"Exhaustive Training: Found Exhaustive Search Instance ID {exhaustiveSearchInstance.Id}.  " +
                             $"Updating Status to 1 for pickup.");
 
                         var mockData = false;
-                        if (_environment.AppSettings("UseMockDataExhaustive")
+                        if (environment.AppSettings("UseMockDataExhaustive")
                             .Equals("True", StringComparison.OrdinalIgnoreCase))
                         {
-                            LoadMockData(dbContext, exhaustiveSearchInstance.EntityAnalysisModelId, _log);
+                            LoadMockData(dbContext, exhaustiveSearchInstance.EntityAnalysisModelId);
 
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Found Exhaustive Search Instance ID {exhaustiveSearchInstance.Id}.  Is loading mock data.");
 
                             mockData = true;
 
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Found Exhaustive Search Instance ID {exhaustiveSearchInstance.Id}.  Will use mock data for this training.");
                         }
 
-                        _log.Info(
+                        log.Info(
                             $"Exhaustive Training: Set status to 1 for {exhaustiveSearchInstance.Id}. Starting");
-                        
+
                         repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 1);
-                        
+
                         double[][] data;
                         Dictionary<int, Variable> variables;
 
                         if (exhaustiveSearchInstance.Anomaly)
                         {
-                            Data.Extraction.GetSampleData(dbContext,
+                            Data.Extraction.GetSampleDataAsync(dbContext,
                                 exhaustiveSearchInstance.TenantRegistryId,
                                 exhaustiveSearchInstance.EntityAnalysisModelId,
                                 mockData,
@@ -123,177 +124,180 @@ namespace Jube.Engine.Exhaustive
                         }
                         else
                         {
-                            Data.Extraction.GetSampleData(dbContext,
+                            var getSampleDataResponse = await Data.Extraction.GetSampleDataAsync(dbContext,
                                 exhaustiveSearchInstance.TenantRegistryId,
                                 exhaustiveSearchInstance.EntityAnalysisModelId,
                                 exhaustiveSearchInstance.FilterSql,
                                 exhaustiveSearchInstance.FilterTokens,
-                                mockData,
-                                out variables,
-                                out data);
+                                mockData);
+
+                            variables = getSampleDataResponse.Item1;
+                            data = getSampleDataResponse.Item2;
                         }
 
-                        _log.Info(
+                        log.Info(
                             $"Exhaustive Training: Fetched data and there are {data.Length} records " +
                             $"for {exhaustiveSearchInstance.Id} updating status to 2 for calculating base statistics.");
 
                         repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 2);
-                        
+
                         CalculateStatistics(exhaustiveSearchInstance.Id, ref variables, data,
                             repositoryExhaustiveSearchInstanceVariables,
-                            repositoryExhaustiveSearchInstanceVariableHistograms, _log);
-                        
+                            repositoryExhaustiveSearchInstanceVariableHistograms);
+
                         double[] outputs = default;
                         var classCount = 0;
                         if (exhaustiveSearchInstance.Anomaly)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Trained One Class Support Vector Machine " +
                                 $"for {exhaustiveSearchInstance.Id} updating status to 3 for unsupervised training data normalisation.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 3);
-                            
-                            var copyOfDataForUnsupervised = NormaliseData(variables, data.Copy(), _log);
 
-                            _log.Info(
+                            var copyOfDataForUnsupervised = NormaliseData(variables, data.Copy());
+
+                            log.Info(
                                 $"Exhaustive Training: Trained One Class Support Vector Machine " +
                                 $"for {exhaustiveSearchInstance.Id} updating status to 4 for unsupervised training.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 4);
-                            
-                            var anomaly = Unsupervised.Learn(copyOfDataForUnsupervised, _log);
 
-                            _log.Info(
+                            var anomaly = Unsupervised.Learn(copyOfDataForUnsupervised, log);
+
+                            log.Info(
                                 $"Exhaustive Training: Trained One Class Support Vector Machine " +
                                 $"for {exhaustiveSearchInstance.Id} updating status to 5 for unsupervised training recall.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 5);
-                            
+
                             outputs = GetClassVariableByAnomaly(anomaly, copyOfDataForUnsupervised,
-                                exhaustiveSearchInstance.AnomalyProbability, _log);
-                            
-                            _log.Info(
+                                exhaustiveSearchInstance.AnomalyProbability);
+
+                            log.Info(
                                 $"Exhaustive Training: Recalled One Class Support Vector Machine " +
                                 $"and found {classCount} class for {exhaustiveSearchInstance.Id}.");
 
                             var onlyOutputWithClassificationForData =
-                                OnlyOutputWithClassificationForData(classCount,outputs, data);
-                            
+                                OnlyOutputWithClassificationForData(classCount, outputs, data);
+
                             var repositoryExhaustiveSearchInstanceVariablesAnomaly =
                                 new ExhaustiveSearchInstanceVariableAnomalyRepository(dbContext);
 
                             var repositoryExhaustiveSearchInstanceVariableHistogramsAnomaly =
                                 new ExhaustiveSearchInstanceVariableHistogramAnomalyRepository(dbContext);
 
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Trained One Class Support Vector Machine " +
                                 $"for {exhaustiveSearchInstance.Id} updating status to 6 for unsupervised " +
                                 $"training recall statistics calculation.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 6);
-                            
-                            CalculateStatistics(exhaustiveSearchInstance.Id, ref variables, onlyOutputWithClassificationForData,
+
+                            CalculateStatistics(exhaustiveSearchInstance.Id, ref variables,
+                                onlyOutputWithClassificationForData,
                                 repositoryExhaustiveSearchInstanceVariablesAnomaly,
-                                repositoryExhaustiveSearchInstanceVariableHistogramsAnomaly, _log);
+                                repositoryExhaustiveSearchInstanceVariableHistogramsAnomaly);
                         }
 
                         if (exhaustiveSearchInstance.Filter)
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Switched to create a classification " +
                                 $"from data for {exhaustiveSearchInstance.Id} updating status to 7 for filtering.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 7);
-                            
-                            Data.Extraction.GetClassData(dbContext,
+
+                            var getClassDataResponse = await Data.Extraction.GetClassDataAsync(dbContext,
                                 exhaustiveSearchInstance.EntityAnalysisModelId,
                                 exhaustiveSearchInstance.FilterSql,
                                 exhaustiveSearchInstance.FilterTokens,
                                 variables,
-                                mockData,
-                                out var dataClassificationFilter,
-                                out var outputsClassificationFilter);
-                            
+                                mockData);
+
+                            var dataClassificationFilter = getClassDataResponse.Item1;
+                            var outputsClassificationFilter = getClassDataResponse.Item2;
+
                             var repositoryExhaustiveSearchInstanceVariablesClassification =
                                 new ExhaustiveSearchInstanceVariableClassificationRepository(dbContext);
 
                             var repositoryExhaustiveSearchInstanceVariableHistogramsClassification =
                                 new ExhaustiveSearchInstanceVariableHistogramClassificationRepository(dbContext);
 
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Switched to create a classification " +
                                 $"from data for {exhaustiveSearchInstance.Id} updating status to 8 " +
                                 $"for filtering statistics calculation.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 8);
-                            
+
                             CalculateStatistics(exhaustiveSearchInstance.Id, ref variables, dataClassificationFilter,
                                 repositoryExhaustiveSearchInstanceVariablesClassification,
-                                repositoryExhaustiveSearchInstanceVariableHistogramsClassification, _log);
-                            
+                                repositoryExhaustiveSearchInstanceVariableHistogramsClassification);
+
                             Append(data, dataClassificationFilter, out data, out outputs);
 
-                            classCount += (int)outputsClassificationFilter.Sum();
+                            classCount += (int) outputsClassificationFilter.Sum();
                         }
-                        
-                        _log.Info(
+
+                        log.Info(
                             $"Exhaustive Training: Recalled Filter and found {classCount} further " +
                             $"class for {exhaustiveSearchInstance.Id} updating status to 9 for shuffling.");
-                        
+
                         repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 9);
-                        
+
                         if (classCount > 0)
                         {
                             Shuffle(data, outputs, out data, out outputs);
-                            
-                            _log.Info(
+
+                            log.Info(
                                 $"Exhaustive Training: Finished shuffling {exhaustiveSearchInstance.Id} " +
                                 $"updating status to 10 for normalising.");
-                            
-                            repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 10);
-                            
-                            data = NormaliseData(variables, data, _log);
 
-                            _log.Info(
+                            repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 10);
+
+                            data = NormaliseData(variables, data);
+
+                            log.Info(
                                 $"Exhaustive Training: Updating status to 11 for {exhaustiveSearchInstance.Id} " +
                                 $"for over sampling.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 11);
-                            
-                            DatasetSymmetry(data, outputs, out data, out outputs, _log);
 
-                            _log.Info(
+                            DatasetSymmetry(data, outputs, out data, out outputs);
+
+                            log.Info(
                                 $"Exhaustive Training: Has made the dataset symmetric for {exhaustiveSearchInstance.Id} " +
                                 $"updating status to 12 for correlation analysis.  " +
                                 $"Dataset has a length of {outputs.Length} with {outputs.Sum()} class value of 1.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 12);
-                            
-                            CalculateCorrelations(variables, data, outputs,
-                                repositoryExhaustiveSearchInstanceVariables, _log);
 
-                            _log.Info(
+                            CalculateCorrelations(variables, data, outputs,
+                                repositoryExhaustiveSearchInstanceVariables);
+
+                            log.Info(
                                 $"Exhaustive Training: Processed correlations for {exhaustiveSearchInstance.Id} " +
                                 $"updating status to 13 for multi-co-linearity.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 13);
-                            
-                            variables = CalculateMulticolinarity(variables, data,
-                                repositoryExhaustiveSearchInstanceVariableMultiCollinearities, _log);
 
-                            _log.Info(
+                            variables = CalculateMulticolinarity(variables, data,
+                                repositoryExhaustiveSearchInstanceVariableMultiCollinearities);
+
+                            log.Info(
                                 $"Exhaustive Training: Inspected multi-co-linearity " +
                                 $"for {exhaustiveSearchInstance.Id} updating status to 14 for supervised learning.");
 
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 14);
-                            
-                            var supervised = new Supervised(_environment, repositoryExhaustiveSearchInstance,
+
+                            var supervised = new Supervised(environment, repositoryExhaustiveSearchInstance,
                                 exhaustiveSearchInstance.Id,
-                                _seeded,
-                                variables, data, outputs, dbContext, _log);
+                                seeded,
+                                variables, data, outputs, dbContext, log);
                             supervised.Train();
 
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Finished training {exhaustiveSearchInstance.Id} " +
                                 $"updating status to 15 for finished.");
 
@@ -301,10 +305,10 @@ namespace Jube.Engine.Exhaustive
                         }
                         else
                         {
-                            _log.Info(
+                            log.Info(
                                 $"Exhaustive Training: Updated status to 16 for {exhaustiveSearchInstance.Id} " +
                                 $"which denotes a zero class count.");
-                            
+
                             repositoryExhaustiveSearchInstance.UpdateStatus(exhaustiveSearchInstance.Id, 16);
                         }
 
@@ -312,7 +316,7 @@ namespace Jube.Engine.Exhaustive
                     }
                     else
                     {
-                        _log.Info(
+                        log.Info(
                             "Exhaustive Training: Has not found anything that needs training.  Waiting.");
 
                         Thread.Sleep(60000);
@@ -320,23 +324,23 @@ namespace Jube.Engine.Exhaustive
                 }
                 catch (Exception ex)
                 {
-                    _log.Error(
+                    log.Error(
                         $"Exhaustive Training: Has experienced an error as {ex}  waiting to poll again.");
 
                     Thread.Sleep(60000);
                 }
                 finally
                 {
-                    _log.Info("Exhaustive Training: Finished and closing database context.");
+                    log.Info("Exhaustive Training: Finished and closing database context.");
 
-                    dbContext.Close();
-                    dbContext.Dispose();
+                    await dbContext.CloseAsync();
+                    await dbContext.DisposeAsync();
                 }
             }
         }
 
         private void CalculateCorrelations(IReadOnlyDictionary<int, Variable> variables, double[][] data,
-            double[] outputs, ExhaustiveSearchInstanceVariableRepository repository, ILog log)
+            double[] outputs, ExhaustiveSearchInstanceVariableRepository repository)
         {
             for (var i = 0; i < variables.Count - 1; i++)
             {
@@ -375,8 +379,8 @@ namespace Jube.Engine.Exhaustive
             }
         }
 
-        public static void DatasetSymmetry(IReadOnlyList<double[]> inData, double[] inOutputs, out double[][] outData,
-            out double[] outOutputs, ILog log)
+        public void DatasetSymmetry(IReadOnlyList<double[]> inData, double[] inOutputs, out double[][] outData,
+            out double[] outOutputs)
         {
             var countPositive = (int) inOutputs.Sum();
             var countNegative = inOutputs.Length - countPositive;
@@ -404,7 +408,6 @@ namespace Jube.Engine.Exhaustive
                         $"Exhaustive Training: The dataset is not symmetric and requires {removeCount} negative values to be removed.");
                 }
 
-                var seeded = new Random(Guid.NewGuid().GetHashCode());
                 while (removeCount > 0)
                 {
                     var randomRow = seeded.Next(0, inOutputs.Length - 1);
@@ -439,9 +442,9 @@ namespace Jube.Engine.Exhaustive
             log.Info("Exhaustive Training: Set output variables. Symmetry concluded.");
         }
 
-        private static double[] GetClassVariableByAnomaly(SupportVectorMachine<Gaussian> model,
+        private double[] GetClassVariableByAnomaly(SupportVectorMachine<Gaussian> model,
             double[][] data,
-            double probability, ILog log)
+            double probability)
         {
             var outputs = new double[data.Length];
 
@@ -464,7 +467,7 @@ namespace Jube.Engine.Exhaustive
             return outputs;
         }
 
-        private static double[][] NormaliseData(IReadOnlyDictionary<int, Variable> variables, double[][] data, ILog log)
+        private double[][] NormaliseData(IReadOnlyDictionary<int, Variable> variables, double[][] data)
         {
             for (var i = 0; i < data.Length - 1; i++)
             {
@@ -485,15 +488,15 @@ namespace Jube.Engine.Exhaustive
 
             return data;
         }
-        
-        private static double[][] OnlyOutputWithClassificationForData(int classCount,double[] outputs, double[][] data)
+
+        private static double[][] OnlyOutputWithClassificationForData(int classCount, double[] outputs, double[][] data)
         {
             var filteredData = new double[classCount][];
             var j = 0;
             for (var i = 0; i < outputs.Length - 1; i++)
             {
                 if (!(Math.Abs(outputs[i] - 1) < 0.0001)) continue;
-                
+
                 filteredData[j] = data[i];
                 j += 1;
             }
@@ -516,14 +519,12 @@ namespace Jube.Engine.Exhaustive
             return value;
         }
 
-        private static void CalculateStatistics(int exhaustiveSearchInstanceId, ref Dictionary<int, Variable> variables,
+        private void CalculateStatistics(int exhaustiveSearchInstanceId, ref Dictionary<int, Variable> variables,
             double[][] data,
             IGenericRepository repositoryVariables,
-            IGenericRepository repositoryHistogram,
-            ILog log
+            IGenericRepository repositoryHistogram
         )
         {
-            //TODO[RC]: The Id should probably be variable sequence.
             log.Info(
                 $"Exhaustive Training: Is starting calculation of statistics for Exhaustive Search Instance {exhaustiveSearchInstanceId}.  There are {variables.Count} variables.");
 
@@ -672,7 +673,7 @@ namespace Jube.Engine.Exhaustive
                 {
                     variables[i].Mean =
                         modelExhaustiveSearchInstanceVariableClassification.Mean
-                            .Value; //TODO[RC]Does this neeed to be null?  Could be cleaner for sure.
+                            .Value;
                     variables[i].Mode = modelExhaustiveSearchInstanceVariableClassification.Mode.Value;
                     variables[i].Max = modelExhaustiveSearchInstanceVariableClassification.Maximum.Value;
                     variables[i].Min = modelExhaustiveSearchInstanceVariableClassification.Minimum.Value;
@@ -860,7 +861,7 @@ namespace Jube.Engine.Exhaustive
         }
 
         private Dictionary<int, Variable> CalculateMulticolinarity(Dictionary<int, Variable> variables, double[][] data,
-            ExhaustiveSearchInstanceVariableMultiColiniarityRepository repository, ILog log)
+            ExhaustiveSearchInstanceVariableMultiColiniarityRepository repository)
         {
             for (var i = 0; i < variables.Count - 1; i++)
             {
@@ -928,7 +929,7 @@ namespace Jube.Engine.Exhaustive
             return variables;
         }
 
-        private static void LoadMockData(DbContext dbContext, int entityAnalysisModelId, ILog log)
+        private void LoadMockData(DbContext dbContext, int entityAnalysisModelId)
         {
             var repository = new MockArchiveRepository(dbContext);
 
@@ -990,7 +991,7 @@ namespace Jube.Engine.Exhaustive
                             EntityAnalysisModelInstanceEntryGuid = Guid.NewGuid()
                         };
 
-                        var sr = new StreamReader(json.BuildJson(row, _contractResolver));
+                        var sr = new StreamReader(json.BuildJson(row, contractResolver));
                         model.Json = sr.ReadToEnd();
 
                         repository.Insert(model);

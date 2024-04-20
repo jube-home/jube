@@ -27,8 +27,9 @@ namespace Jube.Test.Load;
 public class Load
 {
     [Theory]
-    [InlineData("https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc",10000,100000,false)]
-    public async void LoadTest(string uriString,int httpTimeout, int iteration,bool async)
+    [InlineData("https://localhost:5001/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc",
+        10000,100000,false,3)]
+    public async void LoadTest(string uriString,int httpTimeout, int iteration,bool async,int maxConnectionsPerServer)
     {
         var random = new Random();
         var uri = async ? new Uri(uriString + "/async") : new Uri(uriString);
@@ -36,7 +37,7 @@ public class Load
         var stringTemplate = Helpers.ReadFileContents("Load/Mock.json");
         
         var httpClientHandler = new HttpClientHandler();
-        httpClientHandler.MaxConnectionsPerServer = 30;
+        httpClientHandler.MaxConnectionsPerServer = maxConnectionsPerServer;
         httpClientHandler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
 
         using var client = new HttpClient(httpClientHandler);
@@ -45,9 +46,9 @@ public class Load
         for (var i = 0; i < iteration; i++)
         {
             var tasks = new List<Task<HttpResponseMessage>>();
-            for (var j = 0; j < random.NextInt64(10,httpClientHandler.MaxConnectionsPerServer); j++)
+            for (var j = 0; j < random.NextInt64(1,httpClientHandler.MaxConnectionsPerServer); j++)
             {
-                var stringReplaced = stringTemplate.Replace("[@AccountId@]", random.NextInt64(1, 1000).ToString());
+                var stringReplaced = stringTemplate.Replace("[@AccountId@]", random.NextInt64(1, 100000).ToString());
                 stringReplaced = stringReplaced.Replace("[@TxnId@]", i.ToString());
             
                 var stringContent = new StringContent(
@@ -85,6 +86,7 @@ public class Load
                     var taskCallback = client.SendAsync(requestCallback, HttpCompletionOption.ResponseContentRead);
                     tasksCallback.Add(taskCallback);
                 }
+
                 Task.WaitAll(tasksCallback.ToArray());
             }
             

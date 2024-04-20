@@ -28,32 +28,32 @@ namespace Jube.App.Controllers.Query
     [Authorize]
     public class GetCaseJournalQueryController : Controller
     {
-        private readonly DbContext _dbContext;
-        private readonly ILog _log;
-        private readonly PermissionValidation _permissionValidation;
-        private readonly GetCaseJournalQuery _query;
-        private readonly string _userName;
+        private readonly DbContext dbContext;
+        private readonly ILog log;
+        private readonly PermissionValidation permissionValidation;
+        private readonly GetCaseJournalQuery query;
+        private readonly string userName;
 
         public GetCaseJournalQueryController(ILog log,
             IHttpContextAccessor httpContextAccessor,DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             if (httpContextAccessor.HttpContext?.User.Identity != null)
-                _userName = httpContextAccessor.HttpContext.User.Identity.Name;
-            _log = log;
+                userName = httpContextAccessor.HttpContext.User.Identity.Name;
+            this.log = log;
             
-            _dbContext =
+            dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(dynamicEnvironment.AppSettings("ConnectionString"));
-            _permissionValidation = new PermissionValidation(_dbContext, _userName);
+            permissionValidation = new PermissionValidation(dbContext, userName);
             
-            _query = new GetCaseJournalQuery(_dbContext, _userName);
+            query = new GetCaseJournalQuery(dbContext, userName);
         }
         
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _dbContext.Close();
-                _dbContext.Dispose();
+                dbContext.Close();
+                dbContext.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -64,14 +64,14 @@ namespace Jube.App.Controllers.Query
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {1})) return Forbid();
+                if (!permissionValidation.Validate(new[] {1})) return Forbid();
 
-                return Ok(_query.Execute(drillName, drillValue, caseWorkflowId, limit,
+                return Ok(query.ExecuteAsync(drillName, drillValue, caseWorkflowId, limit,
                     activationsOnly ? 1 : 0, responseElevation));
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }

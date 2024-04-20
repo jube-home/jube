@@ -34,42 +34,42 @@ namespace Jube.App.Controllers.Query
     [Authorize]
     public class GetByVisualisationRegistryDatasourceCommandExecutionQueryController : Controller
     {
-        private readonly DbContext _dbContext;
-        private readonly ILog _log;
-        private readonly PermissionValidation _permissionValidation;
-        private readonly GetByVisualisationRegistryDatasourceCommandExecutionQuery _query;
-        private readonly string _userName;
+        private readonly DbContext dbContext;
+        private readonly ILog log;
+        private readonly PermissionValidation permissionValidation;
+        private readonly GetByVisualisationRegistryDatasourceCommandExecutionQuery query;
+        private readonly string userName;
 
         public GetByVisualisationRegistryDatasourceCommandExecutionQueryController(ILog log,
             IHttpContextAccessor httpContextAccessor,DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             if (httpContextAccessor.HttpContext?.User.Identity != null)
-                _userName = httpContextAccessor.HttpContext.User.Identity.Name;
-            _log = log;
+                userName = httpContextAccessor.HttpContext.User.Identity.Name;
+            this.log = log;
             
-            _dbContext =
+            dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(dynamicEnvironment.AppSettings("ConnectionString"));
-            _permissionValidation = new PermissionValidation(_dbContext, _userName);
+            permissionValidation = new PermissionValidation(dbContext, userName);
             
-            _query = new GetByVisualisationRegistryDatasourceCommandExecutionQuery(_dbContext, _userName);
+            query = new GetByVisualisationRegistryDatasourceCommandExecutionQuery(dbContext, userName);
         }
         
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _dbContext.Close();
-                _dbContext.Dispose();
+                dbContext.Close();
+                dbContext.Dispose();
             }
             base.Dispose(disposing);
         }
 
         [HttpPost("{id}")]
-        public async Task<ActionResult<dynamic>> Execute()
+        public async Task<ActionResult<dynamic>> ExecuteAsync()
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {28,1})) return Forbid();
+                if (!permissionValidation.Validate(new[] {28,1})) return Forbid();
 
                 var idFromRoute = Request.RouteValues["id"]?.ToString();
                 if (idFromRoute != null)
@@ -130,17 +130,15 @@ namespace Jube.App.Controllers.Query
                                 }
                             }
                         }
-
-                    var query = _query.Execute(idParsedToInt, parameters);
-
-                    return Ok(query);
+                    
+                    return Ok(this.query.ExecuteAsync(idParsedToInt, parameters));
                 }
 
                 return StatusCode(500);
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }

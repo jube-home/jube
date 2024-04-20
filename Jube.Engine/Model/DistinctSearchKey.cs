@@ -25,7 +25,9 @@ namespace Jube.Engine.Model
         public int SearchKeyCacheFetchLimit { get; set; }
         public string SearchKey { get; set; }
         public bool SearchKeyCacheSample { get; set; }
-        public string Sql;
-        public Dictionary<string,SelectedPayloadData> SelectedPayloadData = [];
+        public string SqlSelect;
+        public string SqlSelectFrom;
+        public string SqlSelectOrderBy;
+        public readonly Dictionary<string,SelectedPayloadData> SelectedPayloadData = [];
     }
 }
