@@ -103,8 +103,7 @@ public class DynamicEnvironment
                 {"CallbackTimeout", "3000"},
                 {"StreamingActivationWatcher", "True"},
                 {"WaitPollFromActivationWatcherTable", "5000"},
-                {"WaitTtlCounterDecrement", "60000"},
-                {"ShowWelcomeMessage", "True"}
+                {"WaitTtlCounterDecrement", "60000"}
             };
 
             _log.Info(

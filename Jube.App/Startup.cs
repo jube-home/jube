@@ -223,25 +223,18 @@ namespace Jube.App
             Console.WriteLine("");
             Console.WriteLine(
                 "You should have received a copy of the GNU Affero General Public License along with Jube™. If not, see <https://www.gnu.org/licenses/>.");
-
-            if (!dynamicEnvironment.AppSettings("ShowWelcomeMessage").Equals("True", StringComparison.Ordinal)) return;
-
+            
             Console.WriteLine("");
             Console.WriteLine(
                 "If you are seeing this message it means that database migrations have completed and the database is fully configured with required Tables, Indexes and Constraints.");
             Console.WriteLine("");
             Console.WriteLine("Comprehensive documentation is available via https://jube-home.github.io/jube.");
             Console.WriteLine("");
-            Console.WriteLine("For community support join the [matrix] room at jube:matrix.org.");
-            Console.WriteLine("");
             Console.WriteLine(
                 "Use a web browser (e.g. Chrome) to navigate to the user interface via default endpoint https://<ASPNETCORE_URLS Environment Variable>/ (for example https://127.0.0.1:5001/ given ASPNETCORE_URLS=https://127.0.0.1:5001/). The default user name \\ password is 'Administrator' \\ 'Administrator' but will need to be changed on first use.  Availability of the user interface may be a few moments after this messages as the Kestrel web server starts and endpoint routing is established.");
             Console.WriteLine("");
             Console.WriteLine(
                 "The default endpoint for posting example transaction payload is https://<ASPNETCORE_URLS Environment Variable>/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/.Example JSON payload is available in the documentation via at https://jube-home.github.io/jube/Configuration/Models/Models/.");
-            Console.WriteLine("");
-            Console.WriteLine(
-                "To suppress this startup message set the Environment Variable ShowWelcomeMessage to False.");
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
