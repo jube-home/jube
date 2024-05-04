@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -20,6 +20,7 @@ using FluentMigrator.Runner;
 using FluentValidation;
 using FluentValidation.Results;
 using Jube.App.Code;
+using Jube.App.Code.QueryBuilder;
 using Jube.App.Dto;
 using Jube.App.Validators;
 using Jube.Data.Context;
@@ -32,7 +33,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Jube.App.Controllers.Session
 {
@@ -57,7 +57,7 @@ namespace Jube.App.Controllers.Session
             if (httpContextAccessor.HttpContext?.User.Identity != null)
                 userName = httpContextAccessor.HttpContext.User.Identity.Name;
             this.log = log;
-            
+
             dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(dynamicEnvironment.AppSettings("ConnectionString"));
             permissionValidation = new PermissionValidation(dbContext, userName);
@@ -75,7 +75,7 @@ namespace Jube.App.Controllers.Session
             validator = new SessionCaseUserDtoValidator();
             this.dynamicEnvironment = dynamicEnvironment;
         }
-        
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -83,6 +83,7 @@ namespace Jube.App.Controllers.Session
                 dbContext.Close();
                 dbContext.Dispose();
             }
+
             base.Dispose(disposing);
         }
 
@@ -96,7 +97,6 @@ namespace Jube.App.Controllers.Session
                 var modelCompiled = repository.GetByGuid(guid);
 
                 var postgres = new Postgres(dynamicEnvironment.AppSettings("ConnectionString"));
-
                 var tokens = JsonConvert.DeserializeObject<List<object>>(modelCompiled.FilterTokens);
 
                 var sw = new StopWatch();
@@ -148,7 +148,8 @@ namespace Jube.App.Controllers.Session
         [HttpPost]
         [ProducesResponseType(typeof(SessionCaseSearchCompiledSqlDto), (int) HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ValidationResult), (int) HttpStatusCode.BadRequest)]
-        public async Task<ActionResult<SessionCaseSearchCompiledSqlDto>> Create([FromBody] SessionCaseSearchCompiledSqlDto model)
+        public async Task<ActionResult<SessionCaseSearchCompiledSqlDto>> Create(
+            [FromBody] SessionCaseSearchCompiledSqlDto model)
         {
             try
             {
@@ -156,12 +157,14 @@ namespace Jube.App.Controllers.Session
 
                 var results = await validator.ValidateAsync(model);
                 if (!results.IsValid) return BadRequest(results);
-                
+
                 var insert = mapper.Map<SessionCaseSearchCompiledSql>(model);
 
-                var tokens = JsonConvert.DeserializeObject<List<object>>(insert.FilterTokens);
-                var jObjectSelectJson = JObject.Parse(insert.SelectJson);
-
+                var filterJsonRule = JsonConvert.DeserializeObject<Rule>(model.FilterJson);
+                var filterRule = new Code.QueryBuilder.Parser(filterJsonRule,dbContext,model.CaseWorkflowId,userName);
+                var selectTokensRule = JsonConvert.DeserializeObject<Rule>(model.SelectJson);
+                var selectRule = new Code.QueryBuilder.Parser(selectTokensRule,dbContext,model.CaseWorkflowId,userName);
+                
                 insert.SelectSqlDisplay = "select \"Case\".\"Id\" as \"Id\"," +
                                           "\"Case\".\"EntityAnalysisModelInstanceEntryGuid\" as \"EntityAnalysisModelInstanceEntryGuid\"," +
                                           "\"Case\".\"DiaryDate\" as \"DiaryDate\"," +
@@ -194,55 +197,47 @@ namespace Jube.App.Controllers.Session
                 };
 
                 var columnsOrder = new List<string>();
-                var rules = jObjectSelectJson.SelectToken("$.rules");
-                if (rules != null)
-                    foreach (var jTokenColumns in rules.Children())
+                foreach (var rule in selectRule.Rules)
+                {
+                    if (rule.Field == null || rule.Id == null) continue;
+
+                    var convertedColumnSelectField = rule.Id switch
                     {
-                        var field = jTokenColumns.SelectToken("$.field");
-                        var id = jTokenColumns.SelectToken("$.id");
+                        "Locked" => $"case when {rule.Field} = 1 then 'Yes' else 'No' end",
+                        "Diary" => $"case when {rule.Field} = 1 then 'Yes' else 'No' end",
+                        "ClosedStatusId" => "case " + $"when {rule.Field} = 0 then 'Open' " +
+                                            $"when {rule.Field} = 1 then 'Suspend Open' " +
+                                            $"when {rule.Field} = 2 then 'Suspend Closed' " +
+                                            $"when {rule.Field} = 3 then 'Closed' " +
+                                            $"when {rule.Field} = 4 then 'Suspend Bypass' " + "end",
+                        "Priority" => "case " + $"when {rule.Field} = 1 then 'Ultra High' " +
+                                      $"when {rule.Field} = 2 then 'High' " +
+                                      $"when {rule.Field} = 3 then 'Normal' " +
+                                      $"when {rule.Field} = 4 then 'Low' " +
+                                      $"when {rule.Field} = 5 then 'Ultra Low' " + "end",
+                        _ => rule.Field
+                    };
 
-                        if (field == null || id == null) continue;
-                        
-                        var columnSelectField = field.ToString();
-                        var columnSelectId = id.ToString();
+                    columnsOrder.Add(rule.Field + " " + rule.Value);
 
-                        var convertedColumnSelectField = columnSelectId switch
-                        {
-                            "Locked" => $"case when {columnSelectField} = 1 then 'Yes' else 'No' end",
-                            "Diary" => $"case when {columnSelectField} = 1 then 'Yes' else 'No' end",
-                            "ClosedStatusId" => "case " + $"when {columnSelectField} = 0 then 'Open' " +
-                                                $"when {columnSelectField} = 1 then 'Suspend Open' " +
-                                                $"when {columnSelectField} = 2 then 'Suspend Closed' " +
-                                                $"when {columnSelectField} = 3 then 'Closed' " +
-                                                $"when {columnSelectField} = 4 then 'Suspend Bypass' " + "end",
-                            "Priority" => "case " + $"when {columnSelectField} = 1 then 'Ultra High' " +
-                                          $"when {columnSelectField} = 2 then 'High' " +
-                                          $"when {columnSelectField} = 3 then 'Normal' " +
-                                          $"when {columnSelectField} = 4 then 'Low' " +
-                                          $"when {columnSelectField} = 5 then 'Ultra Low' " + "end",
-                            _ => columnSelectField
-                        };
+                    if (rule.Id == "Id") continue;
 
-                        columnsOrder.Add(columnSelectField
-                                         + " " + jTokenColumns.SelectToken("$.value"));
+                    if (rule.Id.Contains('.'))
+                        columnsSelect.Add(convertedColumnSelectField
+                                          + " as \"" + rule.Id.Replace(".", "") + "\"");
+                    else
+                        columnsSelect.Add(convertedColumnSelectField
+                                          + " as \"" + rule.Id + "\"");
+                }
 
-                        if (columnSelectId == "Id") continue;
-                        
-                        if (columnSelectId.Contains('.'))
-                            columnsSelect.Add(convertedColumnSelectField
-                                              + " as \"" + columnSelectId.Replace(".", "") + "\"");
-                        else
-                            columnsSelect.Add(convertedColumnSelectField
-                                              + " as \"" + columnSelectId + "\"");
-                    }
+                if (filterRule.Tokens == null)
+                    return Ok(mapper.Map<SessionCaseSearchCompiledSqlDto>(repository.Insert(insert)));
 
-                if (tokens == null) return Ok(mapper.Map<SessionCaseSearchCompiledSqlDto>(repository.Insert(insert)));
-                
-                tokens.Add(insert.CaseWorkflowId);
-                var positionCaseWorkflowId = tokens.Count;
+                filterRule.Tokens.Add(insert.CaseWorkflowId);
+                var positionCaseWorkflowId = filterRule.Tokens.Count;
 
-                tokens.Add(userName);
-                var positionUser = tokens.Count;
+                filterRule.Tokens.Add(userName);
+                var positionUser = filterRule.Tokens.Count;
 
                 insert.SelectSqlSearch = "select " + string.Join(",", columnsSelect);
 
@@ -255,20 +250,19 @@ namespace Jube.App.Controllers.Session
                                   " and (\"Case\".\"CaseWorkflowStatusId\" = \"CaseWorkflowStatus\".\"Id\"" +
                                   " and \"Case\".\"CaseWorkflowId\" = \"CaseWorkflowStatus\".\"CaseWorkflowId\"" +
                                   " and (\"CaseWorkflowStatus\".\"Deleted\" = 0" +
-                                  " or \"CaseWorkflowStatus\".\"Deleted\" IS null) ) and " +
-                                  model.FilterSql +
+                                  " or \"CaseWorkflowStatus\".\"Deleted\" IS null) ) and " + filterRule.Sql +
                                   " and \"CaseWorkflow\".\"Id\" = (@" + positionCaseWorkflowId + ")" +
                                   " and \"UserInTenant\".\"User\" = (@" + positionUser + ")";
 
                 insert.OrderSql = "order by " + string.Join(",", columnsOrder);
 
-                insert.FilterTokens = JsonConvert.SerializeObject(tokens);
+                insert.FilterTokens = JsonConvert.SerializeObject(filterRule.Tokens);
 
                 try
                 {
                     var postgres = new Postgres(dynamicEnvironment.AppSettings("ConnectionString"));
                     await postgres.PrepareAsync(insert.SelectSqlSearch + " " + insert.WhereSql + " " + insert.OrderSql,
-                        tokens);
+                        filterRule.Tokens);
                     insert.Prepared = 1;
                 }
                 catch (Exception e)

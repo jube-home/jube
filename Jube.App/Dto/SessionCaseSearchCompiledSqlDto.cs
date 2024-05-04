@@ -22,11 +22,6 @@ namespace Jube.App.Dto
         public string FilterJson { get; set; }
         public string FilterTokens { get; set; }
         public string SelectJson { get; set; }
-        public string FilterSql { get; set; }
-        public string SelectSqlSearch { get; set; }
-        public string SelectSqlDisplay { get; set; }
-        public string WhereSql { get; set; }
-        public string OrderSql { get; set; }
         public byte Prepared { get; set; }
         public string Error { get; set; }
         public int CaseWorkflowId { get; set; }

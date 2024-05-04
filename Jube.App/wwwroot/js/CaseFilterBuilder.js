@@ -16,10 +16,9 @@ let select;
 
 function getCasesFilter() {
     let value;
-    let result = where.queryBuilder('getSQL', 'numbered(@)');
+    let result = where.queryBuilder('getRules', 'numbered(@)');
 
     value = {
-        filterSql: result.sql,
         selectJson: JSON.stringify(select.queryBuilder('getRules'), null, 2),
         filterJson: JSON.stringify(where.queryBuilder('getRules'), null, 2),
         filterTokens: JSON.stringify(result.params, null, 2)
@@ -541,14 +540,7 @@ function initCaseFilterBuilder(caseWorkflowId, data) {
                     select = $('#Select').queryBuilder({
                         filters: selects,
                         operators: [
-                            {type: 'order', optgroup: 'basic', nb_inputs: 1, apply_to: ['string']},
-                            {type: 'equal', optgroup: 'basic'},
-                            {type: 'less', optgroup: 'basic'},
-                            {type: 'less_or_equal', optgroup: 'basic'},
-                            {type: 'greater', optgroup: 'basic'},
-                            {type: 'begins_with', optgroup: 'basic'},
-                            {type: 'contains', optgroup: 'basic'},
-                            {type: 'ends_with', optgroup: 'basic'}
+                            {type: 'order', optgroup: 'basic', nb_inputs: 1, apply_to: ['string']}
                         ],
                         rules: rulesSelect
                     });
@@ -565,12 +557,13 @@ function initCaseFilterBuilder(caseWorkflowId, data) {
                         filters: filters,
                         operators: [
                             {type: 'equal', optgroup: 'basic'},
+                            {type: 'not_equal', optgroup: 'basic'},
                             {type: 'less', optgroup: 'basic'},
                             {type: 'less_or_equal', optgroup: 'basic'},
                             {type: 'greater', optgroup: 'basic'},
-                            {type: 'begins_with', optgroup: 'basic'},
-                            {type: 'contains', optgroup: 'basic'},
-                            {type: 'ends_with', optgroup: 'basic'}
+                            {type: 'greater_or_equal', optgroup: 'basic'},
+                            {type: 'like', optgroup: 'basic', nb_inputs: 1,apply_to: ['string']},
+                            {type: 'not_like', optgroup: 'basic', nb_inputs: 1,apply_to: ['string']}
                         ],
                         rules: rulesFilter
                     });
