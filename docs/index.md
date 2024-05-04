@@ -62,7 +62,7 @@ export PasswordHashingKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{
 
 It is imperative that the keys be changed from their defaults and kept safe in appropriate storage.  Jube will not start if the keys above are used.
 
-Change the template value for setting the ConnectionString Environment Variable, then run the shell script as above. Wait for the build to complete, after which observe the welcome message.
+Change the template value for setting the ConnectionString and JWTKey Environment Variables, then run the shell script as above. Wait for the build to complete, after which observe the welcome message.
 
 Waiting a few moments more will ensure that the embedded Kestrel web server is started correctly.  In a web browser, navigate to the bound URL [https://localhost:5001/](https://localhost:5001/) as per the ASPNETCORE_URLS Environment Variable.
 
