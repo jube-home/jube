@@ -34,7 +34,7 @@ git clone https://github.com/jube-home/jube.git
 cd jube/Jube.App
 export ConnectionString="Host=<host>;Port=<port>;Database=<defaultdb>;Username=<username>;Password=<password>;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;SSL Mode=Require;Trust Server Certificate=true;"
 export ASPNETCORE_URLS="https://localhost:5001"
-export JWTKey="ReplaceWithAVeryStrongKeyToSecureTheJWTAuthenticationToken"
+export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
 dotnet run
 ```
 
