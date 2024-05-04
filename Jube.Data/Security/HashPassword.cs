@@ -14,19 +14,20 @@
 using System;
 using System.Text;
 using Isopoh.Cryptography.Argon2;
+using LinqToDB.Common;
 
 namespace Jube.Data.Security
 {
     public static class HashPassword
     {
-        public static string GenerateHash(string password, string key)
+        public static string GenerateHash(string password, string key = null)
         {
-            return Argon2.Hash(password, key);
+            return key.IsNullOrEmpty() ? Argon2.Hash(password) : Argon2.Hash(password, key);
         }
 
-        public static bool Verify(string passwordHash, string password, string key)
+        public static bool Verify(string passwordHash, string password, string key = null)
         {
-            return Argon2.Verify(passwordHash, password, key);
+            return key.IsNullOrEmpty() ? Argon2.Verify(passwordHash, password) : Argon2.Verify(passwordHash, password, key);
         }
 
         public static string CreatePasswordInClear(int length)

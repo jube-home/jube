@@ -49,6 +49,24 @@ It is recommended that Jube always be behind a reverse proxy henceforth non stan
 export ASPNETCORE_URLS="https://143.198.224.41:5001/"
 ```
 
+For security, there is no means to pass configuration values via anything other than Environment Variables,  and the contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security scanner tests for).
+
+There are sensitive cryptographic values that need to be included at startup. At a minimum the JWTKey value is required:
+
+```shell
+export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
+```
+
+The JWTKey value is used to encrypt access tokens providing for API authentication, and therefore user interface authentication.
+
+While outside of the scope of this installation documentation, other sensitive variables, while optional,  are strongly suggested:
+
+```shell
+export PasswordHashingKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
+```
+
+It is imperative that the keys be changed from their defaults and kept safe in appropriate storage.  Jube will not start if the keys above are used.
+
 Execute the shell command to create the Environment Variable.
 
 For the purpose of illustration the dotnet run command will be used, however, for production it is extremely unlikely that this would be satisfactory,  instead it is far more likely that a formal release will be built for a specific operating system.  There is such an abundance of release techniques for .Net applications that it exists outside the scope of this documentation.  The dotnet run command will build then run the application and it is perfectly adequate for comprehensive testing, proof of concept and smaller production implementations.  

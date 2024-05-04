@@ -14,12 +14,11 @@
 using System;
 using FluentMigrator;
 using Jube.Data.Security;
-using Jube.Migrations.Helpers;
 
 namespace Jube.Migrations.Baseline
 {
     [Migration(20220705082300)]
-    public class AddUserRegistryTableIndex : Migration
+    public class AddUserRegistryTableIndex(DynamicEnvironment.DynamicEnvironment dynamicEnvironment) : Migration
     {
         public override void Up()
         {
@@ -56,7 +55,7 @@ namespace Jube.Migrations.Baseline
                 RoleRegistryId = 1,
                 Name = "Administrator",
                 Email = "sink@jube.io",
-                Password = HashPassword.GenerateHash("Administrator",AppSettingFromFileDirectly.AppSetting("PasswordHashingKey")),
+                Password = HashPassword.GenerateHash("Administrator",dynamicEnvironment.AppSettings("PasswordHashingKey")),
                 PasswordExpiryDate = DateTime.Now,
                 Active = 1,
                 CreatedUser = "Administrator",

@@ -121,12 +121,12 @@ namespace Jube.App
 
             if (dynamicEnvironment.AppSettings("EnableMigration").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
-                RunFluentMigrator(dynamicEnvironment.AppSettings("ConnectionString"));
+                RunFluentMigrator(dynamicEnvironment);
 
                 var cacheConnectionString = dynamicEnvironment.AppSettings("CacheConnectionString");
                 if (cacheConnectionString != null)
                 {
-                    RunFluentMigrator(cacheConnectionString);
+                    RunFluentMigrator(dynamicEnvironment);
                 }
             }
 
@@ -236,8 +236,7 @@ namespace Jube.App
             Console.WriteLine(
                 "The default endpoint for posting example transaction payload is https://<ASPNETCORE_URLS Environment Variable>/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/.Example JSON payload is available in the documentation via at https://jube-home.github.io/jube/Configuration/Models/Models/.");
         }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env,
             DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
@@ -338,12 +337,13 @@ namespace Jube.App
             app.StartEngine();
         }
 
-        private void RunFluentMigrator(string connectionString)
+        private static void RunFluentMigrator(DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             var serviceCollection = new ServiceCollection().AddFluentMigratorCore()
+                .AddSingleton<DynamicEnvironment.DynamicEnvironment>(dynamicEnvironment)
                 .ConfigureRunner(rb => rb
                     .AddPostgres11_0()
-                    .WithGlobalConnectionString(connectionString)
+                    .WithGlobalConnectionString(dynamicEnvironment.AppSettings("ConnectionString"))
                     .ScanIn(typeof(AddActivationWatcherTableIndex).Assembly).For.Migrations())
                 .BuildServiceProvider(false);
 

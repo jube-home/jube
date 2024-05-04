@@ -14,6 +14,7 @@ git clone https://github.com/jube-home/jube.git
 cd jube/Jube.App
 export ConnectionString="Host=<host>;Port=<port>;Database=<defaultdb>;Username=<username>;Password=<password>;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;SSL Mode=Require;Trust Server Certificate=true;"
 export ASPNETCORE_URLS="https://localhost:5001"
+export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
 dotnet run
 ```
 
@@ -25,6 +26,24 @@ Jube has the following prerequisites:
 * Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking change).
 
 Create an account on [DigitalOcean](https://m.do.co/c/8be72e86abb2).  Once the account is created and navigate to the page as follows:
+
+For security, there is no means to pass configuration values via anything other than Environment Variables,  and the contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security scanner tests for).
+
+There are sensitive cryptographic values that need to be included at startup. At a minimum the JWTKey value is required:
+
+```shell
+export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
+```
+
+The JWTKey value is used to encrypt access tokens providing for API authentication, and therefore user interface authentication.
+
+While outside of the scope of this installation documentation, other sensitive variables, while optional,  are strongly suggested:
+
+```shell
+export PasswordHashingKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
+```
+
+It is imperative that the keys be changed from their defaults and kept safe in appropriate storage.  Jube will not start if the keys above are used.
 
 ![Image](ProjectPage.png)
 

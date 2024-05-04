@@ -6,19 +6,7 @@ parent: Concepts
 ---
 
 # Environment Variables
-The traditional method of applying application configuration settings is via a file that is embedded in the applications root directory,  with key and values representing the application configuration.
-
-In Jube, application settings, known as Environment Variables, can be applied in one of three ways,  loaded in the following priority:
-
-* Hardcoded values loaded into the dictionary available for the whole engine,  via dependency injection.
-* Jube.Environment configuration file, with the file available alongside the binary executable.
-* Operating System Environment Variables.
-
-It follows that hardcoded application settings are overridden by Jube.Environment file key value pairs, which may be persistently overwritten by Operating System Environment Variables key value pairs.  Passing Operating System Environment Variables updates the corresponding key value pair in the Jube.environment file, henceforth, setting Operating System Environment Variables can be more convenient than making the same update in the Jube.environment file (i.e. setting an Operating System Environment Variable is slightly easier easier than locating a file, then VI'ing it).  It also follows tha the Jube.environment file is the definitive record of the Environment Variables in use by a Jube instance.
-
-Throughout the documentation,  Environment Variables should be taken to mean the aforementioned source of key value pairs.
-
-The following hardcoded Environment Variables, this would be to say defaults, are available:
+In Jube, application settings can only be passed via operating system (or container) Environment Variables. The following hardcoded Environment Variables, this would be to say defaults, are available:
 
 | Variable                                       | Default Value          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 
 |------------------------------------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -90,16 +78,4 @@ The following hardcoded Environment Variables, this would be to say defaults, ar
 | WaitTtlCounterDecrement                        | 60000                  | In the event of TTLCounter being enabled to signify that the server should be responsible to decrementing TTL counter entries,  the wait interval between decrement jobs in milliseconds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ShowWelcomeMessage                             | True                   | Display the welcome message in the console to help the user get started                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-The file containing the Environment Variables to override the default is in the binary executable directory, a file by the name Jube.environment, which is a new line = seperated key value file as follows:
-
-![Image](VIJubeEnvironmentFile.png)
-
-JSON is not used to allow for a more forgiving value component without the need for escaping.
-
-The file is read line by line,  ignoring lines which have a hash # in front.  For each key value,  the key available from the hardcoded section will be overwritten with the value from the file,  unless it has the same value.
-
-Operating System Environment variables are supported and are commonly used to remotely configure virtual machine or container images. 
-
-For each Operating System Environment Variable passed, the hardcoded key and value will be referenced,  being overwritten if the values are not the same.
-
-Environment Variables are written out as INFO in logging at each precedence step.
+Environment Variables passed to Jube at startup will override the hardcoded defaults above. Environment Variables are not written to disk in any form and their contents are available only in the Jube applications memory and operating system session.
