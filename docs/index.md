@@ -44,15 +44,15 @@ export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP
 dotnet run
 ```
 
-For security, there is no means to pass configuration values via anything other than Environment Variables,  and the contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security scanner tests for).
+For security, there is no means to pass configuration values via anything other than Environment Variables,  and the contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security scanner tests for).  
 
 There are sensitive cryptographic values that need to be included at startup. At a minimum the JWTKey value is required:
 
 ```shell
-export JWTKey="$'IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
+export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
 ```
 
-The JWTKey value is used to encrypt access tokens providing for API authentication, and therefore user interface authentication.
+The JWTKey value is used to encrypt access tokens providing for API authentication, and therefore user interface authentication.  
 
 While outside of the scope of this installation documentation, other sensitive variables, while optional,  are strongly suggested:
 
@@ -71,12 +71,69 @@ The default user name \ password combination is Administrator \ Administrator,  
 A more comprehensive installation guide is available in the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of the [documentation](https://jube-home.github.io/jube).
 
 # Documentation
-The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.
+The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be any undocumented know-how.  The documentation adopts an instructional style that will explain most features step-by-step with extensive use of screenshots.  
 
 Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a [Github Issue](https://github.com/jube-home/jube/issues).
 
+# Training
+Biannually, a training event is conducted at the [Radisson Blu Hotel in Larnaca, Cyprus](https://www.radissonhotels.com/en-us/hotels/radisson-blu-larnaca). The training program focuses on achieving proficiency in the effective utilization of Jube.  The training is delivered by Richard Churchman, the author of Jube.
+
+The schedule covers a duration of three days, with the length of each day ranging from 6 to 8 hours, depending on the undertaking of Elective Modules. Elective Modules cover in-depth training in advanced administrative concepts using dedicated training servers.  Elective Modules are targeted at technical participants whom are likely to assume overall system administrative responsibility of an implementation of Jube.
+
+Day 1:
+
+* Introduction.
+* User Interface.
+* HTTP Messaging.
+* Models and Payload.
+* Inline Functions.
+* Abstraction Rules.
+* Abstraction Calculations.
+* Lists and Dictionaries.
+* Activation Rules.
+* Elective: Architecture and Caching.
+* Elective: Environment Variables.
+* Elective: Installation and Log Configuration.
+
+Day 2:
+
+* Suppressions.
+* Sanctions Fuzzy Matching.
+* Time To Live (TTL) Counters.
+* Introduction to Artificial Intelligence (AI).
+* Exhaustive AI training.
+* Case Management.
+* Security.
+* Elective: Tracing Transaction Flow and Response Time Analysis.
+* Elective: High Availability.
+* Elective: Performance Counters.
+* Elective: AMQP.
+
+Day 3:
+
+* SQL database discovery.
+* Performance Monitoring.
+* Visualisation and Reporting.
+* Inline Scripts.
+* Scores via R Plumber (HTTP).
+* Elective: Cache Bottleneck Analysis.
+* Elective: Archive Bottleneck Analysis.
+* Elective: Multi-Tenancy.
+* Elective: Git Definitions Backup and Recovery.
+
+Given a maximum of 8 participants, and a minimum of 4, the total cost of the program is EUR 1395 per attendee, which includes lunch and refreshments. Additionally, participants will have access to four hours of Commercial Support, valid for six months after completion of the program.  The program is available on the subsequent dates:
+
+* In 2024, starting Tuesday December 3rd through end of Thursday December 5th.
+* In 2025, starting Tuesday June 3rd through end of Thursday June 5th.
+
+For further details, including detailed training plan, kindly contact support@jube.io. 
+
+Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of EUR 800, excluding customary business travel and accommodation costs.
+
 # Support
-Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). Paid Support is private and direct access to the developer on a time and material basis.  For more information email support@jube.io.
+Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). 
+
+Commercial support available at a daily rate of EUR 800 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact support@jube.io.
 
 # Reporting Vulnerabilities
 
@@ -87,7 +144,7 @@ Jube takes security issues very seriously. If you have any concerns about Jube o
 Please report any security problems to Jube before disclosing them publicly.
 
 # Governance
-Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus.
+Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus. 
 
 # Licence
 Jube is distributed under [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.txt).
