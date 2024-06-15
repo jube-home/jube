@@ -126,14 +126,14 @@ Given a maximum of 8 participants, and a minimum of 4, the total cost of the pro
 * In 2024, starting Tuesday December 3rd through end of Thursday December 5th.
 * In 2025, starting Tuesday June 3rd through end of Thursday June 5th.
 
-For further details, including detailed training plan, kindly contact support@jube.io. 
+For further details, including detailed training plan, kindly contact [support@jube.io](mailto:support@jube.io). 
 
 Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of EUR 800, excluding customary business travel and accommodation costs.
 
 # Support
 Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). 
 
-Commercial support available at a daily rate of EUR 800 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact support@jube.io.
+Commercial support available at a daily rate of EUR 800 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact [support@jube.io](mailto:support@jube.io).
 
 # Reporting Vulnerabilities
 
