@@ -70,7 +70,9 @@ The [documentation](https://jube-home.github.io/jube) has been drafted to includ
 Jube is committed to high-quality instructional documentation and maintains it as part of the overall release methodology.  If documentation is inadequate,  unclear or missing, raise a [Github Issue](https://github.com/jube-home/jube/issues).
 
 # Training
-Biannually, a training event is conducted at the [Radisson Blu Hotel in Larnaca, Cyprus](https://www.radissonhotels.com/en-us/hotels/radisson-blu-larnaca). The training program focuses on achieving proficiency in the effective utilization of Jube.  The training is delivered by Richard Churchman, the author of Jube.
+Jube offers a training program that focuses on achieving proficiency in the effective implementation and utilization of Jube.
+
+For the Americas, biannually, a training program is conducted in New York, US, at a venue to be shared closer to the time. For Europe, Middle East and Africa, biannually also, a training program is conducted in Larnaca, Cyprus, at a venue to be shared closer to the time. The training program focuses on achieving proficiency in the effective utilization of Jube.  The Larnaca program is more cost effective owing to foreign travel not being required of the trainer. The training is delivered by Richard Churchman, the author of Jube.
 
 The schedule covers a duration of three days, with the length of each day ranging from 6 to 8 hours, depending on the undertaking of Elective Modules. Elective Modules cover in-depth training in advanced administrative concepts using dedicated training servers.  Elective Modules are targeted at technical participants whom are likely to assume overall system administrative responsibility of an implementation of Jube.
 
@@ -91,7 +93,7 @@ Day 1:
 
 Day 2:
 
-* Suppressions.
+* Suppression.
 * Sanctions Fuzzy Matching.
 * Time To Live (TTL) Counters.
 * Introduction to Artificial Intelligence (AI).
@@ -115,19 +117,21 @@ Day 3:
 * Elective: Multi-Tenancy.
 * Elective: Git Definitions Backup and Recovery.
 
-Given a maximum of 8 participants, and a minimum of 4, the total cost of the program is EUR 1395 per attendee, which includes lunch and refreshments. Additionally, participants will have access to four hours of Commercial Support, valid for six months after completion of the program.  The program is available on the subsequent dates:
+The training program is available on the subsequent dates:
 
-* In 2024, starting Tuesday December 3rd through end of Thursday December 5th.
-* In 2025, starting Tuesday June 3rd through end of Thursday June 5th.
+* New York, US. In 2024, starting Tuesday October 22nd through end of Thursday October 24th. USD 2950 per participant.
+* Larnaca, Cyprus: In 2024, starting Tuesday December 3rd through end of Thursday December 5th. EUR 1395 per participant.
+* New York, US. In 2025, starting Tuesday April 22nd through end of Thursday April 24th. USD 2950 per participant.
+* Larnaca, Cyprus: starting Tuesday June 3rd through end of Thursday June 5th. EUR 1395 per participant.
 
-For further details, including detailed training plan, kindly contact [support@jube.io](mailto:support@jube.io). 
+A maximum of 8, and a minimum of 4 participants. Includes lunch and refreshments. Additionally, participants will have access to four hours of Commercial Support, valid for six months after completion of the program.
 
-Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of EUR 800, excluding customary business travel and accommodation costs.
+For further details, including the detailed training plan, kindly contact [support@jube.io](mailto:support@jube.io).
+
+Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of EUR 800 or USD 857, excluding customary business travel and accommodation costs.  Remote programs are not generally offered given observations of reduced practical participation and outcome.
 
 # Support
-Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues). 
-
-Commercial support available at a daily rate of EUR 800 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact [support@jube.io](mailto:support@jube.io).
+Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues) on a best endeavour basis. Commercial Support available at a daily rate of EUR 800 or or USD 857 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact [support@jube.io](mailto:support@jube.io).
 
 # Reporting Vulnerabilities
 
