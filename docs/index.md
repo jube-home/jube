@@ -78,7 +78,7 @@ Jube is committed to high-quality instructional documentation and maintains it a
 # Training
 Jube offers a training program that focuses on achieving proficiency in the effective implementation and utilization of Jube.
 
-For the Americas, biannually, a training program is conducted in New York, US, at a venue to be shared closer to the time. For Europe, Middle East and Africa, biannually also, a training program is conducted in Larnaca, Cyprus, at a venue to be shared closer to the time. The training program focuses on achieving proficiency in the effective utilization of Jube.  The Larnaca program is more cost effective owing to foreign travel not being required of the trainer. The training is delivered by Richard Churchman, the author of Jube.
+For the Americas, biannually, a training program is conducted in New York, US, at a venue to be shared closer to the time. For Europe, Middle East and Africa, biannually also, a training program is conducted in Larnaca, Cyprus, at a venue to be shared closer to the time. The Larnaca program is more cost effective owing to foreign travel not being required of the trainer. The training is delivered by Richard Churchman, the author of Jube.
 
 The schedule covers a duration of three days, with the length of each day ranging from 6 to 8 hours, depending on the undertaking of Elective Modules. Elective Modules cover in-depth training in advanced administrative concepts using dedicated training servers.  Elective Modules are targeted at technical participants whom are likely to assume overall system administrative responsibility of an implementation of Jube.
 
