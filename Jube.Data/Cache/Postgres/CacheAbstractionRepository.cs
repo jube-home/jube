@@ -14,10 +14,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Jube.Data.Cache.Interfaces;
 using log4net;
 using Npgsql;
 
-namespace Jube.Data.Cache
+namespace Jube.Data.Cache.Postgres
 {
     public class EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto
     {
@@ -25,10 +26,11 @@ namespace Jube.Data.Cache
         public string SearchKey { get; set; }
         public string SearchValue { get; set; }
     }
-    
-    public class CacheAbstractionRepository(string connectionString, ILog log)
+
+    public class CacheAbstractionRepository(string connectionString, ILog log) : ICacheAbstractionRepository
     {
-        public async Task DeleteAsync(long id)
+        public async Task DeleteAsync(int tenantRegistryId, int entityAnalysisModelId, string searchKey,
+            string searchValue, string name)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
@@ -36,11 +38,17 @@ namespace Jube.Data.Cache
                 connection.Open();
 
                 var sql = "delete \"CacheAbstraction\"" +
-                          " where \"Id\" = (@Id);";
+                          " where \"Name\" = (@name) and \"SearchKey\" = (@searchKey)" +
+                          " and \"SearchValue\" = (@searchValue)" +
+                          " and \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.Parameters.AddWithValue("Id", id);
+                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
+                command.Parameters.AddWithValue("searchKey", searchKey);
+                command.Parameters.AddWithValue("searchValue", searchValue);
+                command.Parameters.AddWithValue("name", name);
+                command.Parameters.AddWithValue("createdDate", DateTime.Now);
 
                 await command.PrepareAsync();
                 await command.ExecuteNonQueryAsync();
@@ -56,7 +64,8 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task InsertAsync(int entityAnalysisModelId, string searchKey, string searchValue, string name,
+        public async Task InsertAsync(int tenantRegistryId, int entityAnalysisModelId, string searchKey,
+            string searchValue, string name,
             double value)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -92,22 +101,28 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task UpdateAsync(long id, double value)
+        public async Task UpdateAsync(int tenantRegistryId, int entityAnalysisModelId, string searchKey,
+            string searchValue, string name, double value)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
             {
                 await connection.OpenAsync();
 
-                var sql = "update \"CacheAbstraction\"" +
-                          $" set \"Value\" = {value},\"CreatedDate\" = (@createdDate)" +
-                          " where \"Id\" = (@id);";
+                var sql = "update \"CacheAbstraction\" " +
+                          $"set \"Value\" = {value},\"UpdatedDate\" = (@updatedDate) " +
+                          "where \"Name\" = (@name) and \"SearchKey\" = (@searchKey) " +
+                          "and \"SearchValue\" = (@searchValue) " +
+                          "and \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.Parameters.AddWithValue("id", id);
+                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
+                command.Parameters.AddWithValue("searchKey", searchKey);
+                command.Parameters.AddWithValue("searchValue", searchValue);
+                command.Parameters.AddWithValue("name", name);
                 command.Parameters.AddWithValue("value", value);
-                command.Parameters.AddWithValue("createdDate", DateTime.Now);
+                command.Parameters.AddWithValue("updatedDate", DateTime.Now);
 
                 await command.PrepareAsync();
                 await command.ExecuteNonQueryAsync();
@@ -123,17 +138,17 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task<CacheAbstractionIdValueDto> GetByNameSearchNameSearchValueAsync(int entityAnalysisModelId,
+        public async Task<double?> GetByNameSearchNameSearchValueAsync(int tenantRegistryId, int entityAnalysisModelId,
             string name,
             string searchKey, string searchValue)
         {
             var connection = new NpgsqlConnection(connectionString);
-            CacheAbstractionIdValueDto value = null;
+            double? value = null;
             try
             {
                 await connection.OpenAsync();
 
-                var sql = "select \"Id\",\"Value\" from \"CacheAbstraction\"" +
+                var sql = "select \"Value\" from \"CacheAbstraction\"" +
                           " where \"Name\" = (@name) and \"SearchKey\" = (@searchKey)" +
                           " and \"SearchValue\" = (@searchValue)" +
                           " and \"EntityAnalysisModelId\" = (@entityAnalysisModelId)";
@@ -148,11 +163,9 @@ namespace Jube.Data.Cache
 
                 var reader = await command.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
-                    value = new CacheAbstractionIdValueDto
-                    {
-                        Id = (long) reader.GetValue(0),
-                        Value = (double) reader.GetValue(1)
-                    };
+                {
+                    value = (double) reader.GetValue(1);
+                }
 
                 await reader.CloseAsync();
                 await reader.DisposeAsync();
@@ -171,10 +184,11 @@ namespace Jube.Data.Cache
             return value;
         }
 
-        public async Task<Dictionary<string,double>> GetByNameSearchNameSearchValueReturnValueOnlyTreatingMissingAsNullByReturnZeroRecordAsync(
-            int entityAnalysisModelId,
-            List<EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto>
-                entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest)
+        public async Task<Dictionary<string, double>>
+            GetByNameSearchNameSearchValueReturnValueOnlyTreatingMissingAsNullByReturnZeroRecordAsync(
+                int tenantRegistryId, int entityAnalysisModelId,
+                List<EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto>
+                    entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests)
         {
             var connection = new NpgsqlConnection(connectionString);
             var value = new Dictionary<string, double>();
@@ -189,7 +203,7 @@ namespace Jube.Data.Cache
                 command.Connection = connection;
                 command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
 
-                for (int i = 0; i < entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest.Count; i++)
+                for (int i = 0; i < entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests.Count; i++)
                 {
                     if (i > 0)
                     {
@@ -202,13 +216,13 @@ namespace Jube.Data.Cache
                         $"and \"SearchValue\" = (@searchValue{i}))";
 
                     command.Parameters.AddWithValue($"searchKey{i}",
-                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest[i].SearchKey);
+                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests[i].SearchKey);
                     command.Parameters.AddWithValue($"searchValue{i}",
-                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest[i].SearchValue);
+                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests[i].SearchValue);
                     command.Parameters.AddWithValue($"name{i}",
-                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest[i].AbstractionRuleName);
+                        entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests[i].AbstractionRuleName);
 
-                    value.Add(entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest[i]
+                    value.Add(entityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequests[i]
                         .AbstractionRuleName, 0);
                 }
 
@@ -231,14 +245,8 @@ namespace Jube.Data.Cache
                 await connection.CloseAsync();
                 await connection.DisposeAsync();
             }
-            
-            return value;
-        }
 
-        public class CacheAbstractionIdValueDto
-        {
-            public long Id { get; set; }
-            public double Value { get; set; }
+            return value;
         }
     }
 }

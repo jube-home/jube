@@ -33,6 +33,8 @@ function loadTemplate(id) {
             $("input[name=ReferenceDatePayloadLocationTypeId][value='" + data.referenceDatePayloadLocationTypeId + "']").prop('checked', true);
             $("#MaxResponseElevation").data("kendoNumericTextBox").value(data.maxResponseElevation);
             $("#CacheFetchLimit").data("kendoNumericTextBox").value(data.cacheFetchLimit);
+            $("#CacheTtlIntervalValue").data("kendoNumericTextBox").value(data.cacheTtlIntervalValue);
+            $("input[name=CacheTtlInterval][value='" + data.cacheTtlInterval + "']").prop('checked', true);
             $("input[name=MaxActivationWatcherInterval][value='" + data.maxActivationWatcherInterval + "']").prop('checked', true);
             $("#MaxActivationWatcherValue").data("kendoNumericTextBox").value(data.maxActivationWatcherValue);
             $("#MaxActivationWatcherThreshold").data("kendoNumericTextBox").value(data.maxActivationWatcherThreshold);
@@ -106,6 +108,7 @@ function showTemplate() {
     $("#ReferenceDateXPath").val("");
     $("#ReferenceDateName").val("");
     $("#CacheFetchLimit").data("kendoNumericTextBox").value(100);
+    $("#CacheTtlIntervalValue").data("kendoNumericTextBox").value(3);
     $("#EntryXPath").val("");
     $("#EntryName").val("");
     $("#EnableCache").data("kendoSwitch").check(false);
@@ -163,6 +166,8 @@ function GetData() {
         enableActivationWatcher: $("#EnableActivationWatcher").prop("checked"),
         enableRdbmsArchive: $("#EnableRdbmsArchive").prop("checked"),
         cacheFetchLimit: $("#CacheFetchLimit").val(),
+        cacheTtlIntervalValue: $("#CacheTtlIntervalValue").val(),
+        cacheTtlInterval: $('input[name=CacheTtlInterval]:checked').val(),
         referenceDateXPath: $("#ReferenceDateXPath").val(),
         referenceDateName: $("#ReferenceDateName").val(),
         entryXPath: $("#EntryXPath").val(),
@@ -231,6 +236,10 @@ $(document).ready(function () {
             format: "#"
         });
 
+        $("#CacheTtlIntervalValue").kendoNumericTextBox({
+            format: "#"
+        });
+        
         $(function () {
             deleteButton
                 .click(function () {

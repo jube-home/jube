@@ -21,7 +21,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using Jube.Data.Cache;
+using Jube.Data.Cache.Interfaces;
 using Jube.Data.Extension;
 using Jube.Data.Messaging;
 using Jube.Data.Poco;
@@ -33,13 +33,17 @@ using Jube.Engine.Model.Processing;
 using Jube.Engine.Model.Processing.CaseManagement;
 using Jube.Engine.Model.Processing.Payload;
 using Jube.Engine.Sanctions;
+using Jube.Extensions;
 using log4net;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RabbitMQ.Client;
+using StackExchange.Redis;
 using EntityAnalysisModel = Jube.Engine.Model.EntityAnalysisModel;
 using EntityAnalysisModelAbstractionRule = Jube.Engine.Model.EntityAnalysisModelAbstractionRule;
 using EntityAnalysisModelActivationRule = Jube.Engine.Model.EntityAnalysisModelActivationRule;
+using Redis = Jube.Data.Cache.Redis;
+using Postgres = Jube.Data.Cache.Postgres;
 
 namespace Jube.Engine.Invoke
 {
@@ -47,43 +51,63 @@ namespace Jube.Engine.Invoke
         ILog log,
         DynamicEnvironment.DynamicEnvironment jubeEnvironment,
         IModel rabbitMqChannel,
+        IDatabase redisDatabase,
         ConcurrentQueue<Notification> pendingNotification,
         Random seeded,
         Dictionary<int, EntityAnalysisModel> models)
     {
         public MemoryStream ResponseJson { get; set; }
+
         public Dictionary<string, object> CachePayloadDocumentStore { get; set; }
+
         public Dictionary<string, object> CachePayloadDocumentResponse { get; set; }
+
         public double Latitude { get; set; }
+
         public double Longitude { get; set; }
+
         public EntityAnalysisModel EntityAnalysisModel { get; set; }
+
         public EntityAnalysisModelInstanceEntryPayload EntityAnalysisModelInstanceEntryPayloadStore { get; set; }
+
         private Dictionary<int, List<Dictionary<string, object>>> AbstractionRuleMatches { get; } = new();
 
         public Dictionary<string, Dictionary<string, double>> EntityInstanceEntryAdaptationResponses { get; set; } =
             new();
 
         public Dictionary<string, double> EntityInstanceEntryAbstractionResponse { get; } = new();
+
         public Dictionary<string, int> EntityInstanceEntryTtlCountersResponse { get; } = new();
+
         private Dictionary<string, double> EntityInstanceEntrySanctions { get; } = new();
+
         public Dictionary<string, double> EntityInstanceEntrySanctionsResponse { get; } = new();
+
         private Dictionary<string, double> EntityInstanceEntryDictionaryKvPs { get; } = new();
+
         public Dictionary<string, double> EntityInstanceEntryDictionaryKvPsResponse { get; } = new();
 
         public Dictionary<int, EntityAnalysisModelActivationRule> EntityInstanceEntryActivationResponse { get; } =
             new();
 
-        public Dictionary<string, double> EntityInstanceEntryAbstractionCalculationResponse { get; } =
-            new();
+        public Dictionary<string, double> EntityInstanceEntryAbstractionCalculationResponse { get; } = new();
 
         public Dictionary<int, EntityAnalysisModel> Models { get; set; } = models;
+
         private bool Finished { get; set; }
+
         public Random Seeded { get; set; } = seeded;
+
         public List<ArchiveKey> ReportDatabaseValues { get; set; } = new();
+
         public Stopwatch Stopwatch { get; set; } = new();
+
         public bool Reprocess { get; set; }
+
         public bool InError { get; set; }
+
         public string ErrorMessage { get; set; }
+
         public bool AsyncEnableCallback { get; set; }
 
         public void ParseAndInvoke(EntityAnalysisModel entityAnalysisModel, MemoryStream inputStream,
@@ -676,7 +700,14 @@ namespace Jube.Engine.Invoke
                 Stopwatch.Start();
 
                 log.Info(
-                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has started invocation timer.");
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} has started invocation timer.  Will now update the reference date.");
+
+                UpdateReferenceDate(EntityAnalysisModel.TenantRegistryId, EntityAnalysisModel.Id,
+                    EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate);
+
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
+                    $"has updated reference date for model {EntityAnalysisModel.Id} to {EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate}.");
 
                 var matchedGateway = false;
                 double maxGatewayResponseElevation = 0;
@@ -698,26 +729,29 @@ namespace Jube.Engine.Invoke
 
                 if (matchedGateway)
                 {
-                    var cachePayloadRepository =
-                        new CachePayloadRepository(jubeEnvironment.AppSettings(
-                            new[] {"CacheConnectionString", "ConnectionString"}), log);
-                    
-                    ExecuteCacheDbStorage(cachePayloadRepository, EntityAnalysisModelInstanceEntryPayloadStore,
-                        pendingWriteTasks,EntityAnalysisModel.DistinctSearchKeys);
+                    //var cachePayloadRepository = BuildCachePayloadRepository();
+                    var cacheTtlCounterRepository = BuildCacheTtlCounterRepository();
+                    var cacheTtlCounterEntryRepository = BuildCacheTtlCounterEntryRepository();
+
+                    ExecuteCacheDbStorage(EntityAnalysisModelInstanceEntryPayloadStore,
+                        pendingWriteTasks, EntityAnalysisModel.DistinctSearchKeys);
                     pendingReadTasks.Add(ExecuteSanctionsAsync(pendingWriteTasks));
                     ExecuteDictionaryKvPs();
-                    pendingReadTasks.Add(ExecuteTtlCountersAsync());
-                    pendingReadTasks.Add(ExecuteAbstractionRulesWithSearchKeys(cachePayloadRepository));
+                    pendingReadTasks.Add(ExecuteTtlCountersAsync(cacheTtlCounterRepository,
+                        cacheTtlCounterEntryRepository));
+                    pendingReadTasks.Add(
+                        ExecuteAbstractionRulesWithSearchKeys(pendingWriteTasks));
                     ExecuteAbstractionRulesWithoutSearchKeys();
                     ExecuteAbstractionCalculations();
                     ExecuteExhaustiveModels();
                     ExecuteAdaptations();
                     WaitReadTasks(pendingReadTasks);
-                    ExecuteActivations(maxGatewayResponseElevation, pendingWriteTasks);
+                    ExecuteActivations(cacheTtlCounterRepository, cacheTtlCounterEntryRepository,
+                        maxGatewayResponseElevation, pendingWriteTasks);
                 }
 
-                QueueAsynchronousResponseMessage(pendingWriteTasks);
                 WaitWriteTasks(pendingWriteTasks);
+                WriteResponseJsonAndQueueAsynchronousResponseMessage(pendingWriteTasks);
             }
             catch (Exception ex)
             {
@@ -733,6 +767,38 @@ namespace Jube.Engine.Invoke
             }
         }
 
+        private void UpdateReferenceDate(int tenantRegistryId, int entityAnalysisModelId, DateTime referenceDate)
+        {
+            ICacheReferenceDate cacheReferenceDate;
+            if (redisDatabase != null)
+            {
+                cacheReferenceDate = new Redis.CacheReferenceDate(redisDatabase, log);
+            }
+            else
+            {
+                cacheReferenceDate = new Postgres.CacheReferenceDate(jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            cacheReferenceDate.UpsertReferenceDate(tenantRegistryId, entityAnalysisModelId, referenceDate);
+        }
+
+        private ICachePayloadRepository BuildCachePayloadRepository()
+        {
+            ICachePayloadRepository cachePayloadRepository;
+            if (redisDatabase != null)
+            {
+                cachePayloadRepository = new Redis.CachePayloadRepository(redisDatabase, log);
+            }
+            else
+            {
+                cachePayloadRepository = new Postgres.CachePayloadRepository(jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            return cachePayloadRepository;
+        }
+
         private void WaitWriteTasks(List<Task> pendingWriteTasks)
         {
             log.Info(
@@ -740,6 +806,9 @@ namespace Jube.Engine.Invoke
                 $" is waiting for {pendingWriteTasks.Count} write tasks of which {pendingWriteTasks.Count(c => c.IsCompleted)} are completed.");
 
             Task.WaitAll(pendingWriteTasks.ToArray());
+
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("JoinWriteTasks",
+                (int) Stopwatch.ElapsedMilliseconds);
 
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
@@ -754,12 +823,15 @@ namespace Jube.Engine.Invoke
 
             Task.WaitAll(pendingReadTasks.ToArray());
 
+            EntityAnalysisModelInstanceEntryPayloadStore.ResponseTime.Add("JoinReadTasks",
+                (int) Stopwatch.ElapsedMilliseconds);
+
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} " +
                 $" completed {pendingReadTasks.Count}.");
         }
 
-        private void QueueAsynchronousResponseMessage(List<Task> pendingWriteTasks)
+        private void WriteResponseJsonAndQueueAsynchronousResponseMessage(List<Task> pendingWriteTasks)
         {
             if (EntityAnalysisModel.OutputTransform) //'Output Transform Script
             {
@@ -811,7 +883,7 @@ namespace Jube.Engine.Invoke
             if (AsyncEnableCallback)
             {
                 var cacheCallbackRepository =
-                    new CacheCallbackRepository(jubeEnvironment.AppSettings(
+                    new Postgres.CacheCallbackRepository(jubeEnvironment.AppSettings(
                         new[] {"CacheConnectionString", "ConnectionString"}), log);
 
                 pendingWriteTasks.Add(cacheCallbackRepository.InsertAsync(ResponseJson.ToArray(),
@@ -822,36 +894,66 @@ namespace Jube.Engine.Invoke
             }
         }
 
-        private void ExecuteCacheDbStorage(CachePayloadRepository cachePayloadRepository,
+        private void ExecuteCacheDbStorage(
             EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
-            List<Task> pendingWriteTasks,Dictionary<string, DistinctSearchKey> distinctSearchKeys)
+            List<Task> pendingWriteTasks, Dictionary<string, DistinctSearchKey> distinctSearchKeys)
         {
-            InsertOrReplaceCacheEntries(cachePayloadRepository, entityAnalysisModelInstanceEntryPayload,
+            InsertOrReplaceCacheEntries(BuildCachePayloadRepository(), entityAnalysisModelInstanceEntryPayload,
                 pendingWriteTasks);
 
             UpsertCachePayloadLatest(entityAnalysisModelInstanceEntryPayload, pendingWriteTasks, distinctSearchKeys);
         }
 
-        private void UpsertCachePayloadLatest(EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
+        private ICachePayloadLatestRepository BuildCachePayloadLatestRepository()
+        {
+            ICachePayloadLatestRepository cachePayloadLatestRepository;
+            if (redisDatabase != null)
+            {
+                cachePayloadLatestRepository = new Redis.CachePayloadLatestRepository(redisDatabase, log);
+            }
+            else
+            {
+                cachePayloadLatestRepository = new Postgres.CachePayloadLatestRepository(jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            return cachePayloadLatestRepository;
+        }
+
+        private void UpsertCachePayloadLatest(
+            EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
             List<Task> pendingWriteTasks, Dictionary<string, DistinctSearchKey> distinctSearchKeys)
         {
-            var cachePayloadLatestRepository =
-                new CachePayloadLatestRepository(jubeEnvironment.AppSettings("ConnectionString"), log);
+            var cachePayloadLatestRepository = BuildCachePayloadLatestRepository();
 
-            foreach (var (key,_) in distinctSearchKeys)
+            foreach (var (key, _) in distinctSearchKeys)
             {
                 entityAnalysisModelInstanceEntryPayload.Payload.TryGetValue(key, out var searchKeyValue);
-                
-                pendingWriteTasks.Add(cachePayloadLatestRepository.UpsertAsync(
-                    entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelId,
-                    entityAnalysisModelInstanceEntryPayload.Payload,
-                    entityAnalysisModelInstanceEntryPayload.ReferenceDate,
-                    entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid,
-                    key,searchKeyValue?.ToString()));
+
+                if (jubeEnvironment.AppSettings("StoreFullPayloadLatest")
+                    .Equals("True", StringComparison.OrdinalIgnoreCase))
+                {
+                    pendingWriteTasks.Add(cachePayloadLatestRepository.UpsertAsync(
+                        EntityAnalysisModel.TenantRegistryId,
+                        EntityAnalysisModel.Id,
+                        entityAnalysisModelInstanceEntryPayload.Payload,
+                        entityAnalysisModelInstanceEntryPayload.ReferenceDate,
+                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid,
+                        key, searchKeyValue?.ToString()));
+                }
+                else
+                {
+                    pendingWriteTasks.Add(cachePayloadLatestRepository.UpsertAsync(
+                        EntityAnalysisModel.TenantRegistryId,
+                        EntityAnalysisModel.Id,
+                        entityAnalysisModelInstanceEntryPayload.ReferenceDate,
+                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid,
+                        key, searchKeyValue?.ToString()));
+                }
             }
         }
 
-        private void InsertOrReplaceCacheEntries(CachePayloadRepository cachePayloadRepository,
+        private void InsertOrReplaceCacheEntries(ICachePayloadRepository cachePayloadRepository,
             EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload,
             List<Task> pendingWriteTasks)
         {
@@ -860,7 +962,8 @@ namespace Jube.Engine.Invoke
                 if (Reprocess)
                 {
                     pendingWriteTasks.Add(cachePayloadRepository.UpsertAsync(
-                        entityAnalysisModelInstanceEntryPayload.TenantRegistryId,
+                        EntityAnalysisModel.TenantRegistryId,
+                        EntityAnalysisModel.Id,
                         entityAnalysisModelInstanceEntryPayload.Payload,
                         entityAnalysisModelInstanceEntryPayload.ReferenceDate,
                         entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid));
@@ -871,7 +974,8 @@ namespace Jube.Engine.Invoke
                 else
                 {
                     pendingWriteTasks.Add(cachePayloadRepository.InsertAsync(
-                        entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelId,
+                        EntityAnalysisModel.TenantRegistryId,
+                        EntityAnalysisModel.Id,
                         entityAnalysisModelInstanceEntryPayload.Payload,
                         entityAnalysisModelInstanceEntryPayload.ReferenceDate,
                         entityAnalysisModelInstanceEntryPayload.EntityAnalysisModelInstanceEntryGuid));
@@ -904,7 +1008,9 @@ namespace Jube.Engine.Invoke
             return false;
         }
 
-        private void ExecuteActivations(double maxGatewayResponseElevation, List<Task> pendingWriteTasks)
+        private void ExecuteActivations(ICacheTtlCounterRepository cacheTtlCounterRepository,
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository, double maxGatewayResponseElevation,
+            List<Task> pendingWriteTasks)
         {
             var suppressedActivationRules = new List<string>();
             CreateCase createCase = null;
@@ -1038,7 +1144,8 @@ namespace Jube.Engine.Invoke
                         createCase ??= ActivationRuleCreateCaseObject(evaluateActivationRule, suppressed,
                             activationSample);
 
-                        ActivationRuleTtlCounter(evaluateActivationRule, pendingWriteTasks);
+                        ActivationRuleTtlCounter(cacheTtlCounterRepository, cacheTtlCounterEntryRepository,
+                            evaluateActivationRule, pendingWriteTasks);
                     }
                 }
                 catch (Exception ex)
@@ -1120,18 +1227,12 @@ namespace Jube.Engine.Invoke
             }
         }
 
-        private void ActivationRuleTtlCounter(EntityAnalysisModelActivationRule evaluateActivationRule,
+        private void ActivationRuleTtlCounter(ICacheTtlCounterRepository cacheTtlCounterRepository,
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository,
+            EntityAnalysisModelActivationRule evaluateActivationRule,
             List<Task> pendingWriteTasks)
         {
             if (!evaluateActivationRule.EnableTtlCounter || Reprocess) return;
-
-            var cacheTtlCounterRepository = new CacheTtlCounterRepository(
-                jubeEnvironment.AppSettings(
-                    new[] {"CacheConnectionString", "ConnectionString"}), log);
-
-            var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(
-                jubeEnvironment.AppSettings(
-                    new[] {"CacheConnectionString", "ConnectionString"}), log);
 
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is incrementing TTL counter {evaluateActivationRule.EntityAnalysisModelTtlCounterId} as this is enabled in the activation rule.");
@@ -1167,13 +1268,16 @@ namespace Jube.Engine.Invoke
 
                                         if (!foundTtlCounter.EnableLiveForever)
                                         {
-                                            pendingWriteTasks.Add(cacheTtlCounterEntryRepository.InsertAsync(
-                                                EntityAnalysisModel.Id,
+                                            var resolution = EntityAnalysisModelInstanceEntryPayloadStore
+                                                .ReferenceDate.Floor(TimeSpan.FromMinutes(1));
+
+                                            pendingWriteTasks.Add(cacheTtlCounterEntryRepository.UpsertAsync(
+                                                EntityAnalysisModel.TenantRegistryId, EntityAnalysisModel.Id,
                                                 foundTtlCounter.TtlCounterDataName,
                                                 CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]
                                                     .AsString(),
                                                 foundTtlCounter.Id,
-                                                EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate));
+                                                resolution, 1));
                                         }
                                         else
                                         {
@@ -1181,13 +1285,15 @@ namespace Jube.Engine.Invoke
                                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has built a TTL Counter insert payload of TTLCounterName as {foundTtlCounter.Name}, TTLCounterDataName as {foundTtlCounter.TtlCounterDataName} and TTLCounterDataNameValue as {CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]} is set to live forever so no entry has been made to wind back counters.");
                                         }
 
-                                        pendingWriteTasks.Add(cacheTtlCounterRepository.UpsertAsync(
-                                            EntityAnalysisModel.Id,
-                                            foundTtlCounter.TtlCounterDataName,
-                                            CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName].AsString(),
-                                            foundTtlCounter.Id,
-                                            EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate
-                                        ));
+                                        pendingWriteTasks.Add(cacheTtlCounterRepository
+                                            .IncrementTtlCounterCacheAsync(EntityAnalysisModel.TenantRegistryId,
+                                                EntityAnalysisModel.Id,
+                                                foundTtlCounter.TtlCounterDataName,
+                                                CachePayloadDocumentStore[foundTtlCounter.TtlCounterDataName]
+                                                    .AsString(),
+                                                foundTtlCounter.Id, 1,
+                                                EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate
+                                            ));
                                     }
                                 }
                                 else
@@ -1219,6 +1325,24 @@ namespace Jube.Engine.Invoke
 
                 if (found) break;
             }
+        }
+
+        private ICacheTtlCounterRepository BuildCacheTtlCounterRepository()
+        {
+            ICacheTtlCounterRepository cacheTtlCounterRepository;
+            if (redisDatabase != null)
+            {
+                cacheTtlCounterRepository = new Redis.CacheTtlCounterRepository(
+                    redisDatabase, log);
+            }
+            else
+            {
+                cacheTtlCounterRepository = new Postgres.CacheTtlCounterRepository(
+                    jubeEnvironment.AppSettings(
+                        new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            return cacheTtlCounterRepository;
         }
 
         private void ActivationRuleResponseElevationHighest(
@@ -1700,8 +1824,7 @@ namespace Jube.Engine.Invoke
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is starting Sanctions processing.");
 
-            var cacheSanctionRepository = new CacheSanctionRepository(jubeEnvironment.AppSettings(
-                new[] {"CacheConnectionString", "ConnectionString"}), log);
+            var cacheSanctionRepository = BuildCacheSanctionRepository();
 
             double sumLevenshteinDistance = 0;
             foreach (var entityAnalysisModelSanction in EntityAnalysisModel.EntityAnalysisModelSanctions)
@@ -1727,6 +1850,7 @@ namespace Jube.Engine.Invoke
                                 [entityAnalysisModelSanction.MultipartStringDataName].AsString();
 
                             var sanction = await cacheSanctionRepository.GetByMultiPartStringDistanceThresholdAsync(
+                                EntityAnalysisModel.TenantRegistryId,
                                 EntityAnalysisModel.Id, multiPartStringValue,
                                 entityAnalysisModelSanction.Distance
                             );
@@ -1887,7 +2011,9 @@ namespace Jube.Engine.Invoke
                                     log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to insert cache payload.");
 
-                                    pendingWriteTasks.Add(cacheSanctionRepository.InsertAsync(EntityAnalysisModel.Id,
+                                    pendingWriteTasks.Add(cacheSanctionRepository.InsertAsync(
+                                        EntityAnalysisModel.TenantRegistryId,
+                                        EntityAnalysisModel.Id,
                                         multiPartStringValue,
                                         entityAnalysisModelSanction.Distance, averageLevenshteinDistance));
 
@@ -1897,10 +2023,15 @@ namespace Jube.Engine.Invoke
                                 else
                                 {
                                     log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to update cache payload for {sanction.Id}.");
+                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is about to update cache payload " +
+                                        $"for Multi Part String Value {multiPartStringValue} and distance {entityAnalysisModelSanction.Distance}.");
 
                                     pendingWriteTasks.Add(
-                                        cacheSanctionRepository.UpdateAsync(sanction.Id, averageLevenshteinDistance));
+                                        cacheSanctionRepository.UpdateAsync(EntityAnalysisModel.TenantRegistryId,
+                                            EntityAnalysisModel.Id,
+                                            multiPartStringValue,
+                                            entityAnalysisModelSanction.Distance,
+                                            averageLevenshteinDistance));
 
                                     log.Info(
                                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has updated cache payload.");
@@ -1927,6 +2058,22 @@ namespace Jube.Engine.Invoke
 
             log.Info(
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finished sanctions processing.");
+        }
+
+        private ICacheSanctionRepository BuildCacheSanctionRepository()
+        {
+            ICacheSanctionRepository cacheSanctionRepository;
+            if (redisDatabase != null)
+            {
+                cacheSanctionRepository = new Redis.CacheSanctionRepository(redisDatabase, log);
+            }
+            else
+            {
+                cacheSanctionRepository = new Postgres.CacheSanctionRepository(jubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            return cacheSanctionRepository;
         }
 
         private void ExecuteAdaptations()
@@ -2500,7 +2647,7 @@ namespace Jube.Engine.Invoke
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Abstraction has concluded in {Stopwatch.ElapsedMilliseconds} ms.");
         }
 
-        private async Task ExecuteAbstractionRulesWithSearchKeys(CachePayloadRepository cachePayloadRepository)
+        private async Task ExecuteAbstractionRulesWithSearchKeys(List<Task> pendingWriteTasks)
         {
             var pendingExecutionThreads = new List<Task>();
             if (EntityAnalysisModel.EnableCache)
@@ -2538,7 +2685,9 @@ namespace Jube.Engine.Invoke
                                     AbstractionRuleMatches = AbstractionRuleMatches,
                                     EntityAnalysisModel = EntityAnalysisModel,
                                     Log = log,
-                                    CachePayloadRepository = cachePayloadRepository
+                                    DynamicEnvironment = jubeEnvironment,
+                                    RedisDatabase = redisDatabase,
+                                    PendingWritesTasks = pendingWriteTasks
                                 };
 
                                 log.Info(
@@ -2579,7 +2728,7 @@ namespace Jube.Engine.Invoke
         private async Task CalculateAbstractionRuleValuesOrLookupFromTheCache()
         {
             var listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest =
-                new List<EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto>();
+                new List<Postgres.EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto>();
             foreach (var abstractionRule in EntityAnalysisModel.ModelAbstractionRules)
                 try
                 {
@@ -2595,7 +2744,7 @@ namespace Jube.Engine.Invoke
                                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} abstraction rule {abstractionRule.Id} has its values in the cache.");
 
                             listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest.Add(
-                                new EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto
+                                new Postgres.EntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueDto
                                 {
                                     AbstractionRuleName = abstractionRule.Name,
                                     SearchKey = abstractionRule.SearchKey,
@@ -2621,12 +2770,11 @@ namespace Jube.Engine.Invoke
 
                     if (!listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest.Any()) continue;
 
-                    var cacheAbstractionRepository =
-                        new CacheAbstractionRepository(jubeEnvironment.AppSettings("ConnectionString"), log);
-                    
+                    var cacheAbstractionRepository = BuildCacheAbstractionRepository();
+
                     foreach (var abstractionRuleNameValue in await cacheAbstractionRepository
                                  .GetByNameSearchNameSearchValueReturnValueOnlyTreatingMissingAsNullByReturnZeroRecordAsync(
-                                     EntityAnalysisModel.Id,
+                                     EntityAnalysisModel.TenantRegistryId, EntityAnalysisModel.Id,
                                      listEntityAnalysisModelIdAbstractionRuleNameSearchKeySearchValueRequest))
                     {
                         AddComputedValuesToAbstractionRulePayload(abstractionRuleNameValue.Value, abstractionRule);
@@ -2637,6 +2785,23 @@ namespace Jube.Engine.Invoke
                     log.Error(
                         $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} is aggregating abstraction rule {abstractionRule.Id} but has created an error as {ex}.");
                 }
+        }
+
+        private ICacheAbstractionRepository BuildCacheAbstractionRepository()
+        {
+            ICacheAbstractionRepository cacheAbstractionRepository;
+            if (redisDatabase != null)
+            {
+                cacheAbstractionRepository =
+                    new Redis.CacheAbstractionRepository(redisDatabase, log);
+            }
+            else
+            {
+                cacheAbstractionRepository =
+                    new Postgres.CacheAbstractionRepository(jubeEnvironment.AppSettings("ConnectionString"), log);
+            }
+
+            return cacheAbstractionRepository;
         }
 
         private void AddComputedValuesToAbstractionRulePayload(double value,
@@ -2672,254 +2837,15 @@ namespace Jube.Engine.Invoke
                 $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} finished aggregating abstraction rule {abstractionRule.Id}.");
         }
 
-        private async Task ExecuteTtlCountersAsync()
+        private async Task ExecuteTtlCountersAsync(ICacheTtlCounterRepository cacheTtlCounterRepository,
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository)
         {
             try
             {
                 if (EntityAnalysisModel.EnableTtlCounter)
                 {
-                    log.Info(
-                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter cache storage is enabled so it will now proceed to return the TTL Counters via MongoDB aggregate query.");
-
-                    if (EntityAnalysisModel.ModelTtlCounters.FindAll(x => x.OnlineAggregation).Count > 0)
-                    {
-                        var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(
-                            jubeEnvironment.AppSettings(
-                                new[] {"CacheConnectionString", "ConnectionString"}), log);
-
-                        var getByNameDataNameDataValueParams =
-                            new List<CacheTtlCounterEntryRepository.GetByNameDataNameDataValueParams>();
-                        foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters)
-                        {
-                            log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} is online aggregation.");
-
-                            if (CachePayloadDocumentStore.ContainsKey(ttlCounter.TtlCounterDataName))
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} which has an interval type of {ttlCounter.TtlCounterInterval} and interval value of {ttlCounter.TtlCounterValue}.");
-
-                                var getByNameDataNameDataValueParam =
-                                    new CacheTtlCounterEntryRepository.GetByNameDataNameDataValueParams();
-
-                                var adjustedTtlCounterDate = ttlCounter.TtlCounterInterval switch
-                                {
-                                    "d" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddDays(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    "h" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddHours(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    "n" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddMinutes(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    "s" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddSeconds(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    "m" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddMonths(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    "y" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddYears(
-                                        ttlCounter.TtlCounterValue * -1),
-                                    _ => default
-                                };
-                                getByNameDataNameDataValueParam.ReferenceDateFrom = adjustedTtlCounterDate;
-                                getByNameDataNameDataValueParam.ReferenceDateTo =
-                                    EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate;
-                                getByNameDataNameDataValueParam.DataName = ttlCounter.TtlCounterDataName;
-                                getByNameDataNameDataValueParam.DataValue =
-                                    CachePayloadDocumentStore[ttlCounter.TtlCounterDataName].AsString();
-
-                                getByNameDataNameDataValueParams.Add(getByNameDataNameDataValueParam);
-
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} the date threshold from is {adjustedTtlCounterDate} to {EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate}, the TTL Counter Name is {ttlCounter.Name}, the TTL Counter Data Name is {ttlCounter.TtlCounterDataName} and the TTL Counter Data Name Value is {CachePayloadDocumentStore[ttlCounter.TtlCounterDataName]}.");
-                            }
-                            else
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} was unable to fine a value for TTL Counter Data Name {ttlCounter.TtlCounterDataName} and TTL Counter Name {ttlCounter.Name}.");
-                            }
-                        }
-
-                        log.Info(
-                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has finalized the predicate.");
-
-                        var counts = await
-                            cacheTtlCounterEntryRepository.GetByNameDataNameDataValueAsync(EntityAnalysisModel.Id,
-                                getByNameDataNameDataValueParams
-                                    .ToArray());
-
-                        log.Info(
-                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has executed the group by query for the TTL Counters from the cache.  A loop of all TTL Counter results will now be performed to retrieve the for processing.");
-
-                        foreach (var (key, value) in counts)
-                            try
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key}.");
-
-                                var modelTtlCounter = EntityAnalysisModel.ModelTtlCounters.Find(x =>
-                                    x.Name == key);
-                                if (modelTtlCounter != null)
-                                {
-                                    EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(
-                                        modelTtlCounter.Name, value);
-
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to processing with the name of {modelTtlCounter.Name}.");
-
-                                    if (modelTtlCounter.ResponsePayload)
-                                    {
-                                        EntityInstanceEntryTtlCountersResponse.Add(modelTtlCounter.Name,
-                                            value);
-
-                                        log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to the response payload with the name of {modelTtlCounter.Name}.");
-                                    }
-
-                                    if (modelTtlCounter.ReportTable && !Reprocess)
-                                    {
-                                        ReportDatabaseValues.Add(new ArchiveKey
-                                        {
-                                            ProcessingTypeId = 5,
-                                            Key = modelTtlCounter.Name,
-                                            KeyValueInteger = value,
-                                            EntityAnalysisModelInstanceEntryGuid =
-                                                EntityAnalysisModelInstanceEntryPayloadStore
-                                                    .EntityAnalysisModelInstanceEntryGuid
-                                        });
-
-                                        log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has been located and the value {value} has been added to the report payload with the name of {modelTtlCounter.Name}.");
-                                    }
-                                }
-                                else
-                                {
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} but it could not be located,  returning nothing.");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                log.Error(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} matching TTL Counter  {key} has created an error as {ex}");
-                            }
-
-                        log.Info(
-                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will loop through the TTL counter values to make sure that there is at least a zero present for missing values.");
-
-                        foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters)
-                            try
-                            {
-                                if (!EntityInstanceEntryTtlCountersResponse.ContainsKey(ttlCounter.Name))
-                                {
-                                    EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(ttlCounter.Name,
-                                        0);
-
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of zero.");
-
-                                    if (ttlCounter.ResponsePayload)
-                                    {
-                                        EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, 0);
-
-                                        log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the response payload also.");
-                                    }
-
-                                    if (ttlCounter.ReportTable && !Reprocess)
-                                    {
-                                        ReportDatabaseValues.Add(new ArchiveKey
-                                        {
-                                            ProcessingTypeId = 5,
-                                            Key = ttlCounter.Name,
-                                            KeyValueInteger = 0,
-                                            EntityAnalysisModelInstanceEntryGuid =
-                                                EntityAnalysisModelInstanceEntryPayloadStore
-                                                    .EntityAnalysisModelInstanceEntryGuid
-                                        });
-
-                                        log.Info(
-                                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the report payload also.");
-                                    }
-                                }
-                                else
-                                {
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} exists already,  so nothing more added.");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                log.Error(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has created an error as {ex}.");
-                            }
-                    }
-                    else
-                    {
-                        log.Info(
-                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Does not have any online TTL Counters.");
-                    }
-
-                    log.Info(
-                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now look for TTL Counters from the cache.");
-
-                    foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters.FindAll(x =>
-                                 x.OnlineAggregation == false))
-                    {
-                        try
-                        {
-                            var cacheTtlCounterRepository = new CacheTtlCounterRepository(
-                                jubeEnvironment.AppSettings(
-                                    new[] {"CacheConnectionString", "ConnectionString"}), log);
-
-                            var ttlCounterValue = await cacheTtlCounterRepository.GetByNameDataNameDataValueAsync(
-                                EntityAnalysisModel.Id,
-                                ttlCounter.Id,
-                                ttlCounter.TtlCounterDataName,
-                                CachePayloadDocumentStore[ttlCounter.TtlCounterDataName].AsString());
-
-                            if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryAdd(ttlCounter.Name,
-                                    ttlCounterValue))
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
-
-                                if (ttlCounter.ResponsePayload)
-                                {
-                                    EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, ttlCounterValue);
-
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the response payload also.");
-                                }
-
-                                if (ttlCounter.ReportTable && !Reprocess)
-                                {
-                                    ReportDatabaseValues.Add(new ArchiveKey
-                                    {
-                                        ProcessingTypeId = 5,
-                                        Key = ttlCounter.Name,
-                                        KeyValueInteger = ttlCounterValue,
-                                        EntityAnalysisModelInstanceEntryGuid =
-                                            EntityAnalysisModelInstanceEntryPayloadStore
-                                                .EntityAnalysisModelInstanceEntryGuid
-                                    });
-
-                                    log.Info(
-                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the report payload also.");
-                                }
-                            }
-                            else
-                            {
-                                log.Info(
-                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            log.Info(
-                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has thrown an error as {ex}.");
-                        }
-                    }
-
-                    log.Info(
-                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counters have concluded in{Stopwatch.ElapsedMilliseconds} ms.");
+                    await OnlineAggregationOfTtlCounters(cacheTtlCounterEntryRepository);
+                    await OutOfProcessAggregationOfTtlCounters(cacheTtlCounterRepository);
                 }
                 else
                 {
@@ -2935,6 +2861,197 @@ namespace Jube.Engine.Invoke
                 log.Error(
                     $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} has caused an error in TTL Counters as {ex}.");
             }
+        }
+
+        private async Task OutOfProcessAggregationOfTtlCounters(ICacheTtlCounterRepository cacheTtlCounterRepository)
+        {
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} will now look for TTL Counters from the cache.");
+
+            foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters.FindAll(x =>
+                         x.OnlineAggregation == false))
+            {
+                try
+                {
+                    var ttlCounterValue = await cacheTtlCounterRepository
+                        .GetByNameDataNameDataValueAsync(EntityAnalysisModel.TenantRegistryId,
+                            EntityAnalysisModel.Id,
+                            ttlCounter.Id,
+                            ttlCounter.TtlCounterDataName,
+                            CachePayloadDocumentStore[ttlCounter.TtlCounterDataName].AsString());
+
+                    if (EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.TryAdd(ttlCounter.Name,
+                            ttlCounterValue))
+                    {
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
+
+                        if (ttlCounter.ResponsePayload)
+                        {
+                            EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, ttlCounterValue);
+
+                            log.Info(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the response payload also.");
+                        }
+
+                        if (ttlCounter.ReportTable && !Reprocess)
+                        {
+                            ReportDatabaseValues.Add(new ArchiveKey
+                            {
+                                ProcessingTypeId = 5,
+                                Key = ttlCounter.Name,
+                                KeyValueInteger = ttlCounterValue,
+                                EntityAnalysisModelInstanceEntryGuid =
+                                    EntityAnalysisModelInstanceEntryPayloadStore
+                                        .EntityAnalysisModelInstanceEntryGuid
+                            });
+
+                            log.Info(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of {ttlCounterValue} to the report payload also.");
+                        }
+                    }
+                    else
+                    {
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of {ttlCounterValue}.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log.Info(
+                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has thrown an error as {ex}.");
+                }
+            }
+
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counters have concluded in{Stopwatch.ElapsedMilliseconds} ms.");
+        }
+
+        private async Task OnlineAggregationOfTtlCounters(
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository)
+        {
+            log.Info(
+                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter cache storage is enabled so it will now proceed to return the TTL Counters with online aggregation.");
+
+            if (EntityAnalysisModel.ModelTtlCounters.FindAll(x => x.OnlineAggregation).Count > 0)
+            {
+                foreach (var ttlCounter in EntityAnalysisModel.ModelTtlCounters.FindAll(
+                             x => x.OnlineAggregation))
+                {
+                    log.Info(
+                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} is online aggregation.");
+
+                    if (CachePayloadDocumentStore.ContainsKey(ttlCounter.TtlCounterDataName))
+                    {
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} which has an interval type of {ttlCounter.TtlCounterInterval} and interval value of {ttlCounter.TtlCounterValue}.");
+
+                        var adjustedTtlCounterDate = ttlCounter.TtlCounterInterval switch
+                        {
+                            "d" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddDays(
+                                ttlCounter.TtlCounterValue * -1),
+                            "h" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddHours(
+                                ttlCounter.TtlCounterValue * -1),
+                            "n" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddMinutes(
+                                ttlCounter.TtlCounterValue * -1),
+                            "s" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddSeconds(
+                                ttlCounter.TtlCounterValue * -1),
+                            "m" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddMonths(
+                                ttlCounter.TtlCounterValue * -1),
+                            "y" => EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate.AddYears(
+                                ttlCounter.TtlCounterValue * -1),
+                            _ => default
+                        };
+
+
+                        var count = await
+                            cacheTtlCounterEntryRepository.GetAsync(EntityAnalysisModel.TenantRegistryId,
+                                EntityAnalysisModel.Id, ttlCounter.Id,
+                                ttlCounter.TtlCounterDataName,
+                                CachePayloadDocumentStore[ttlCounter.TtlCounterDataName].AsString(),
+                                adjustedTtlCounterDate,
+                                EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate
+                            );
+
+                        try
+                        {
+                            if (!EntityInstanceEntryTtlCountersResponse.ContainsKey(ttlCounter.Name))
+                            {
+                                EntityAnalysisModelInstanceEntryPayloadStore.TtlCounter.Add(ttlCounter.Name,
+                                    count);
+
+                                log.Info(
+                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  so will add this as name {ttlCounter.Name} with value of zero.");
+
+                                if (ttlCounter.ResponsePayload)
+                                {
+                                    EntityInstanceEntryTtlCountersResponse.Add(ttlCounter.Name, count);
+
+                                    log.Info(
+                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the response payload also.");
+                                }
+
+                                if (ttlCounter.ReportTable && !Reprocess)
+                                {
+                                    ReportDatabaseValues.Add(new ArchiveKey
+                                    {
+                                        ProcessingTypeId = 5,
+                                        Key = ttlCounter.Name,
+                                        KeyValueInteger = count,
+                                        EntityAnalysisModelInstanceEntryGuid =
+                                            EntityAnalysisModelInstanceEntryPayloadStore
+                                                .EntityAnalysisModelInstanceEntryGuid
+                                    });
+
+                                    log.Info(
+                                        $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} is missing,  added this as name {ttlCounter.Name} with value of zero to the report payload also.");
+                                }
+                            }
+                            else
+                            {
+                                log.Info(
+                                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} exists already,  so nothing more added.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Error(
+                                $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} TTL Counter {ttlCounter.Id} has created an error as {ex}.");
+                        }
+
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} creating predication for TTL Counter {ttlCounter.Id} the date threshold from is {adjustedTtlCounterDate} to {EntityAnalysisModelInstanceEntryPayloadStore.ReferenceDate}, the TTL Counter Name is {ttlCounter.Name}, the TTL Counter Data Name is {ttlCounter.TtlCounterDataName} and the TTL Counter Data Name Value is {CachePayloadDocumentStore[ttlCounter.TtlCounterDataName]}.");
+                    }
+                    else
+                    {
+                        log.Info(
+                            $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} was unable to fine a value for TTL Counter Data Name {ttlCounter.TtlCounterDataName} and TTL Counter Name {ttlCounter.Name}.");
+                    }
+                }
+            }
+            else
+            {
+                log.Info(
+                    $"Entity Invoke: GUID {EntityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid} and model {EntityAnalysisModel.Id} Does not have any online TTL Counters.");
+            }
+        }
+
+        private ICacheTtlCounterEntryRepository BuildCacheTtlCounterEntryRepository()
+        {
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository;
+            if (redisDatabase != null)
+            {
+                cacheTtlCounterEntryRepository = new Redis.CacheTtlCounterEntryRepository(
+                    redisDatabase, log);
+            }
+            else
+            {
+                cacheTtlCounterEntryRepository = new Postgres.CacheTtlCounterEntryRepository(
+                    jubeEnvironment.AppSettings(
+                        new[] {"CacheConnectionString", "ConnectionString"}), log);
+            }
+
+            return cacheTtlCounterEntryRepository;
         }
 
         private void ExecuteDictionaryKvPs()

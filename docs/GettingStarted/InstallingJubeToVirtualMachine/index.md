@@ -37,6 +37,37 @@ Or rather:
 export ConnectionString="Host=db-postgresql-fra1-52677-do-user-12376516-0.b.db.ondigitalocean.com;Port=25060;Database=defaultdb; Username=doadmin;Password=*******;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;SSL Mode=Require;Trust Server Certificate=true;"
 ```
 
+In the case of Redis:
+
+```text
+username = default
+password = ************************ show
+host = db-redis-fra1-14927-do-user-12376516-0.c.db.ondigitalocean.com
+port = 25061
+```
+
+Arrange the credentials into a connection string format as follows to be passed as an Environment Variable:
+
+```shell
+export RedisConnectionString="<Host>:<Port>,password=<Password>"
+```
+
+Or rather:
+
+```shell
+export RedisConnectionString="db-redis-fra1-14927-do-user-12376516-0.c.db.ondigitalocean.com:25061,password=************************"
+```
+
+Use Redis on DigitalOcean only if comfortable with the content as follows:
+
+https://www.digitalocean.com/community/tutorials/how-to-connect-to-managed-redis-over-tls-with-stunnel-and-redis-cli
+
+Otherwise do not use Redis in the context of this guide,  falling back to PostgreSQL cache:
+
+```shell
+export Redis="False"
+``
+
 Execute the shell command to create the Environment Variable.
 
 The User Interface and API endpoints need to passed the URL to bind to.  In this example, the public IP of the Droplet is 164.92.193.229 as observed in the Droplet page:

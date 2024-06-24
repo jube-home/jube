@@ -99,7 +99,12 @@ public class DynamicEnvironment
                 {"CallbackTimeout", "3000"},
                 {"StreamingActivationWatcher", "True"},
                 {"WaitPollFromActivationWatcherTable", "5000"},
-                {"WaitTtlCounterDecrement", "60000"}
+                {"WaitTtlCounterDecrement", "60000"},
+                {"Redis", "True"},
+                {"RedisConnectionString", "localhost"},
+                {"StoreFullPayloadLatest", "True"},
+                {"CachePruneServer", "True"},
+                {"WaitCachePrune", "10000"}
             };
 
             foreach (DictionaryEntry environmentVariable in Environment.GetEnvironmentVariables())
@@ -154,6 +159,7 @@ public class DynamicEnvironment
     private void ValidatePasswordHashingKey()
     {
         if (appSettings["PasswordHashingKey"] ==
+            // ReSharper disable once StringLiteralTypo
             "IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9\"B&|>DP|GZy\"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous")
         {
             throw new Exception("Not permitted to use the same PasswordHashingKey used in the documentation.");
@@ -168,6 +174,7 @@ public class DynamicEnvironment
         }
 
         if (appSettings["JWTKey"] ==
+            // ReSharper disable once StringLiteralTypo
             "IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9\"B&|>DP|GZy\"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous")
         {
             throw new Exception("Not permitted to use the same JWTKey used in the documentation.");

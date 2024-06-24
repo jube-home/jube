@@ -25,12 +25,12 @@ using System.Threading.Tasks;
 using System.Web;
 using Accord.Neuro;
 using AutoMapper.Internal;
-using Jube.Data.Cache;
+using Jube.Data.Cache.Interfaces;
+using Jube.Data.Cache.Postgres;
 using Jube.Data.Context;
 using Jube.Data.Extension;
 using Jube.Data.Poco;
 using Jube.Data.Query;
-using Jube.Data.Reporting;
 using Jube.Data.Repository;
 using Jube.Engine.Helpers;
 using Jube.Engine.Helpers.Json;
@@ -60,6 +60,9 @@ using ExhaustiveSearchInstance = Jube.Engine.Model.Exhaustive.ExhaustiveSearchIn
 using ExhaustiveSearchInstancePromotedTrialInstanceVariable =
     Jube.Engine.Model.Exhaustive.ExhaustiveSearchInstancePromotedTrialInstanceVariable;
 using Newtonsoft.Json;
+using StackExchange.Redis;
+using EntityAnalysisModelRequestXPath = Jube.Parser.EntityAnalysisModelRequestXPath;
+using Redis = Jube.Data.Cache.Redis;
 
 namespace Jube.Engine
 {
@@ -79,6 +82,7 @@ namespace Jube.Engine
         private Thread modelSyncThread;
         private bool stopping;
         private Thread tTtlCThread;
+        private Task cachePruneTask;
         private JsonSerializerSettings jsonSerializerSettings;
 
         public ILog Log { get; set; }
@@ -90,6 +94,7 @@ namespace Jube.Engine
         public Random Seeded { get; set; }
         public DynamicEnvironment.DynamicEnvironment JubeEnvironment { get; set; }
         public IModel RabbitMqChannel { get; set; }
+        public IDatabase RedisDatabase { get; set; }
         public ConcurrentQueue<Notification> PendingNotification { get; set; }
         public bool EntityModelsHasLoadedForStartup { get; set; }
         public ConcurrentDictionary<Guid, Callback> PendingCallbacks { get; set; }
@@ -118,6 +123,7 @@ namespace Jube.Engine
             StartSearchKeyCacheServer();
             StartTtlCounterServer();
             StartReprocessing();
+            StartCachePrune();
         }
 
         private void BuildAndCacheJsonContractResolver()
@@ -153,6 +159,161 @@ namespace Jube.Engine
 
                 listenForCallbacksTask = Task.Run(cacheCallbackRepository.ListenForCallbacksAsync);
             }
+        }
+
+        private void StartCachePrune()
+        {
+            if (JubeEnvironment.AppSettings("CachePruneServer").Equals("True", StringComparison.OrdinalIgnoreCase))
+            {
+                cachePruneTask = Task.Run(CachePrune);
+            }
+        }
+
+        private async Task CachePrune()
+        {
+            Log.Debug(
+                $"Cache Prune: Starting task.  Is about to build the cache references.");
+
+            var cachePayload = BuildCachePayloadRepository();
+            var cacheReferenceDate = BuildCacheReferenceDate();
+            var cachePayloadLatest = BuildCachePayloadLatestRepository();
+
+            var limit = GetDeletionLimitOrDefaultIfNull();
+
+            Log.Debug(
+                $"Cache Prune: Has built cache references with deletion chunk limit of {limit}.  Will proceed to enter loop for background deletion job.");
+
+            while (!stopping)
+            {
+                Log.Debug(
+                    $"Cache Prune: There are {ActiveEntityAnalysisModels.Count} active models.");
+
+                foreach (var model in ActiveEntityAnalysisModels.Values)
+                {
+                    Log.Debug(
+                        $"Cache Prune: For model {model.Id} the reference date will be looked up.");
+
+                    var referenceDate = await cacheReferenceDate.GetReferenceDate(model.TenantRegistryId, model.Id);
+
+                    Log.Debug(
+                        $"Cache Prune: For model {model.Id} the reference date for {model.ReferenceDateName} is {referenceDate}.  " +
+                        $"Will test not null before proceeding to delete.  Will move to calculate the threshold date.");
+
+                    if (!referenceDate.HasValue) continue;
+
+                    var thresholdReferenceDatePayload = GetThresholdReferenceDateForDeletion(model, referenceDate);
+
+                    Log.Debug(
+                        $"Cache Prune: For model {model.Id} the threshold reference date for " +
+                        $"{model.ReferenceDateName} is {thresholdReferenceDatePayload}.  Will now instruct the delete if threshold date not null.");
+
+                    if (thresholdReferenceDatePayload == null) continue;
+
+                    await cachePayload.DeleteByReferenceDate(model.TenantRegistryId, model.Id,
+                        thresholdReferenceDatePayload.Value, limit);
+
+                    Log.Debug(
+                        $"Cache Prune: For model {model.Id} deletion routine has returned in the Payload repository.");
+
+                    await cachePayloadLatest.DeleteByReferenceDate(model.TenantRegistryId, model.Id,
+                        referenceDate.Value, thresholdReferenceDatePayload.Value, limit,
+                        model.DistinctSearchKeys.Select(distinctSearchKey
+                            => (distinctSearchKey.Key,
+                                distinctSearchKey.Value.SearchKeyTtlInterval,
+                                distinctSearchKey.Value.SearchKeyTtlIntervalValue)).ToList());
+
+                    Log.Debug(
+                        $"Cache Prune: For model {model.Id} deletion routine has returned in the Payload Latest " +
+                        $"repository.  Will now loop around search keys to begin deletion of sorted sets linking to payload.");
+                }
+
+                var waitCachePrune = int.Parse(JubeEnvironment.AppSettings("WaitCachePrune"));
+
+                Log.Debug(
+                    $"Cache Prune: Active models processed.  Will sleep for {waitCachePrune}.");
+
+                Thread.Sleep(waitCachePrune);
+            }
+        }
+
+        private static DateTime? GetThresholdReferenceDateForDeletion(EntityAnalysisModel model,
+            DateTime? referenceDate)
+        {
+            if (referenceDate != null)
+            {
+                var thresholdReferenceDate = model.CacheTtlInterval switch
+                {
+                    'd' => referenceDate.Value.AddDays(model.CacheTtlIntervalValue * -1),
+                    'h' => referenceDate.Value.AddHours(model.CacheTtlIntervalValue * -1),
+                    'n' => referenceDate.Value.AddMinutes(model.CacheTtlIntervalValue * -1),
+                    's' => referenceDate.Value.AddSeconds(model.CacheTtlIntervalValue * -1),
+                    'm' => referenceDate.Value.AddMonths(model.CacheTtlIntervalValue * -1),
+                    'y' => referenceDate.Value.AddYears(model.CacheTtlIntervalValue * -1),
+                    _ => referenceDate.Value.AddDays(model.CacheTtlIntervalValue * -1)
+                };
+                return thresholdReferenceDate;
+            }
+
+            return null;
+        }
+
+        private ICachePayloadRepository BuildCachePayloadRepository()
+        {
+            ICachePayloadRepository cachePayload;
+            if (RedisDatabase != null)
+            {
+                cachePayload = new Redis.CachePayloadRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cachePayload = new CachePayloadRepository(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cachePayload;
+        }
+
+        private ICachePayloadLatestRepository BuildCachePayloadLatestRepository()
+        {
+            ICachePayloadLatestRepository cachePayloadLatest;
+            if (RedisDatabase != null)
+            {
+                cachePayloadLatest = new Redis.CachePayloadLatestRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cachePayloadLatest = new CachePayloadLatestRepository(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cachePayloadLatest;
+        }
+
+        private ICacheReferenceDate BuildCacheReferenceDate()
+        {
+            ICacheReferenceDate cacheReferenceDate;
+            if (RedisDatabase != null)
+            {
+                cacheReferenceDate = new Redis.CacheReferenceDate(RedisDatabase, Log);
+            }
+            else
+            {
+                cacheReferenceDate = new CacheReferenceDate(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cacheReferenceDate;
+        }
+
+        private int GetDeletionLimitOrDefaultIfNull()
+        {
+            var limit = 100;
+            if (JubeEnvironment.AppSettings("CacheTtlDeleteLimit") != null)
+            {
+                limit = int.Parse(JubeEnvironment.AppSettings("CacheTtlDeleteLimit"));
+            }
+
+            return limit;
         }
 
         private void StartReprocessing()
@@ -3427,6 +3588,10 @@ namespace Jube.Engine
                                         requestXPath.SearchKeyCacheFetchLimit;
                                     distinctSearchKey.SearchKey = modelAbstractionRule.SearchKey;
                                     distinctSearchKey.SearchKeyCacheSample = requestXPath.SearchKeyCacheSample;
+                                    distinctSearchKey.SearchKeyTtlInterval = requestXPath.SearchKeyTtlInterval;
+                                    distinctSearchKey.SearchKeyTtlIntervalValue =
+                                        requestXPath.SearchKeyTtlIntervalValue;
+                                    distinctSearchKey.SearchKeyFetchLimit = requestXPath.SearchKeyFetchLimit;
 
                                     if (!shadowDistinctSearchKeys.ContainsKey(modelAbstractionRule
                                             .SearchKey))
@@ -3764,10 +3929,11 @@ namespace Jube.Engine
                     }
 
                     distinctSearchKey.Value.SqlSelectFrom = " From \"CachePayload\" where \"EntityAnalysisModelId\" = "
-                                                       + value.Id +
-                                                       " and \"Json\" ->> (@key) = (@value) ";
+                                                            + value.Id +
+                                                            " and \"Json\" ->> (@key) = (@value) ";
 
-                    distinctSearchKey.Value.SqlSelectOrderBy = " order by (@order) desc limit (@limit)) c order by 2 desc;";
+                    distinctSearchKey.Value.SqlSelectOrderBy =
+                        " order by \"ReferenceDate\" desc limit (@limit)) c order by 2 asc;";
                 }
 
                 value.ModelAbstractionRules = shadowEntityModelAbstractionRule;
@@ -4021,7 +4187,7 @@ namespace Jube.Engine
                                 entityAnalysisModelRequestXPath.SearchKeyCacheInterval = "h";
 
                                 Log.Debug(
-                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set DEFAULT Search Key Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyCacheInterval}.");
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set DEFAULT Search Key Cache Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyCacheInterval}.");
                             }
                             else
                             {
@@ -4029,7 +4195,23 @@ namespace Jube.Engine
                                     record.SearchKeyCacheInterval;
 
                                 Log.Debug(
-                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Search Key Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyCacheInterval}.");
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Search Key Cache Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyCacheInterval}.");
+                            }
+
+                            if (record.SearchKeyTtlInterval == null)
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyTtlInterval = "h";
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set DEFAULT Search Key Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyTtlInterval}.");
+                            }
+                            else
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyTtlInterval =
+                                    record.SearchKeyTtlInterval;
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Search Key Interval Type value as {entityAnalysisModelRequestXPath.SearchKeyTtlInterval}.");
                             }
 
                             if (!record.SearchKeyCacheValue.HasValue)
@@ -4064,6 +4246,22 @@ namespace Jube.Engine
                                     $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Search Key Cache TTL Interval value as {entityAnalysisModelRequestXPath.SearchKeyCacheTtlValue}.");
                             }
 
+                            if (!record.SearchKeyTtlIntervalValue.HasValue)
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyTtlIntervalValue = 1;
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set DEFAULT Search Key TTL Interval value as {entityAnalysisModelRequestXPath.SearchKeyTtlIntervalValue}.");
+                            }
+                            else
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyTtlIntervalValue =
+                                    record.SearchKeyTtlIntervalValue.Value;
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Search Key Cache TTL Interval value as {entityAnalysisModelRequestXPath.SearchKeyTtlIntervalValue}.");
+                            }
+
                             if (!record.SearchKeyCacheFetchLimit.HasValue)
                             {
                                 entityAnalysisModelRequestXPath.SearchKeyCacheFetchLimit = 0;
@@ -4078,6 +4276,22 @@ namespace Jube.Engine
 
                                 Log.Debug(
                                     $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set Cache Limit value as {entityAnalysisModelRequestXPath.SearchKeyCacheFetchLimit}.");
+                            }
+
+                            if (!record.SearchKeyFetchLimit.HasValue)
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyFetchLimit = 0;
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set DEFAULT search limit value as {entityAnalysisModelRequestXPath.SearchKeyFetchLimit}.");
+                            }
+                            else
+                            {
+                                entityAnalysisModelRequestXPath.SearchKeyFetchLimit =
+                                    record.SearchKeyFetchLimit.Value;
+
+                                Log.Debug(
+                                    $"Entity Start: Entity Model {key} and XPath {entityAnalysisModelRequestXPath.Id} set search limit value as {entityAnalysisModelRequestXPath.SearchKeyFetchLimit}.");
                             }
 
                             var databaseType = entityAnalysisModelRequestXPath.DataTypeId switch
@@ -4103,7 +4317,7 @@ namespace Jube.Engine
                                     .Name))
                             {
                                 parser.EntityAnalysisModelRequestXPaths.Add(entityAnalysisModelRequestXPath.Name,
-                                    new Parser.EntityAnalysisModelRequestXPath()
+                                    new EntityAnalysisModelRequestXPath()
                                     {
                                         DataTypeId = entityAnalysisModelRequestXPath.DataTypeId,
                                         DefaultValue = entityAnalysisModelRequestXPath.DefaultValue
@@ -4174,7 +4388,8 @@ namespace Jube.Engine
                                 PersistToActivationWatcherAsync = PersistToActivationWatcherAsync,
                                 PendingTagging = PendingTagging,
                                 JubeEnvironment = JubeEnvironment,
-                                ContractResolver = ContractResolver
+                                ContractResolver = ContractResolver,
+                                RedisDatabase = RedisDatabase
                             };
                         }
                         else
@@ -4439,6 +4654,37 @@ namespace Jube.Engine
 
                             Log.Debug(
                                 $"Entity Start: Model {entityAnalysisModel.Id} with DEFAULT Max Response Elevation Frequency Value {entityAnalysisModel.MaxResponseElevationValue}.");
+                        }
+
+                        if (record.CacheTtlInterval.HasValue)
+                        {
+                            entityAnalysisModel.CacheTtlInterval =
+                                record.CacheTtlInterval.Value;
+
+                            Log.Debug(
+                                $"Entity Start: Model {entityAnalysisModel.Id} with Cache Ttl Interval value {entityAnalysisModel.CacheTtlInterval}.");
+                        }
+                        else
+                        {
+                            entityAnalysisModel.CacheTtlInterval = 'd';
+
+                            Log.Debug(
+                                $"Entity Start: Model {entityAnalysisModel.Id} with DEFAULT Cache Ttl Interval value {entityAnalysisModel.CacheTtlInterval}.");
+                        }
+
+                        if (record.CacheTtlIntervalValue.HasValue)
+                        {
+                            entityAnalysisModel.CacheTtlIntervalValue = record.CacheTtlIntervalValue.Value;
+
+                            Log.Debug(
+                                $"Entity Start: Model {entityAnalysisModel.Id} with Cache Ttl Interval Value {entityAnalysisModel.CacheTtlIntervalValue}.");
+                        }
+                        else
+                        {
+                            entityAnalysisModel.CacheTtlIntervalValue = 3;
+
+                            Log.Debug(
+                                $"Entity Start: Model {entityAnalysisModel.Id} with DEFAULT Cache Ttl Interval Value {entityAnalysisModel.CacheTtlIntervalValue}.");
                         }
 
                         if (record.MaxResponseElevationThreshold.HasValue)
@@ -5072,7 +5318,8 @@ namespace Jube.Engine
                                             $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} using created date.");
 
                                         var documentsInitialCounts =
-                                            await GetInitialCountsAsync(entityAnalysisModelRuleReprocessingInstance);
+                                            await GetInitialCountsAsync(modelKvp.Value.TenantRegistryId,
+                                                modelKvp.Value.Id);
 
                                         EstablishProcessingDateRange(entityAnalysisModelRuleReprocessingInstance,
                                             documentsInitialCounts, ref lastReferenceDate, ref allCount,
@@ -5093,10 +5340,12 @@ namespace Jube.Engine
                                         var matched = 0;
                                         var processed = 0;
                                         var errors = 0;
+                                        // ReSharper disable once RedundantAssignment
                                         var deleted = false;
 
                                         var archiveDatabase =
-                                            new Postgres(JubeEnvironment.AppSettings("ConnectionString"));
+                                            new Data.Reporting.Postgres(
+                                                JubeEnvironment.AppSettings("ConnectionString"));
                                         do
                                         {
                                             Log.Info(
@@ -5181,6 +5430,7 @@ namespace Jube.Engine
                                                         Log.Info(
                                                             $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} has been removed, stopping process.");
 
+                                                        // ReSharper disable once RedundantAssignment
                                                         deleted = true;
 
                                                         break;
@@ -5347,6 +5597,7 @@ namespace Jube.Engine
                 $"Entity Reprocessing: Reprocessing instance {entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelsReprocessingRuleInstanceId} is creating invoke instance. EntityAnalysisModelInstanceEntryGUID is {entityAnalysisModelInstanceEntryPayloadStore.EntityAnalysisModelInstanceEntryGuid}.");
 
             entityAnalysisModelInvoke = new EntityAnalysisModelInvoke(Log, JubeEnvironment, RabbitMqChannel,
+                RedisDatabase,
                 PendingNotification, Seeded,
                 ActiveEntityAnalysisModels);
             cachePayloadDocumentStore = new Dictionary<string, object>();
@@ -5494,13 +5745,13 @@ namespace Jube.Engine
         }
 
         private async Task<IEnumerable<Dictionary<string, object>>> GetInitialCountsAsync(
-            EntityAnalysisModelRuleReprocessingInstance entityAnalysisModelRuleReprocessingInstance)
+            int tenantRegistryId, int entityAnalysisModelId)
         {
-            var cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
+            ICachePayloadRepository cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
                 new[] {"CacheConnectionString", "ConnectionString"}), Log);
 
             return await cachePayloadRepository
-                .GetInitialCountsAsync(entityAnalysisModelRuleReprocessingInstance.EntityAnalysisModelId);
+                .GetInitialCountsAsync(tenantRegistryId, entityAnalysisModelId);
         }
 
         private void GetEntityAnalysisModelRuleReprocessingInstance(DbContext dbContext,

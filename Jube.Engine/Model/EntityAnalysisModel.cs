@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -18,7 +18,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Jube.Data.Cache;
+using Jube.Data.Cache.Interfaces;
+using Jube.Data.Cache.Postgres;
 using Jube.Data.Context;
 using Jube.Data.Extension;
 using Jube.Data.Poco;
@@ -34,19 +35,25 @@ using Jube.Engine.Sanctions;
 using log4net;
 using Microsoft.VisualBasic;
 using Newtonsoft.Json.Serialization;
+using StackExchange.Redis;
 using ExhaustiveSearchInstance = Jube.Engine.Model.Exhaustive.ExhaustiveSearchInstance;
 using Tag = Jube.Engine.Model.Archive.Tag;
+using Redis = Jube.Data.Cache.Redis;
+
+// ReSharper disable CollectionNeverUpdated.Global
 
 namespace Jube.Engine.Model
 {
     public class EntityAnalysisModel
     {
         public delegate MemoryStream Transform(string foreColor, string backColor, double responseElevation,
-            string responseContent, string responseRedirect, Dictionary<string,object> entityInstanceEntryPayloadCache,
-            Dictionary<string,double> entityInstanceEntryAbstraction, Dictionary<string, int> entityInstanceEntryTtlCounters,
+            string responseContent, string responseRedirect, Dictionary<string, object> entityInstanceEntryPayloadCache,
+            Dictionary<string, double> entityInstanceEntryAbstraction,
+            Dictionary<string, int> entityInstanceEntryTtlCounters,
             Dictionary<int, string> entityInstanceEntryActivation,
             Dictionary<string, double> entityInstanceEntryAbstractionCalculations,
             Dictionary<string, int> responseTimes, ILog log);
+
         public string ArchivePayloadSql { get; set; }
         public DateTime LastModelSearchKeyCacheWritten;
         public ILog Log { get; init; }
@@ -60,14 +67,16 @@ namespace Jube.Engine.Model
         public List<EntityAnalysisModelActivationRule> ModelActivationRules { get; set; } = new();
         public List<EntityModelGatewayRule> ModelGatewayRules { get; set; } = new();
         public List<ExhaustiveSearchInstance> ExhaustiveModels { get; set; } = new();
-        public Dictionary<string,DistinctSearchKey> DistinctSearchKeys { get; set; } = new();
+        public Dictionary<string, DistinctSearchKey> DistinctSearchKeys { get; set; } = new();
         public string EntryXPath { get; set; }
         public string EntryName { get; set; }
         public string ReferenceDateXpath { get; set; }
         public string ReferenceDateName { get; set; }
         public List<EntityAnalysisModelRequestXPath> EntityAnalysisModelRequestXPaths { get; set; } = new();
+
         public List<EntityAnalysisModelAbstractionCalculation> EntityAnalysisModelAbstractionCalculations { get; set; }
             = new();
+
         public List<EntityAnalysisModelInlineFunction> EntityAnalysisModelInlineFunctions { get; set; } = new();
         public Dictionary<int, EntityAnalysisModelHttpAdaptation> EntityAnalysisModelAdaptations { get; set; } = new();
         public List<EntityAnalysisModelTag> EntityAnalysisModelTags { get; set; } = new();
@@ -79,14 +88,19 @@ namespace Jube.Engine.Model
         public List<EntityAnalysisModelInlineScript> EntityAnalysisModelInlineScripts { get; set; } = new();
         public Dictionary<int, EntityAnalysisModelDictionary> KvpDictionaries { get; set; } = new();
         public int CacheTtlLimit { get; set; }
-        public Dictionary<string,List<string>> EntityAnalysisModelSuppressionModels { get; set; }
-        public Dictionary<string,Dictionary<string, List<string>>> EntityAnalysisModelSuppressionRules { get; set; } = new();
+        public Dictionary<string, List<string>> EntityAnalysisModelSuppressionModels { get; set; }
+
+        public Dictionary<string, Dictionary<string, List<string>>> EntityAnalysisModelSuppressionRules { get; set; } =
+            new();
+
         public byte ReferenceDatePayloadLocationTypeId { get; set; }
         public double MaxResponseElevation { get; set; }
         public int TenantRegistryId { get; set; }
         public double BillingResponseElevationBalance { get; set; }
+
         public ConcurrentQueue<ResponseElevation> BillingResponseElevationBalanceEntries { get; } =
             new();
+
         public int ActivationWatcherCount { get; set; }
         public ConcurrentQueue<DateTime> ActivationWatcherCountJournal { get; } = new();
         public double BillingResponseElevationCount { get; set; }
@@ -126,20 +140,27 @@ namespace Jube.Engine.Model
         public Dictionary<int, SanctionEntryDto> SanctionsEntries { get; init; } = new();
         public ConcurrentQueue<EntityAnalysisModelInstanceEntryPayload> PersistToDatabaseAsync { get; } = new();
         public Dictionary<int, ArchiveBuffer> BulkInsertMessageBuffers { get; } = new();
-        public bool EnableActivationWatcher { get; set; } 
-        public bool EnableResponseElevationLimit { get; set; } 
-        
+        public bool EnableActivationWatcher { get; set; }
+        public bool EnableResponseElevationLimit { get; set; }
+
+        // ReSharper disable once UnassignedField.Global
         public DefaultContractResolver ContractResolver;
-        
+
+        // ReSharper disable once UnassignedField.Global
+        public IDatabase RedisDatabase;
+        public char CacheTtlInterval { get; set; }
+        public int CacheTtlIntervalValue { get; set; }
+
         public async Task AbstractionRuleCachingAsync()
         {
             Log.Info(
                 "Entity Start: Will try and make a connection to the Database to create the Search Key Cache.");
-                
-            var dbContext = DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
-            
+
+            var dbContext =
+                DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
+
             try
-            {                
+            {
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} starting to loop around all of the Grouping keys that have been synchronise.");
 
@@ -159,7 +180,7 @@ namespace Jube.Engine.Model
 
                         UpdateEntityAnalysisModelsSearchKeyCalculationInstancesDistinctValues(dbContext,
                             entityAnalysisModelsSearchKeyCalculationInstanceId, groupingValues.Count);
-                        
+
                         var expires = await GetExpiredCacheKeysAsync(value);
 
                         Log.Info(
@@ -180,7 +201,7 @@ namespace Jube.Engine.Model
                             foreach (var groupingValue in groupingValues)
                             {
                                 var entityInstanceEntryPayload = new EntityAnalysisModelInstanceEntryPayload();
-                                var abstractionRuleMatches = new Dictionary<int, List<Dictionary<string,object>>>();
+                                var abstractionRuleMatches = new Dictionary<int, List<Dictionary<string, object>>>();
 
                                 Log.Info(
                                     $"Abstraction Rule Caching: For model {Id} and grouping key {key} is processing grouping value {groupingValue}.");
@@ -221,7 +242,7 @@ namespace Jube.Engine.Model
                                                 var abstractionValue = GetAggregateValue(value, groupingValue,
                                                     abstractionRuleMatches, abstractionRuleMatch, abstractionRule,
                                                     entityInstanceEntryPayload);
-                                                
+
                                                 await UpsertOrDeleteSearchKeyCacheValueAsync(value, groupingValue,
                                                     abstractionRuleMatch, abstractionRule, abstractionValue);
 
@@ -229,7 +250,7 @@ namespace Jube.Engine.Model
                                                 {
                                                     ReplicateToDatabase(dbContext,
                                                         entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId,
-                                                        value, groupingValue, abstractionRule, abstractionValue);   
+                                                        value, groupingValue, abstractionRule, abstractionValue);
                                                 }
                                             }
                                             else
@@ -287,29 +308,30 @@ namespace Jube.Engine.Model
                 await dbContext.DisposeAsync();
             }
         }
-        
+
         private static int InsertEntityAnalysisModelsSearchKeyDistinctValueCalculationInstances(DbContext dbContext,
             int entityAnalysisModelsSearchKeyCalculationInstanceId, string groupingValue)
         {
             var repository = new EntityAnalysisModelSearchKeyDistinctValueCalculationInstanceRepository(dbContext);
-         
+
             var model = new EntityAnalysisModelSearchKeyDistinctValueCalculationInstance
-                {
-                    EntityAnalysisModelSearchKeyCalculationInstanceId = entityAnalysisModelsSearchKeyCalculationInstanceId,
-                    SearchKeyValue = groupingValue,
-                    CreatedDate = DateTime.Now
-                };
+            {
+                EntityAnalysisModelSearchKeyCalculationInstanceId = entityAnalysisModelsSearchKeyCalculationInstanceId,
+                SearchKeyValue = groupingValue,
+                CreatedDate = DateTime.Now
+            };
 
             model = repository.Insert(model);
-            
-            return model.Id;   
+
+            return model.Id;
         }
 
-        private int InsertEntityAnalysisModelsSearchKeyCalculationInstances(DbContext dbContext, DistinctSearchKey distinctSearchKey,
+        private int InsertEntityAnalysisModelsSearchKeyCalculationInstances(DbContext dbContext,
+            DistinctSearchKey distinctSearchKey,
             DateTime toDate)
         {
             var repository = new EntityAnalysisModelSearchKeyCalculationInstanceRepository(dbContext);
-            
+
             var model = new EntityAnalysisModelSearchKeyCalculationInstance
             {
                 SearchKey = distinctSearchKey.SearchKey,
@@ -319,7 +341,7 @@ namespace Jube.Engine.Model
             };
 
             repository.Insert(model);
-            
+
             return model.Id;
         }
 
@@ -327,16 +349,16 @@ namespace Jube.Engine.Model
             int entityAnalysisModelsSearchKeyCalculationInstanceId, int count)
         {
             var repository = new EntityAnalysisModelSearchKeyCalculationInstanceRepository(dbContext);
-            
-            repository.UpdateDistinctValuesCount(entityAnalysisModelsSearchKeyCalculationInstanceId,count);
+
+            repository.UpdateDistinctValuesCount(entityAnalysisModelsSearchKeyCalculationInstanceId, count);
         }
 
         private static void UpdateEntityAnalysisModelsSearchKeyDistinctValueCalculationInstancesEntriesCount(
             DbContext dbContext, int entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId, int count)
         {
             var repository = new EntityAnalysisModelSearchKeyDistinctValueCalculationInstanceRepository(dbContext);
-            
-            repository.UpdateEntriesCount(entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId,count);
+
+            repository.UpdateEntriesCount(entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId, count);
         }
 
         private static void UpdateEntityAnalysisModelsSearchKeyDistinctValueCalculationInstancesAbstractionRulesMatches(
@@ -347,19 +369,20 @@ namespace Jube.Engine.Model
             repository.UpdateAbstractionRuleMatches(entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId);
         }
 
-        private static void UpdateEntityAnalysisModelsSearchKeyDistinctValueCalculationInstancesCompleted(DbContext dbContext,
+        private static void UpdateEntityAnalysisModelsSearchKeyDistinctValueCalculationInstancesCompleted(
+            DbContext dbContext,
             int entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId)
         {
             var repository = new EntityAnalysisModelSearchKeyDistinctValueCalculationInstanceRepository(dbContext);
 
             repository.UpdateCompleted(entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId);
         }
-        
+
         private static void UpdateEntityAnalysisModelsSearchKeyCalculationInstancesExpiredSearchKeyCacheCount(
             DbContext dbContext, int entityAnalysisModelsSearchKeyCalculationInstanceId, int count)
         {
             var repository = new EntityAnalysisModelSearchKeyCalculationInstanceRepository(dbContext);
-            repository.UpdateExpiredSearchKeyCacheCount(entityAnalysisModelsSearchKeyCalculationInstanceId,count);
+            repository.UpdateExpiredSearchKeyCacheCount(entityAnalysisModelsSearchKeyCalculationInstanceId, count);
         }
 
         private static void UpdateEntityAnalysisModelsSearchKeyCalculationInstancesDistinctValuesProcessedValuesCount(
@@ -367,7 +390,8 @@ namespace Jube.Engine.Model
             int distinctValuesProcessedValuesCount)
         {
             var repository = new EntityAnalysisModelSearchKeyCalculationInstanceRepository(dbContext);
-            repository.UpdateDistinctValuesProcessedValuesCount(entityAnalysisModelsSearchKeyCalculationInstanceId,distinctValuesProcessedValuesCount);
+            repository.UpdateDistinctValuesProcessedValuesCount(entityAnalysisModelsSearchKeyCalculationInstanceId,
+                distinctValuesProcessedValuesCount);
         }
 
         private static void UpdateEntityAnalysisModelsSearchKeyCalculationInstancesCompleted(DbContext dbContext,
@@ -376,34 +400,53 @@ namespace Jube.Engine.Model
             var repository = new EntityAnalysisModelSearchKeyCalculationInstanceRepository(dbContext);
             repository.UpdateCompleted(entityAnalysisModelsSearchKeyCalculationInstanceId);
         }
-        
-        private async Task UpsertOrDeleteSearchKeyCacheValueAsync(DistinctSearchKey distinctSearchKey, string groupingValue,
-            KeyValuePair<int, List<Dictionary<string,object>>> abstractionRuleMatch, EntityAnalysisModelAbstractionRule abstractionRule,
+
+        private async Task UpsertOrDeleteSearchKeyCacheValueAsync(DistinctSearchKey distinctSearchKey,
+            string groupingValue,
+            KeyValuePair<int, List<Dictionary<string, object>>> abstractionRuleMatch,
+            EntityAnalysisModelAbstractionRule abstractionRule,
             double abstractionValue)
         {
-            var cacheAbstractionRepository =
-                new CacheAbstractionRepository(JubeEnvironment.AppSettings(
-                    new []{"CacheConnectionString","ConnectionString"}), Log);
-            
-            var document = await FindCacheKeyValueEntryAsync(cacheAbstractionRepository,
+            var cacheAbstractionRepository = BuildCacheAbstractionRepository();
+
+            var value = await FindCacheKeyValueEntryAsync(cacheAbstractionRepository,
                 distinctSearchKey, groupingValue, abstractionRuleMatch, abstractionRule,
                 abstractionValue);
-            
-            if (document == null)
+
+            if (value == null)
             {
                 if (abstractionValue > 0)
                 {
                     await InsertSearchKeyCacheValue(cacheAbstractionRepository,
-                        distinctSearchKey, groupingValue, 
+                        distinctSearchKey, groupingValue,
                         abstractionRuleMatch, abstractionRule,
-                        abstractionValue);   
+                        abstractionValue);
                 }
             }
             else
             {
-                await UpdateOrDeleteSearchKeyCacheValue(cacheAbstractionRepository,distinctSearchKey, groupingValue, abstractionRule,
-                    abstractionValue, document);
+                await UpdateOrDeleteSearchKeyCacheValue(cacheAbstractionRepository, distinctSearchKey, groupingValue,
+                    abstractionRule,
+                    abstractionValue);
             }
+        }
+
+        private ICacheAbstractionRepository BuildCacheAbstractionRepository()
+        {
+            ICacheAbstractionRepository cacheAbstractionRepository;
+            if (RedisDatabase != null)
+            {
+                cacheAbstractionRepository =
+                    new Redis.CacheAbstractionRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cacheAbstractionRepository =
+                    new CacheAbstractionRepository(JubeEnvironment.AppSettings(
+                        new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cacheAbstractionRepository;
         }
 
         private static void ReplicateToDatabase(DbContext dbContext,
@@ -413,31 +456,34 @@ namespace Jube.Engine.Model
             var repository = new ArchiveEntityAnalysisModelAbstractionEntryRepository(dbContext);
 
             var model = new ArchiveEntityAnalysisModelAbstractionEntry
-                {
-                    EntityAnalysisModelSearchKeyDistinctValueCalculationInstanceId = entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId,
-                    SearchKey = distinctSearchKey.SearchKey,
-                    SearchValue = groupingValue,
-                    Value = abstractionValue,
-                    EntityAnalysisModelAbstractionRuleId = abstractionRule.Id,
-                    CreatedDate = DateTime.Now
-                };
+            {
+                EntityAnalysisModelSearchKeyDistinctValueCalculationInstanceId =
+                    entityAnalysisModelsSearchKeyDistinctValueCalculationInstanceId,
+                SearchKey = distinctSearchKey.SearchKey,
+                SearchValue = groupingValue,
+                Value = abstractionValue,
+                EntityAnalysisModelAbstractionRuleId = abstractionRule.Id,
+                CreatedDate = DateTime.Now
+            };
 
             repository.Insert(model);
         }
 
-        private async Task UpdateOrDeleteSearchKeyCacheValue(CacheAbstractionRepository cacheAbstractionRepository,
-            DistinctSearchKey distinctSearchKey, string groupingValue, EntityAnalysisModelAbstractionRule abstractionRule,
-            double abstractionValue, CacheAbstractionRepository.CacheAbstractionIdValueDto document)
+        private async Task UpdateOrDeleteSearchKeyCacheValue(ICacheAbstractionRepository cacheAbstractionRepository,
+            DistinctSearchKey distinctSearchKey, string groupingValue,
+            EntityAnalysisModelAbstractionRule abstractionRule,
+            double abstractionValue)
         {
             Log.Info(
                 $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRule.Name}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As there are no existing cache values, it will be updated or deleted.");
-            
+
             if (abstractionValue == 0)
             {
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRule.Name}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As the abstraction value is zero, it will be deleted to save storage.");
-                
-                await cacheAbstractionRepository.DeleteAsync(document.Id);
+
+                await cacheAbstractionRepository.DeleteAsync(TenantRegistryId, Id, distinctSearchKey.SearchKey,
+                    groupingValue, abstractionRule.Name);
 
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRule.Name}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As the abstraction value is zero, it has been deleted to save storage.");
@@ -447,14 +493,15 @@ namespace Jube.Engine.Model
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRule.Name}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As the abstraction value is not zero, it will be updated.");
 
-                await cacheAbstractionRepository.UpdateAsync(document.Id,abstractionValue);
-                
+                await cacheAbstractionRepository.UpdateAsync(TenantRegistryId, Id, distinctSearchKey.SearchKey,
+                    groupingValue, abstractionRule.Name, abstractionValue);
+
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRule.Name}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As the abstraction value is not zero, it has been updated.");
             }
         }
 
-        private async Task InsertSearchKeyCacheValue(CacheAbstractionRepository cacheAbstractionRepository,
+        private async Task InsertSearchKeyCacheValue(ICacheAbstractionRepository cacheAbstractionRepository,
             DistinctSearchKey distinctSearchKey, string groupingValue,
             KeyValuePair<int, List<Dictionary<string, object>>> abstractionRuleMatch,
             EntityAnalysisModelAbstractionRule abstractionRule,
@@ -462,32 +509,34 @@ namespace Jube.Engine.Model
         {
             var (key, _) = abstractionRuleMatch;
             Log.Info(
-        $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {key}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}. As there are no existing cache values, it will be inserted.");
-        
-        await cacheAbstractionRepository.InsertAsync(Id,distinctSearchKey.SearchKey,
-            groupingValue,abstractionRule.Name,abstractionValue);
-        
-        Log.Info(
-            $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {key}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As there are no existing cache values, it has been updated.");
-        }
+                $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {key}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}. As there are no existing cache values, it will be inserted.");
 
-        private async Task<CacheAbstractionRepository.CacheAbstractionIdValueDto> FindCacheKeyValueEntryAsync(CacheAbstractionRepository cacheAbstractionRepository,
-            DistinctSearchKey distinctSearchKey, string groupingValue,
-            KeyValuePair<int, List<Dictionary<string,object>>> abstractionRuleMatch, EntityAnalysisModelAbstractionRule abstractionRule,
-            double abstractionValue)
-        {
-            var document = await cacheAbstractionRepository.GetByNameSearchNameSearchValueAsync(
-                Id, abstractionRule.Name, distinctSearchKey.SearchKey, groupingValue);
+            await cacheAbstractionRepository.InsertAsync(TenantRegistryId, Id, distinctSearchKey.SearchKey,
+                groupingValue, abstractionRule.Name, abstractionValue);
 
             Log.Info(
-                $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRuleMatch.Key}  has returned aggregated value of {abstractionValue}.  The cache has returned for rule name {abstractionRule.Name} with {document == null} null document.  An upsert will now take place.");
+                $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {key}  has returned aggregated value of {abstractionValue}.  The cache will be searched with the rule name {abstractionRule.Name}.  As there are no existing cache values, it has been updated.");
+        }
 
-            return document;
+        private async Task<double?> FindCacheKeyValueEntryAsync(ICacheAbstractionRepository cacheAbstractionRepository,
+            DistinctSearchKey distinctSearchKey, string groupingValue,
+            KeyValuePair<int, List<Dictionary<string, object>>> abstractionRuleMatch,
+            EntityAnalysisModelAbstractionRule abstractionRule,
+            double abstractionValue)
+        {
+            var value = await cacheAbstractionRepository.GetByNameSearchNameSearchValueAsync(
+                TenantRegistryId, Id, abstractionRule.Name, distinctSearchKey.SearchKey, groupingValue);
+
+            Log.Info(
+                $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {abstractionRuleMatch.Key}  has returned aggregated value of {abstractionValue}.  The cache has returned for rule name {abstractionRule.Name} with {value == null} null document.  An upsert will now take place.");
+
+            return value;
         }
 
         private double GetAggregateValue(DistinctSearchKey distinctSearchKey, string groupingValue,
-            Dictionary<int, List<Dictionary<string,object>>> abstractionRuleMatches,
-            KeyValuePair<int, List<Dictionary<string,object>>> abstractionRuleMatch, EntityAnalysisModelAbstractionRule abstractionRule,
+            Dictionary<int, List<Dictionary<string, object>>> abstractionRuleMatches,
+            KeyValuePair<int, List<Dictionary<string, object>>> abstractionRuleMatch,
+            EntityAnalysisModelAbstractionRule abstractionRule,
             EntityAnalysisModelInstanceEntryPayload entityAnalysisModelInstanceEntryPayload)
         {
             var (key, _) = abstractionRuleMatch;
@@ -495,7 +544,8 @@ namespace Jube.Engine.Model
             Log.Info(
                 $"Abstraction Rule Caching: For model {Id} and for Grouping Value {groupingValue} and Grouping Key {distinctSearchKey.SearchKey} for abstraction rule {key}  has returned full details of the abstraction rule.");
 
-            var abstractionValue = EntityAnalysisModelAbstractionRuleAggregator.Aggregate(entityAnalysisModelInstanceEntryPayload, abstractionRuleMatches,
+            var abstractionValue = EntityAnalysisModelAbstractionRuleAggregator.Aggregate(
+                entityAnalysisModelInstanceEntryPayload, abstractionRuleMatches,
                 abstractionRule, Log);
 
             Log.Info(
@@ -504,11 +554,12 @@ namespace Jube.Engine.Model
             return abstractionValue;
         }
 
-        private Dictionary<int, List<Dictionary<string,object>>> ProcessAbstractionRules(DistinctSearchKey distinctSearchKey,
-            List<Dictionary<string,object>> documents,
-            Dictionary<int, List<Dictionary<string,object>>> abstractionRuleMatches)
+        private Dictionary<int, List<Dictionary<string, object>>> ProcessAbstractionRules(
+            DistinctSearchKey distinctSearchKey,
+            List<Dictionary<string, object>> documents,
+            Dictionary<int, List<Dictionary<string, object>>> abstractionRuleMatches)
         {
-            var logicHashMatches = new Dictionary<string, List<Dictionary<string,object>>>();
+            var logicHashMatches = new Dictionary<string, List<Dictionary<string, object>>>();
 
             Log.Info(
                 $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} will step through all abstraction rules.");
@@ -524,7 +575,7 @@ namespace Jube.Engine.Model
                     Log.Info(
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} is checking is abstraction rule {evaluateAbstractionRule.Id} will be used to filter for matches.  As some rule logic can be common across a number of rules,  a check will be made to see if this logic has already been executed using the hash of the rule logic as {evaluateAbstractionRule.LogicHash}.");
 
-                    List<Dictionary<string,object>> matches;
+                    List<Dictionary<string, object>> matches;
                     if (logicHashMatches.TryGetValue(evaluateAbstractionRule.LogicHash, out var match))
                     {
                         matches = match;
@@ -553,9 +604,10 @@ namespace Jube.Engine.Model
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} is checking is abstraction rule {evaluateAbstractionRule.Id} will be used to filter for matches.  Rule logic as {evaluateAbstractionRule.LogicHash}, {matches.Count} records will be filtered based on the history criteria.  It has been added to the cache using the logic hash as a key.  The interval for the rule logic is {evaluateAbstractionRule.AbstractionHistoryIntervalType} and the value is {evaluateAbstractionRule.AbstractionHistoryIntervalValue}.  Records will be return where the date is between {historyThresholdDate} and now.");
 
                     var finalMatches = matches.FindAll(x =>
-                        x["CreatedDate"].AsDateTime() >= historyThresholdDate && x["CreatedDate"].AsDateTime() <= DateTime.Now);
-                    
-                    abstractionRuleMatches.Add(evaluateAbstractionRule.Id, new List<Dictionary<string,object>>());
+                        x["CreatedDate"].AsDateTime() >= historyThresholdDate &&
+                        x["CreatedDate"].AsDateTime() <= DateTime.Now);
+
+                    abstractionRuleMatches.Add(evaluateAbstractionRule.Id, new List<Dictionary<string, object>>());
                     abstractionRuleMatches[evaluateAbstractionRule.Id] = finalMatches;
 
                     Log.Info(
@@ -569,30 +621,34 @@ namespace Jube.Engine.Model
             return abstractionRuleMatches;
         }
 
-        private async Task<List<Dictionary<string, object>>> GetAllForKeyAsync(DistinctSearchKey distinctSearchKey, string groupingValue)
+        private async Task<List<Dictionary<string, object>>> GetAllForKeyAsync(DistinctSearchKey distinctSearchKey,
+            string groupingValue)
         {
-           Log.Info(
+            Log.Info(
                 $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} is processing grouping value {groupingValue} returning the top {distinctSearchKey.SearchKeyCacheFetchLimit}.");
-           
+
             var cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),Log);
+                    new[] {"CacheConnectionString", "ConnectionString"}), distinctSearchKey.SqlSelect,
+                distinctSearchKey.SqlSelectFrom, distinctSearchKey.SqlSelectOrderBy, Log);
 
             var cachePayloadSql = distinctSearchKey.SqlSelect + distinctSearchKey.SqlSelectFrom +
                                   distinctSearchKey.SqlSelectOrderBy;
-            
-            List<Dictionary<string,object>> documents;
+
+            List<Dictionary<string, object>> documents;
             if (distinctSearchKey.SearchKeyCacheSample)
             {
-                documents = await cachePayloadRepository.GetSqlByKeyValueLimitAsync(cachePayloadSql,distinctSearchKey.SearchKey,
-                    groupingValue,"RANDOM()",distinctSearchKey.SearchKeyCacheFetchLimit);
-                
+                documents = await cachePayloadRepository.GetSqlByKeyValueLimitAsync(TenantRegistryId, Id,
+                    cachePayloadSql, distinctSearchKey.SearchKey,
+                    groupingValue, "RANDOM()", distinctSearchKey.SearchKeyCacheFetchLimit);
+
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} retrieved grouping value {groupingValue} returning the top {distinctSearchKey.SearchKeyCacheFetchLimit} records for the grouping key.  There are {documents.Count} ordered randomly.");
             }
             else
             {
-                documents = await cachePayloadRepository.GetSqlByKeyValueLimitAsync(cachePayloadSql,distinctSearchKey.SearchKey,
-                    groupingValue,"CreatedDate",distinctSearchKey.SearchKeyCacheFetchLimit);
+                documents = await cachePayloadRepository.GetSqlByKeyValueLimitAsync(TenantRegistryId, Id,
+                    cachePayloadSql, distinctSearchKey.SearchKey,
+                    groupingValue, "CreatedDate", distinctSearchKey.SearchKeyCacheFetchLimit);
 
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} retrieved grouping value {groupingValue} returning the top {distinctSearchKey.SearchKeyCacheFetchLimit} records for the grouping key.  There are {documents.Count} ordered by CreatedDate desc.");
@@ -606,7 +662,8 @@ namespace Jube.Engine.Model
             return documents;
         }
 
-        private List<string> AddExpiredToGroupingValues(DistinctSearchKey distinctSearchKey, IReadOnlyCollection<string> expires,
+        private List<string> AddExpiredToGroupingValues(DistinctSearchKey distinctSearchKey,
+            IReadOnlyCollection<string> expires,
             List<string> groupingValues)
         {
             Log.Info(
@@ -631,53 +688,82 @@ namespace Jube.Engine.Model
 
         private async Task<List<string>> GetExpiredCacheKeysAsync(DistinctSearchKey distinctSearchKey)
         {
-            if (LastAbstractionRuleCache.ContainsKey(distinctSearchKey.SearchKey))
+            if (!LastAbstractionRuleCache.ContainsKey(distinctSearchKey.SearchKey)) return new List<string>();
+
+            var cachePayloadLatestRepository = BuildCachePayloadLatestRepository();
+
+            Log.Info(
+                $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} has a interval value of {distinctSearchKey.SearchKeyCacheTtlIntervalValue} and an interval of {distinctSearchKey.SearchKeyCacheIntervalType}.  Calculating the threshold for grouping keys that have expired.");
+
+            var deleteLineCacheKeys = distinctSearchKey.SearchKeyCacheIntervalType switch
             {
-                var cachePayloadRepository =
-                    new CachePayloadRepository(JubeEnvironment.AppSettings(
-                        new []{"CacheConnectionString","ConnectionString"}),Log);
+                "s" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
+                    .AddSeconds(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
+                "n" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
+                    .AddMinutes(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
+                "h" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
+                    .AddHours(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
+                "d" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
+                    .AddDays(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
+                _ => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
+                    .AddDays(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1)
+            };
 
-                Log.Info(
-                    $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} has a interval value of {distinctSearchKey.SearchKeyCacheTtlIntervalValue} and an interval of {distinctSearchKey.SearchKeyCacheIntervalType}.  Calculating the threshold for grouping keys that have expired.");
+            Log.Info(
+                $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} the date threshold for cache keys that have expired is {deleteLineCacheKeys}.");
 
-                var deleteLineCacheKeys = distinctSearchKey.SearchKeyCacheIntervalType switch
-                {
-                    "s" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
-                        .AddSeconds(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
-                    "n" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
-                        .AddMinutes(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
-                    "h" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
-                        .AddHours(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
-                    "d" => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
-                        .AddDays(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1),
-                    _ => LastAbstractionRuleCache[distinctSearchKey.SearchKey]
-                        .AddDays(distinctSearchKey.SearchKeyCacheTtlIntervalValue * -1)
-                };
-
-                Log.Info(
-                    $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} the date threshold for cache keys that have expired is {deleteLineCacheKeys}.");
-
-                return await cachePayloadRepository.GetDistinctKeysAsync(Id, distinctSearchKey.SearchKey,
-                    deleteLineCacheKeys);
-            }
-
-            return new List<string>();
+            return await cachePayloadLatestRepository.GetDistinctKeysAsync(TenantRegistryId, Id,
+                distinctSearchKey.SearchKey,
+                deleteLineCacheKeys);
         }
 
-        private async Task<List<string>> GetDistinctListOfGroupingValuesAsync(DistinctSearchKey distinctSearchKey, DateTime toDate)
+        private ICachePayloadLatestRepository BuildCachePayloadLatestRepository()
+        {
+            ICachePayloadLatestRepository cachePayloadLatestRepository;
+            if (RedisDatabase != null)
+            {
+                cachePayloadLatestRepository = new Redis.CachePayloadLatestRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cachePayloadLatestRepository = new CachePayloadLatestRepository(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cachePayloadLatestRepository;
+        }
+
+        private ICacheTtlCounterRepository BuildCacheTtlCounterRepository()
+        {
+            ICacheTtlCounterRepository cacheTtlCounterRepository;
+            if (RedisDatabase != null)
+            {
+                cacheTtlCounterRepository = new Redis.CacheTtlCounterRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cacheTtlCounterRepository = new CacheTtlCounterRepository(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cacheTtlCounterRepository;
+        }
+
+        private async Task<List<string>> GetDistinctListOfGroupingValuesAsync(DistinctSearchKey distinctSearchKey,
+            DateTime toDate)
         {
             List<string> value;
 
-            var cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),Log);
-            
+            var cachePayloadLatestRepository = BuildCachePayloadLatestRepository();
+
             if (LastAbstractionRuleCache.ContainsKey(distinctSearchKey.SearchKey))
             {
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} has been set to a ready state and will now check if there has been any new records since it was last calculated on {LastAbstractionRuleCache[distinctSearchKey.SearchKey]} then bring back a distinct list of all grouping keys.");
-                
-                value = await cachePayloadRepository.GetDistinctKeysAsync(Id,distinctSearchKey.SearchKey,
-                    LastAbstractionRuleCache[distinctSearchKey.SearchKey],toDate);
+
+                value = await cachePayloadLatestRepository.GetDistinctKeysAsync(TenantRegistryId, Id,
+                    distinctSearchKey.SearchKey,
+                    LastAbstractionRuleCache[distinctSearchKey.SearchKey], toDate);
 
                 LastAbstractionRuleCache[distinctSearchKey.SearchKey] = toDate;
 
@@ -688,9 +774,10 @@ namespace Jube.Engine.Model
             {
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} has been set to a ready state and is now bringing back a distinct list of values for the grouping key.");
-                
-                value = await cachePayloadRepository.GetDistinctKeysAsync(Id,distinctSearchKey.SearchKey);
-                
+
+                value = await cachePayloadLatestRepository.GetDistinctKeysAsync(TenantRegistryId, Id,
+                    distinctSearchKey.SearchKey);
+
                 Log.Info(
                     $"Abstraction Rule Caching: For model {Id} Abstraction Rule Cache Last Entry Date All has been set to {toDate} and is has been updated to a collection for grouping key {distinctSearchKey.SearchKey}.");
             }
@@ -723,7 +810,7 @@ namespace Jube.Engine.Model
 
                     Log.Info(
                         $"Abstraction Rule Caching: For model {Id} and grouping key {distinctSearchKey.SearchKey} should next run on {dateThreshold}.");
-                    
+
                     if (DateTime.Now > dateThreshold)
                     {
                         ready = true;
@@ -754,7 +841,7 @@ namespace Jube.Engine.Model
 
             return ready;
         }
-        
+
         public async Task TtlCounterServerAsync()
         {
             try
@@ -768,22 +855,36 @@ namespace Jube.Engine.Model
                         Log.Info(
                             $"TTL Counter Administration: has started for {Id} is about to process TTL Counter {ttlCounterWithinLoop.Name} and data name {ttlCounterWithinLoop.TtlCounterDataName}.");
 
-                        //var referenceDate = GetMostRecentFromTtlCounterCache(ttlCounterWithinLoop);
+                        var referenceDate = await GetReferenceDate();
 
-                        var referenceDate = DateTime.Now;
-
-                        var adjustedTtlCounterDate = GetAdjustedTtlCounterDate(ttlCounterWithinLoop, referenceDate);
-                            
-                        var aggregateList = await GetExpiredTtlCounterCacheCountsAsync(ttlCounterWithinLoop,
-                            adjustedTtlCounterDate);
-
-                        foreach (var (key, value) in aggregateList)
+                        if (referenceDate.HasValue)
                         {
-                            await DecrementTtlCounterCache(ttlCounterWithinLoop, referenceDate,
-                                key, value);
+                            Log.Info(
+                                $"TTL Counter Administration: has started for {Id} is about to process TTL Counter {ttlCounterWithinLoop.Name} obtained reference date of {referenceDate}.");
+
+                            var adjustedTtlCounterDate =
+                                GetAdjustedTtlCounterDate(ttlCounterWithinLoop, referenceDate.Value);
+
+                            var cacheTtlCounterEntryRepository = BuildCacheTtlCounterEntryRepository();
+
+                            var aggregateList = await GetExpiredTtlCounterCacheCountsAsync(
+                                cacheTtlCounterEntryRepository, ttlCounterWithinLoop,
+                                adjustedTtlCounterDate);
+
+                            foreach (var value in aggregateList)
+                            {
+                                await DecrementTtlCounterCache(ttlCounterWithinLoop, value.DataValue, value.Value);
+
+                                await DeleteTtlCounterEntryAsync(cacheTtlCounterEntryRepository, ttlCounterWithinLoop,
+                                    value.DataValue,
+                                    value.ReferenceDate);
+                            }
                         }
-                            
-                        await DeleteTtlCounterEntries(ttlCounterWithinLoop, adjustedTtlCounterDate);
+                        else
+                        {
+                            Log.Info(
+                                $"TTL Counter Administration: Reference Date returned for {Id} and {ttlCounterWithinLoop.Name} as null.");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -802,36 +903,70 @@ namespace Jube.Engine.Model
             }
         }
 
-        private async Task DeleteTtlCounterEntries(EntityAnalysisModelTtlCounter ttlCounter, DateTime adjustedTtlCounterDate)
+        private async Task<DateTime?> GetReferenceDate()
         {
-            var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(JubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),Log);
-            await cacheTtlCounterEntryRepository.DeleteAfterDecrementedAsync(Id,
-                ttlCounter.Id, ttlCounter.TtlCounterDataName, adjustedTtlCounterDate);
-            
-            Log.Info(
-                $"TTL Counter Administration: has finished aggregation for {ttlCounter.Name} and Data Name {ttlCounter.TtlCounterDataName} and has also deleted the values from the entries table where records are less than {adjustedTtlCounterDate}.");
+            ICacheReferenceDate cacheReferenceDate;
+            if (RedisDatabase != null)
+            {
+                cacheReferenceDate = new Redis.CacheReferenceDate(RedisDatabase, Log);
+            }
+            else
+            {
+                cacheReferenceDate = new CacheReferenceDate(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            var referenceDate = await cacheReferenceDate.GetReferenceDate(TenantRegistryId, Id);
+            return referenceDate;
         }
 
-        private async Task DecrementTtlCounterCache(EntityAnalysisModelTtlCounter ttlCounter, DateTime referenceDate,
+        private ICacheTtlCounterEntryRepository BuildCacheTtlCounterEntryRepository()
+        {
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository;
+            if (RedisDatabase != null)
+            {
+                cacheTtlCounterEntryRepository = new Redis.CacheTtlCounterEntryRepository(RedisDatabase, Log);
+            }
+            else
+            {
+                cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(JubeEnvironment.AppSettings(
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+            }
+
+            return cacheTtlCounterEntryRepository;
+        }
+
+        private async Task DecrementTtlCounterCache(EntityAnalysisModelTtlCounter ttlCounter,
             string value, int decrement)
         {
-            var cacheTtlCounterRepository = new CacheTtlCounterRepository(JubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),Log);
-            await cacheTtlCounterRepository.DecrementTtlCounterCacheAsync(Id,ttlCounter.Id,
-                ttlCounter.TtlCounterDataName,value,decrement,referenceDate);
- 
+            var cacheTtlCounterRepository = BuildCacheTtlCounterRepository();
+
+            await cacheTtlCounterRepository.DecrementTtlCounterCacheAsync(TenantRegistryId, Id, ttlCounter.Id,
+                ttlCounter.TtlCounterDataName, value, decrement);
+
             Log.Info(
                 $"TTL Counter Administration: has finished aggregation for {ttlCounter.Name} and Data Name {ttlCounter.TtlCounterDataName} and has also decremented value {value} by {decrement} in the TTL counter cache.  Will now use the same date criteria to delete the records from the entries table.");
         }
 
-        private async Task<Dictionary<string, int>> GetExpiredTtlCounterCacheCountsAsync(EntityAnalysisModelTtlCounter ttlCounter,
-            DateTime adjustedTtlCounterDate)
+        private async Task<List<CacheTtlCounterEntryRepository.ExpiredTtlCounterEntryDto>>
+            GetExpiredTtlCounterCacheCountsAsync(
+                ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository,
+                EntityAnalysisModelTtlCounter ttlCounter,
+                DateTime adjustedTtlCounterDate)
         {
-            var cacheTtlCounterEntryRepository = new CacheTtlCounterEntryRepository(JubeEnvironment.AppSettings(
-                new []{"CacheConnectionString","ConnectionString"}),Log);
-            return await cacheTtlCounterEntryRepository.GetExpiredTtlCounterCacheCountsAsync(Id,
+            return await cacheTtlCounterEntryRepository.GetExpiredTtlCounterCacheCountsAsync(
+                TenantRegistryId, Id,
                 ttlCounter.Id, ttlCounter.TtlCounterDataName, adjustedTtlCounterDate);
+        }
+
+        private async Task DeleteTtlCounterEntryAsync(
+            ICacheTtlCounterEntryRepository cacheTtlCounterEntryRepository,
+            EntityAnalysisModelTtlCounter ttlCounter,
+            string dataValue,
+            DateTime referenceDate)
+        {
+            await cacheTtlCounterEntryRepository.DeleteAsync(TenantRegistryId, Id,
+                ttlCounter.Id, ttlCounter.TtlCounterDataName, dataValue, referenceDate);
         }
 
         private DateTime GetAdjustedTtlCounterDate(EntityAnalysisModelTtlCounter ttlCounter, DateTime referenceDate)
@@ -858,11 +993,11 @@ namespace Jube.Engine.Model
                     $"TTL Counter Administration: has found a reference date of {referenceDate}" +
                     $" for {ttlCounter.Name} and Data Name {ttlCounter.TtlCounterDataName}." +
                     $" Error of {ex} returning reference date as default.");
-                
+
                 return referenceDate;
             }
         }
-        
+
         public bool TryProcessSingleDequeueForCaseCreationAndArchiver(int threadSequence)
         {
             var found = false;
@@ -875,7 +1010,7 @@ namespace Jube.Engine.Model
                     if (payload != null)
                     {
                         buffer.LastMessage = DateTime.Now;
-                        
+
                         found = true;
 
                         CaseCreationAndArchiver(payload, buffer);
@@ -902,8 +1037,8 @@ namespace Jube.Engine.Model
             ArchiveBuffer bulkInsertMessageBuffer)
         {
             var payloadJsonStore = new EntityAnalysisModelInstanceEntryPayloadJson();
-            var json = payloadJsonStore.BuildJson(payload,ContractResolver);
-            
+            var json = payloadJsonStore.BuildJson(payload, ContractResolver);
+
             string jsonString = null;
             if (payload.CreateCasePayload != null)
             {
@@ -914,10 +1049,10 @@ namespace Jube.Engine.Model
             if (payload.StoreInRdbms)
             {
                 if (string.IsNullOrEmpty(jsonString)) jsonString = Encoding.UTF8.GetString(json.ToArray());
-                
+
                 if (payload.Reprocess)
                 {
-                    TransactionalUpdate(payload, jsonString);   
+                    TransactionalUpdate(payload, jsonString);
                 }
                 else if (bulkInsertMessageBuffer is null)
                 {
@@ -927,7 +1062,8 @@ namespace Jube.Engine.Model
                 {
                     DataTableInsertToBuffer(bulkInsertMessageBuffer, payload, jsonString);
 
-                    if (bulkInsertMessageBuffer.Archive.Count >= int.Parse(JubeEnvironment.AppSettings("BulkCopyThreshold")))
+                    if (bulkInsertMessageBuffer.Archive.Count >=
+                        int.Parse(JubeEnvironment.AppSettings("BulkCopyThreshold")))
                     {
                         WriteToDatabase(bulkInsertMessageBuffer);
                     }
@@ -942,8 +1078,9 @@ namespace Jube.Engine.Model
 
             Log.Info(
                 "Database Persist: The bulk copy threshold has been exceeded and the SQL Bulk Copy will be executed. A timer has been started.");
-            
-            var dbContext = DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
+
+            var dbContext =
+                DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
 
             Log.Info("Database Persist: Opened an SQL Bulk Collection via repository.");
 
@@ -963,10 +1100,10 @@ namespace Jube.Engine.Model
             {
                 bulkInsertMessageBuffer.Archive.Clear();
                 bulkInsertMessageBuffer.ArchiveKeys.Clear();
-                
+
                 dbContext.Close();
                 dbContext.Dispose();
-                
+
                 Log.Info("Database Persist: Closed an SQL Bulk Collection.");
             }
         }
@@ -976,12 +1113,12 @@ namespace Jube.Engine.Model
         {
             Log.Info(
                 $"Database Persist: Database Persist message is valid for storage with Entry GUID of {payload.EntityAnalysisModelInstanceEntryGuid}.  This is being sent for bulk insert.");
-            
+
             try
             {
                 Log.Info(
                     "Database Persist: The flag to promote report table has been set for this model,  will now check columns are available and add the record to the data table.");
-                
+
                 var model = new Data.Poco.Archive
                 {
                     Json = jsonString,
@@ -994,7 +1131,7 @@ namespace Jube.Engine.Model
                     ReferenceDate = payload.ReferenceDate,
                     CreatedDate = DateTime.Now
                 };
-                
+
                 bulkInsertMessageBuffer.Archive.Add(model);
 
                 foreach (var reportDatabaseValue in payload.ReportDatabaseValues)
@@ -1012,8 +1149,9 @@ namespace Jube.Engine.Model
         {
             Log.Info(
                 $"Database Persist: Database Persist message is valid for storage with Entry GUID of {payload.EntityAnalysisModelInstanceEntryGuid}.  This is being sent for update as it is reprocess.");
-            
-            var dbContext = DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
+
+            var dbContext =
+                DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
             try
             {
                 var repository = new ArchiveRepository(dbContext);
@@ -1049,7 +1187,8 @@ namespace Jube.Engine.Model
 
         private void CreateCase(EntityAnalysisModelInstanceEntryPayload payload, string jsonString)
         {
-            var dbContext = DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
+            var dbContext =
+                DataConnectionDbContext.GetDbContextDataConnection(JubeEnvironment.AppSettings("ConnectionString"));
             try
             {
                 Log.Info(
@@ -1086,13 +1225,13 @@ namespace Jube.Engine.Model
                     model.ClosedStatusId = 0;
                     model.DiaryDate = DateTime.Now;
                 }
-                
+
                 model.Json = jsonString;
 
                 Log.Info(
                     $"Case Creation: Have created a case creation SQL command with Case Entry GUID of {payload.CreateCasePayload.CaseEntryGuid}, Case Workflow ID of {payload.CreateCasePayload.CaseWorkflowId}, Case Workflow Status ID of {payload.CreateCasePayload.CaseWorkflowStatusId}, Case Key of {payload.CreateCasePayload.CaseKeyValue}, Case XML Bytes {jsonString.Length}");
 
-                var existing = query.Execute(model.CaseWorkflowId.Value,model.CaseKey,model.CaseKeyValue);
+                var existing = query.Execute(model.CaseWorkflowId.Value, model.CaseKey, model.CaseKeyValue);
 
                 if (existing == null)
                 {
@@ -1105,7 +1244,7 @@ namespace Jube.Engine.Model
 
                     var recordCasesWorkflowsStatus =
                         repositoryCasesWorkflowsStatus.GetById(model.CaseWorkflowStatusId);
-                    
+
                     if (recordCasesWorkflowsStatus.Priority < existing.Priority)
                     {
                         model.Id = existing.CaseId;
@@ -1114,10 +1253,9 @@ namespace Jube.Engine.Model
                         repositoryCase.Update(model);
                     }
                 }
-                
+
                 Log.Info(
                     $"Case Creation: Executed Case Entry GUID of {payload.CreateCasePayload.CaseEntryGuid}, Case Workflow ID of {payload.CreateCasePayload.CaseWorkflowId}, Case Workflow Status ID of {payload.CreateCasePayload.CaseWorkflowStatusId}, Case Key of {payload.CreateCasePayload.CaseKeyValue}, Case JSON Bytes {jsonString.Length}");
-                
             }
             catch (Exception ex)
             {
@@ -1131,23 +1269,23 @@ namespace Jube.Engine.Model
                 Log.Info("Case Creation: closed the database connection.");
             }
         }
-        
+
         public async Task MountCollectionsAndSyncCacheDbIndexAsync()
         {
-            if (JubeEnvironment.AppSettings("EnableCacheIndex").Equals("True",StringComparison.OrdinalIgnoreCase))
+            if (JubeEnvironment.AppSettings("EnableCacheIndex").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 await BuildGroupingKeyIndexAsync();
             }
         }
-        
+
         private async Task BuildGroupingKeyIndexAsync()
         {
             try
             {
                 var cachePayloadRepository = new CachePayloadRepository(JubeEnvironment.AppSettings(
-                    new []{"CacheConnectionString","ConnectionString"}),Log);
-                var indexes = await cachePayloadRepository.GetIndexesAsync();
-                
+                    new[] {"CacheConnectionString", "ConnectionString"}), Log);
+                var indexes = await cachePayloadRepository.GetIndexesAsync(TenantRegistryId, Id);
+
                 Log.Debug(
                     "Cache Indexing: Retrieved a list of indexes on the Entries collection for model " +
                     Id +
@@ -1161,45 +1299,53 @@ namespace Jube.Engine.Model
                         key + " has already been added.");
                     try
                     {
-                        var compoundIndexSearchKeyNameReferenceDateName = "IX_CachePayload_EntityAnalysisModelId_" + key + "_ReferenceDate";
+                        var compoundIndexSearchKeyNameReferenceDateName =
+                            "IX_CachePayload_EntityAnalysisModelId_" + key + "_ReferenceDate";
                         if (!indexes.Contains(compoundIndexSearchKeyNameReferenceDateName))
                             try
                             {
-                                Log.Debug("Cache Indexing: Entries index does not exist for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
-                                 + key + " it is being created.");
-                                
-                                await cachePayloadRepository.CreateIndexAsync(compoundIndexSearchKeyNameReferenceDateName,
+                                Log.Debug("Cache Indexing: Entries index does not exist for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                          + key + " it is being created.");
+
+                                await cachePayloadRepository.CreateIndexAsync(TenantRegistryId, Id,
+                                    compoundIndexSearchKeyNameReferenceDateName,
                                     "\"ReferenceDate\"",
-                                    "(\"Json\"->>'" + key + "')",
-                                    Id);
-                                
-                                Log.Debug("Cache Indexing: Entries index has been created for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                    "(\"Json\"->>'" + key + "')");
+
+                                Log.Debug("Cache Indexing: Entries index has been created for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
                                           + key + ".");
                             }
                             catch (Exception ex)
                             {
-                                Log.Error("Cache Indexing: Entries index for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                Log.Error("Cache Indexing: Entries index for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
                                           + key + " has created an error as " + ex + ".");
                             }
-                        
-                        var compoundIndexSearchKeyNameCreatedDate = "IX_CachePayload_EntityAnalysisModelId_" + key + "_CreatedDate";
+
+                        var compoundIndexSearchKeyNameCreatedDate =
+                            "IX_CachePayload_EntityAnalysisModelId_" + key + "_CreatedDate";
                         if (!indexes.Contains(compoundIndexSearchKeyNameCreatedDate))
                             try
                             {
-                                Log.Debug("Cache Indexing: Entries index does not exist for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                Log.Debug("Cache Indexing: Entries index does not exist for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
                                           + key + " it is being created.");
 
-                                await cachePayloadRepository.CreateIndexAsync(compoundIndexSearchKeyNameCreatedDate,
+                                await cachePayloadRepository.CreateIndexAsync(TenantRegistryId, Id,
+                                    compoundIndexSearchKeyNameCreatedDate,
                                     "\"CreatedDate\"",
-                                    "(\"Json\"->>'" + key + "')",
-                                    Id);
-                                
-                                Log.Debug("Cache Indexing: Entries index has been created for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                    "(\"Json\"->>'" + key + "')");
+
+                                Log.Debug("Cache Indexing: Entries index has been created for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
                                           + key + ".");
                             }
                             catch (Exception ex)
                             {
-                                Log.Error("Cache Indexing: Entries index for " + compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
+                                Log.Error("Cache Indexing: Entries index for " +
+                                          compoundIndexSearchKeyNameReferenceDateName + " and grouping key "
                                           + key + " has created an error as " + ex + ".");
                             }
                     }

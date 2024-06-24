@@ -25,6 +25,7 @@ using Jube.App.Code.signalr;
 using Jube.App.Code.WatcherDispatch;
 using Jube.App.Middlewares;
 using Jube.Engine.Invoke;
+using Jube.Extensions;
 using Jube.Migrations.Baseline;
 using log4net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -40,6 +41,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json.Serialization;
 using RabbitMQ.Client;
+using StackExchange.Redis;
 
 namespace Jube.App
 {
@@ -72,13 +74,30 @@ namespace Jube.App
             var pendingEntityInvoke = new ConcurrentQueue<EntityAnalysisModelInvoke>();
             services.AddSingleton(pendingEntityInvoke);
 
+            IDatabase redisDatabase = null;
+            if (dynamicEnvironment.AppSettings("Redis").Equals("True", StringComparison.OrdinalIgnoreCase))
+            {
+                log.Info("Start: Is going to make a connection to Redis Endpoints string showing " +
+                         "endpoints and port seperated by :,  then combined seperated by comma " +
+                         "for example localhost:1234,localhost4321.  Value for parsing is " +
+                         dynamicEnvironment.AppSettings("RedisEndpoints") + "");
+                
+                var redisConnection =
+                    ConnectionMultiplexer.Connect(dynamicEnvironment.AppSettings("RedisConnectionString"));
+                redisDatabase = redisConnection.GetDatabase();
+                redisDatabase.HashSet("Connections", Dns.GetHostName(),
+                    DateTime.Now.ToUnixTimeMilliSeconds());
+
+                services.AddSingleton(redisDatabase);
+            }
+
             IModel rabbitMqChannel = null;
             if (dynamicEnvironment.AppSettings("AMQP").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
                     log.Info("Start: Is going to make a connection to AMQP Uri " +
-                             dynamicEnvironment.AppSettings("AMQP") + "");
+                             dynamicEnvironment.AppSettings("AMQPUri") + "");
 
                     var uri = new Uri(dynamicEnvironment.AppSettings("AMQPUri"));
                     var rabbitMqConnectionFactory = new ConnectionFactory {Uri = uri};
@@ -110,7 +129,7 @@ namespace Jube.App
 
             if (dynamicEnvironment.AppSettings("EnableEngine").Equals("True", StringComparison.OrdinalIgnoreCase))
             {
-                var engine = new Jube.Engine.Program(dynamicEnvironment, log, seeded, rabbitMqChannel,
+                var engine = new Jube.Engine.Program(dynamicEnvironment, log, seeded, rabbitMqChannel, redisDatabase,
                     pendingEntityInvoke, contractResolver);
                 services.AddSingleton(engine);
             }
@@ -212,31 +231,31 @@ namespace Jube.App
             });
             services.AddSingleton<Relay>();
 
-            Console.WriteLine("Copyright (C) 2022-present Jube Holdings Limited.");
-            Console.WriteLine("");
-            Console.WriteLine("This software is Jube™.  Welcome.");
-            Console.WriteLine("");
+            Console.WriteLine(@"Copyright (C) 2022-present Jube Holdings Limited.");
+            Console.WriteLine(@"");
+            Console.WriteLine(@"This software is Jube™.  Welcome.");
+            Console.WriteLine(@"");
             Console.Write(
-                "Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.");
+                @"Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.");
             Console.WriteLine(
-                "Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.");
-            Console.WriteLine("");
+                @"Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.");
+            Console.WriteLine(@"");
             Console.WriteLine(
-                "You should have received a copy of the GNU Affero General Public License along with Jube™. If not, see <https://www.gnu.org/licenses/>.");
-            
-            Console.WriteLine("");
+                @"You should have received a copy of the GNU Affero General Public License along with Jube™. If not, see <https://www.gnu.org/licenses/>.");
+
+            Console.WriteLine(@"");
             Console.WriteLine(
-                "If you are seeing this message it means that database migrations have completed and the database is fully configured with required Tables, Indexes and Constraints.");
-            Console.WriteLine("");
-            Console.WriteLine("Comprehensive documentation is available via https://jube-home.github.io/jube.");
-            Console.WriteLine("");
+                @"If you are seeing this message it means that database migrations have completed and the database is fully configured with required Tables, Indexes and Constraints.");
+            Console.WriteLine(@"");
+            Console.WriteLine(@"Comprehensive documentation is available via https://jube-home.github.io/jube.");
+            Console.WriteLine(@"");
             Console.WriteLine(
-                "Use a web browser (e.g. Chrome) to navigate to the user interface via default endpoint https://<ASPNETCORE_URLS Environment Variable>/ (for example https://127.0.0.1:5001/ given ASPNETCORE_URLS=https://127.0.0.1:5001/). The default user name \\ password is 'Administrator' \\ 'Administrator' but will need to be changed on first use.  Availability of the user interface may be a few moments after this messages as the Kestrel web server starts and endpoint routing is established.");
-            Console.WriteLine("");
+                @"Use a web browser (e.g. Chrome) to navigate to the user interface via default endpoint https://<ASPNETCORE_URLS Environment Variable>/ (for example https://127.0.0.1:5001/ given ASPNETCORE_URLS=https://127.0.0.1:5001/). The default user name \ password is 'Administrator' \ 'Administrator' but will need to be changed on first use.  Availability of the user interface may be a few moments after this messages as the Kestrel web server starts and endpoint routing is established.");
+            Console.WriteLine(@"");
             Console.WriteLine(
-                "The default endpoint for posting example transaction payload is https://<ASPNETCORE_URLS Environment Variable>/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/.Example JSON payload is available in the documentation via at https://jube-home.github.io/jube/Configuration/Models/Models/.");
+                @"The default endpoint for posting example transaction payload is https://<ASPNETCORE_URLS Environment Variable>/api/invoke/EntityAnalysisModel/90c425fd-101a-420b-91d1-cb7a24a969cc/.Example JSON payload is available in the documentation via at https://jube-home.github.io/jube/Configuration/Models/Models/.");
         }
-        
+
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env,
             DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
@@ -340,7 +359,7 @@ namespace Jube.App
         private static void RunFluentMigrator(DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             var serviceCollection = new ServiceCollection().AddFluentMigratorCore()
-                .AddSingleton<DynamicEnvironment.DynamicEnvironment>(dynamicEnvironment)
+                .AddSingleton(dynamicEnvironment)
                 .ConfigureRunner(rb => rb
                     .AddPostgres11_0()
                     .WithGlobalConnectionString(dynamicEnvironment.AppSettings("ConnectionString"))

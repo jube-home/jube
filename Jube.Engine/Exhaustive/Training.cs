@@ -787,7 +787,7 @@ namespace Jube.Engine.Exhaustive
                          typeof(ExhaustiveSearchInstanceVariableClassificationRepository))
                 {
                     modelExhaustiveSearchInstanceVariableClassification.ExhaustiveSearchInstanceVariableId
-                        = variables[i].ExhaustiveSearchInstanceVariableId; //TODO[RC] Change this to ID as title.
+                        = variables[i].ExhaustiveSearchInstanceVariableId;
 
                     var exhaustiveSearchInstanceVariableClassificationId =
                         repositoryVariables.Insert(modelExhaustiveSearchInstanceVariableClassification);

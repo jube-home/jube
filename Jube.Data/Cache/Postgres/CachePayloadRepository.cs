@@ -14,16 +14,42 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Jube.Data.Cache.Interfaces;
 using log4net;
 using Newtonsoft.Json;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace Jube.Data.Cache
+namespace Jube.Data.Cache.Postgres
 {
-    public class CachePayloadRepository(string connectionString, ILog log)
+    public class CachePayloadRepository() : ICachePayloadRepository
     {
-        public async Task CreateIndexAsync(string name, string date, string expression, int entityAnalysisModelId)
+        private readonly string connectionString;
+        private readonly string sqlSelect;
+        private readonly string sqlFrom;
+        private readonly string sqlOrderBy;
+        private readonly ILog log;
+
+        public CachePayloadRepository(string connectionString, string sqlSelect,
+            string sqlFrom, string sqlOrderBy, ILog log) : this()
+        {
+            this.connectionString = connectionString;
+            this.log = log;
+            this.sqlSelect = sqlSelect;
+            this.sqlFrom = sqlFrom;
+            this.sqlOrderBy = sqlOrderBy;
+            this.log = log;
+        }
+
+        public CachePayloadRepository(string connectionString, ILog log) : this()
+        {
+            this.connectionString = connectionString;
+            this.log = log;
+        }
+
+        public async Task CreateIndexAsync(int tenantRegistryId,
+            int entityAnalysisModelId,
+            string name, string date, string expression)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
@@ -49,7 +75,7 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task<List<string>> GetIndexesAsync()
+        public async Task<List<string>> GetIndexesAsync(int tenantRegistryId, int entityAnalysisModelId)
         {
             var connection = new NpgsqlConnection(connectionString);
             var value = new List<string>();
@@ -57,8 +83,10 @@ namespace Jube.Data.Cache
             {
                 await connection.OpenAsync();
 
+                // ReSharper disable once StringLiteralTypo
                 var sql = "select indexname" +
                           " from pg_indexes " +
+                          // ReSharper disable once StringLiteralTypo
                           " where tablename =  'CachePayload';";
 
                 var command = new NpgsqlCommand(sql);
@@ -87,7 +115,8 @@ namespace Jube.Data.Cache
             return value;
         }
 
-        public async Task InsertAsync(int entityAnalysisModelId, Dictionary<string, object> payload,
+        public async Task InsertAsync(int tenantRegistryId, int entityAnalysisModelId,
+            Dictionary<string, object> payload,
             DateTime referenceDate, Guid entityAnalysisModelInstanceEntryGuid)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -122,7 +151,15 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task UpsertAsync(int entityAnalysisModelId, Dictionary<string, object> payload,
+        public Task InsertAsync(int tenantRegistryId, int entityAnalysisModelId, string key, string value,
+            Dictionary<string, object> payload,
+            DateTime referenceDate, Guid entityAnalysisModelInstanceEntryGuid)
+        {
+            throw new NotImplementedException();
+        }
+
+        public async Task UpsertAsync(int tenantRegistryId, int entityAnalysisModelId,
+            Dictionary<string, object> payload,
             DateTime referenceDate, Guid entityAnalysisModelInstanceEntryGuid)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -160,140 +197,10 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key, DateTime dateFrom,
-            DateTime dateTo)
-        {
-            var connection = new NpgsqlConnection(connectionString);
-            var value = new List<string>();
-            try
-            {
-                await connection.OpenAsync();
 
-                var sql = "select \"EntryKeyValue\" " +
-                          " from \"CachePayloadLatest\"" +
-                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId) and " +
-                          "\"EntryKey\" = (@key)" +
-                          " and \"UpdatedDate\" > (@dateFrom)" +
-                          " and \"UpdatedDate\" <= (@dateTo)";
-
-                var command = new NpgsqlCommand(sql);
-                command.Connection = connection;
-                command.Parameters.AddWithValue("key", key);
-                command.Parameters.AddWithValue("dateFrom", dateFrom);
-                command.Parameters.AddWithValue("dateTo", dateTo);
-                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-
-                await command.PrepareAsync();
-
-                var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    if (!reader.IsDBNull(0))
-                        value.Add(reader.GetValue(0).ToString());
-
-                await reader.CloseAsync();
-                await reader.DisposeAsync();
-                await command.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                log.Error($"Cache SQL: Has created an exception as {ex}.");
-            }
-            finally
-            {
-                await connection.CloseAsync();
-                await connection.DisposeAsync();
-            }
-
-            return value;
-        }
-
-        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key, DateTime dateBefore)
-        {
-            var connection = new NpgsqlConnection(connectionString);
-            var value = new List<string>();
-            try
-            {
-                await connection.OpenAsync();
-
-                var sql = "select \"EntryKeyValue\" " +
-                          " from \"CachePayloadLatest\"" +
-                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId)" +
-                          " and \"EntryKey\" = (@key)" +
-                          " and \"UpdatedDate\" < (@dateBefore)";
-
-                var command = new NpgsqlCommand(sql);
-                command.Connection = connection;
-                command.Parameters.AddWithValue("key", key);
-                command.Parameters.AddWithValue("dateBefore", dateBefore);
-                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-                await command.PrepareAsync();
-
-                var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    if (!reader.IsDBNull(0))
-                        value.Add(reader.GetValue(0).ToString());
-
-                await reader.CloseAsync();
-                await reader.DisposeAsync();
-                await command.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                log.Error($"Cache SQL: Has created an exception as {ex}.");
-            }
-            finally
-            {
-                await connection.CloseAsync();
-                await connection.DisposeAsync();
-            }
-
-            return value;
-        }
-
-
-        public async Task<List<string>> GetDistinctKeysAsync(int entityAnalysisModelId, string key)
-        {
-            var connection = new NpgsqlConnection(connectionString);
-            var value = new List<string>();
-            try
-            {
-                await connection.OpenAsync();
-
-                var sql = "select \"EntryKeyValue\" ->> (@key)" +
-                          " from \"CachePayloadLatest\"" +
-                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId) " +
-                          " and \"EntryKey\" = (@key) ";
-                          
-
-                var command = new NpgsqlCommand(sql);
-                command.Connection = connection;
-                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
-                command.Parameters.AddWithValue("key", key);
-                await command.PrepareAsync();
-
-                var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    if (!reader.IsDBNull(0))
-                        value.Add(reader.GetValue(0).ToString());
-
-                await reader.CloseAsync();
-                await reader.DisposeAsync();
-                await command.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                log.Error($"Cache SQL: Has created an exception as {ex}.");
-            }
-            finally
-            {
-                await connection.CloseAsync();
-                await connection.DisposeAsync();
-            }
-
-            return value;
-        }
-
-        public async Task<List<Dictionary<string, object>>> GetSqlByKeyValueLimitAsync(string sql,
+        public async Task<List<Dictionary<string, object>>> GetSqlByKeyValueLimitAsync(
+            int tenantRegistryId,
+            int entityAnalysisModelId, string sql,
             string key, string value, string order, int limit)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -318,7 +225,7 @@ namespace Jube.Data.Cache
                         if (!reader.IsDBNull(index))
                         {
                             if (document.ContainsKey(reader.GetName(index))) continue;
-                            
+
                             document.Add(reader.GetName(index), reader.GetValue(index));
                         }
 
@@ -341,10 +248,10 @@ namespace Jube.Data.Cache
 
             return documents;
         }
-        
-        public async Task<List<Dictionary<string, object>>> GetSqlByKeyValueLimitAsyncExcludeCurrent(string sqlSelect,
-            string sqlFrom,string sqlOrderBy,
-            string key, string value, string order, int limit,
+
+        public async Task<List<Dictionary<string, object>>> GetExcludeCurrent(int tenantRegistryId,
+            int entityAnalysisModelId,
+            string key, string value, int limit,
             Guid entityInconsistentAnalysisModelInstanceEntryGuid)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -355,14 +262,14 @@ namespace Jube.Data.Cache
 
                 var sql = sqlSelect + sqlFrom + " and \"EntityAnalysisModelInstanceEntryGuid\" " +
                           "!= @entityAnalysisModelInstanceEntryGuid " + sqlOrderBy;
-                
+
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
                 command.Parameters.AddWithValue("key", key);
                 command.Parameters.AddWithValue("value", value);
-                command.Parameters.AddWithValue("order", order);
                 command.Parameters.AddWithValue("limit", limit);
-                command.Parameters.AddWithValue("entityAnalysisModelInstanceEntryGuid", entityInconsistentAnalysisModelInstanceEntryGuid);
+                command.Parameters.AddWithValue("entityAnalysisModelInstanceEntryGuid",
+                    entityInconsistentAnalysisModelInstanceEntryGuid);
                 await command.PrepareAsync();
 
                 var reader = await command.ExecuteReaderAsync();
@@ -397,7 +304,17 @@ namespace Jube.Data.Cache
             return documents;
         }
 
-        public async Task<List<Dictionary<string, object>>> GetInitialCountsAsync(int entityAnalysisModelId)
+        public Task<List<Dictionary<string, object>>> GetExcludeCurrent(int tenantRegistryId, int entityAnalysisModelId,
+            string key, string value, int limit,
+            DateTime referenceDate, DateTime referenceDateTtlThreshold,
+            Guid entityInconsistentAnalysisModelInstanceEntryGuid,
+            List<Task> pendingWritesTasks)
+        {
+            throw new NotImplementedException();
+        }
+
+        public async Task<List<Dictionary<string, object>>> GetInitialCountsAsync(int tenantRegistryId,
+            int entityAnalysisModelId)
         {
             var connection = new NpgsqlConnection(connectionString);
             var documents = new List<Dictionary<string, object>>();
@@ -445,6 +362,46 @@ namespace Jube.Data.Cache
             }
 
             return documents;
+        }
+
+        public async Task DeleteByReferenceDate(int tenantRegistryId, int entityAnalysisModelId,
+            DateTime referenceDate, int limit)
+        {
+            var connection = new NpgsqlConnection(connectionString);
+            try
+            {
+                await connection.OpenAsync();
+
+                // ReSharper disable once StringLiteralTypo
+                var sql = "with i as (select ctid from \"CachePayload\" " +
+                          "where \"ReferenceDate\" <= (@referenceDate) limit (@limit)) " +
+                          // ReSharper disable once StringLiteralTypo
+                          "delete from \"CachePayload\" where ctid " +
+                          // ReSharper disable once StringLiteralTypo
+                          "in (select CTID from i)";
+
+                var command = new NpgsqlCommand(sql);
+                command.Connection = connection;
+                command.Parameters.AddWithValue("referenceDate", referenceDate);
+                command.Parameters.AddWithValue("limit", limit);
+
+                int? rowsAffected = null;
+                while (rowsAffected > 0 || rowsAffected == null)
+                {
+                    rowsAffected = await command.ExecuteNonQueryAsync();
+                }
+
+                await command.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                log.Error($"Cache SQL: Has created an exception as {ex}.");
+            }
+            finally
+            {
+                await connection.CloseAsync();
+                await connection.DisposeAsync();
+            }
         }
     }
 }

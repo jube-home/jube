@@ -15,10 +15,12 @@
 @{
     Layout = "Shared/_Layout";
 }
+
 @section Scripts
 {
     <script src="/js/Model/EntityAnalysisModel.js"></script>
 }
+
 <div class="fCStyle">
 <div id="Homepage">
     <div id="Models" class="bottomPaddedGeneral">
@@ -107,6 +109,39 @@
     </td>
     <td>
         <input name="CacheFetchLimit" id="CacheFetchLimit" value="1" required validationMessage="Please enter the maximum number of return records for the cache."/>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CacheTtlInterval">Cache TTL Interval</label>
+    </td>
+    <td>
+        <ul id="CacheTtlInterval" class="fieldlist">
+            <li>
+                <input type="radio" class="k-radio" name="CacheTtlInterval" id="TtlIntervalValueSecond" value="s"/>
+                <label class="k-radio-label" for="CacheTtlInterval">Seconds</label>
+            </li>
+            <li>
+                <input type="radio" class="k-radio" name="CacheTtlInterval" id="TtlIntervalValueMin" value="n"/>
+                <label class="k-radio-label" for="CacheTtlInterval">Minutes</label>
+            </li>
+            <li>
+                <input type="radio" class="k-radio" name="CacheTtlInterval" id="TtlIntervalValueHour" checked="checked" value="h"/>
+                <label class="k-radio-label" for="CacheTtlInterval">Hours</label>
+            </li>
+            <li>
+                <input type="radio" class="k-radio" name="CacheTtlInterval" id="TtlIntervalValueDay" value="d"/>
+                <label class="k-radio-label" for="CacheTtlInterval">Days</label>
+            </li>
+        </ul>
+    </td>
+</tr>
+<tr>
+    <td>
+        <label for="CacheTtlIntervalValue">Cache TTL Interval Value</label>
+    </td>
+    <td>
+        <input name="CacheTtlIntervalValue" id="CacheTtlIntervalValue" value="1" required validationMessage="Please eenter a value for the TTL Interval Value."/>
     </td>
 </tr>
 <tr>
