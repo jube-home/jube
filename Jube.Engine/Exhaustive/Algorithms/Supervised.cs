@@ -382,7 +382,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
                     exhaustiveSearchInstancePromotedTrialInstanceVariablePrescription.StandardDeviation = outputs.StandardDeviation();
 
                     outputs.Quartiles(out var q1, out var q3);
-                    var iqr = q1 - q3; //TODO[RC] Should store these as they are useful for box plots.
+                    var iqr = q1 - q3;
 
                     exhaustiveSearchInstancePromotedTrialInstanceVariablePrescription.Iqr = trialVariables.ElementAt(j).Value.ReverseZScore(iqr);
 
@@ -439,7 +439,7 @@ namespace Jube.Engine.Exhaustive.Algorithms
                     new ExhaustiveSearchInstancePromotedTrialInstanceSensitivity
                     {
                         Sensitivity = value,
-                        SensitivityRank = 1, //TODO[RC]: Store Rank.
+                        SensitivityRank = 1,
                         ExhaustiveSearchInstanceTrialInstanceVariableId =
                             trialVariables[key].ExhaustiveSearchInstanceTrialInstanceVariableId
                     };

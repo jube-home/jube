@@ -2,12 +2,12 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
@@ -18,7 +18,7 @@ using log4net;
 using Npgsql;
 using Exception = System.Exception;
 
-namespace Jube.Data.Cache
+namespace Jube.Data.Cache.Postgres
 {
     public class CacheCallbackRepository(
         string connectionString,
@@ -31,8 +31,8 @@ namespace Jube.Data.Cache
 
         private static void ManageDictionary(ConcurrentDictionary<Guid, Callback> concurrentDictionary, string value)
         {
-            var splits = value.Split(",",2);
-            
+            var splits = value.Split(",", 2);
+
             if (splits.Length > 1)
             {
                 var callback = new Callback
@@ -77,16 +77,17 @@ namespace Jube.Data.Cache
             await connection.CloseAsync();
             await connection.DisposeAsync();
         }
-        
+
         public async Task InsertAsync(byte[] json, Guid entityAnalysisModelInstanceEntryGuid)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
             {
                 await connection.OpenAsync();
-                
-                var sqlNotify = $"NOTIFY callback, '{entityAnalysisModelInstanceEntryGuid},{System.Text.Encoding.UTF8.GetString(json)}'";
-                
+
+                var sqlNotify =
+                    $"NOTIFY callback, '{entityAnalysisModelInstanceEntryGuid},{System.Text.Encoding.UTF8.GetString(json)}'";
+
                 var commandNotify = new NpgsqlCommand(sqlNotify);
                 commandNotify.Connection = connection;
                 await commandNotify.ExecuteNonQueryAsync();
@@ -101,16 +102,16 @@ namespace Jube.Data.Cache
                 await connection.DisposeAsync();
             }
         }
-        
+
         public async Task DeleteAsync(Guid entityAnalysisModelInstanceEntryGuid)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
             {
                 await connection.OpenAsync();
-                
+
                 var sqlNotify = $"NOTIFY callback, '{entityAnalysisModelInstanceEntryGuid}'";
-                
+
                 var commandNotify = new NpgsqlCommand(sqlNotify);
                 commandNotify.Connection = connection;
                 await commandNotify.ExecuteNonQueryAsync();

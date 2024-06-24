@@ -30,6 +30,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.Statistics", "Accord
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.MachineLearning", "Accord.MachineLearning\Accord.MachineLearning.csproj", "{BD913DA0-6660-48B2-86B5-C07924142F9D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jube.Extensions", "Jube.Extensions\Jube.Extensions.csproj", "{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -100,6 +102,10 @@ Global
 		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BD913DA0-6660-48B2-86B5-C07924142F9D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection

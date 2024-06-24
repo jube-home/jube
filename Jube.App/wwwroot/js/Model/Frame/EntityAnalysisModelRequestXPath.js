@@ -57,6 +57,16 @@ var searchKeyCacheTtlValue = $("#SearchKeyCacheTtlValue").kendoNumericTextBox({
     decimals: 0
 });
 
+var searchKeyTtlIntervalValue = $("#SearchKeyTtlIntervalValue").kendoNumericTextBox({
+    format: "#",
+    decimals: 0
+});
+
+var searchKeyFetchLimit = $("#SearchKeyFetchLimit").kendoNumericTextBox({
+    format: "#",
+    decimals: 0
+});
+
 function getDefaultValueStyle() {
     let value = 0;
     switch (dataTypeId.data("kendoDropDownList").value()) {
@@ -146,18 +156,18 @@ function ExpandCollapseSearchKey() {
 
 function SetSearchKey() {
     if ($('#SearchKey').prop('checked')) {
-        $("#SearchKeySubTable tr:nth-child(2)").show();
+        $("#SearchKeySubTable").show();
     } else {
-        $("#SearchKeySubTable tr:nth-child(2)").hide();
+        $("#SearchKeySubTable").hide();
     }
     SetSearchKeyCache();
 }
 
 function SetSearchKeyCache() {
     if (searchKeyCache.prop('checked') && searchKeyCache.prop('checked')) {
-        $("#SearchKeySubTable tr:nth-child(3)").show();
+        $("#SearchKeyCacheSubTable").show();
     } else {
-        $("#SearchKeySubTable tr:nth-child(3)").hide();
+        $("#SearchKeyCacheSubTable").hide();
     }
 }
 
@@ -170,6 +180,12 @@ if (typeof GetSelectedChildID() === "undefined") {
     $.get(endpoint + "/" + GetSelectedChildID(),
         function (data) {
             searchKeyCacheFetchLimit.data("kendoNumericTextBox").value(data.searchKeyCacheFetchLimit);
+            searchKeyFetchLimit.data("kendoNumericTextBox").value(data.searchKeyFetchLimit);
+            searchKeyTtlIntervalValue.data("kendoNumericTextBox").value(data.searchKeyTtlIntervalValue);
+
+            $("input[name=SearchKeyTtlInterval][value=" +
+                data.searchKeyTtlInterval +
+                "]").prop('checked', true);
 
             $("input[name=SearchKeyCacheInterval][value=" +
                 data.searchKeyCacheInterval +
@@ -276,6 +292,9 @@ function GetData() {
             .val(),
         responsePayload: $("#ResponsePayload").prop("checked"),
         payloadLocation: $('input[name=PayloadLocation]:checked').val(),
+        searchKeyFetchLimit: searchKeyFetchLimit.val(),
+        searchKeyTtlIntervalValue: searchKeyTtlIntervalValue.val(),
+        searchKeyTtlInterval: $('input[name=SearchKeyTtlInterval]:checked').val(),
         defaultValue: getDefaultValueStyle()
     };
 }

@@ -41,6 +41,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using StackExchange.Redis;
 using EntityAnalysisModel = Jube.Engine.Model.EntityAnalysisModel;
 using Tag = Jube.Engine.Model.Archive.Tag;
 
@@ -74,6 +75,7 @@ namespace Jube.Engine
         public int HttpCounterCallback;
         private readonly DynamicEnvironment.DynamicEnvironment jubeEnvironment;
         private readonly IModel rabbitMqChannel;
+        private readonly IDatabase redisDatabase;
         private readonly Dictionary<int, SanctionEntryDto> sanctionsEntries = new();
         public readonly Dictionary<int, SanctionEntriesSource> SanctionSources = new();
         public bool SanctionsHasLoadedForStartup;
@@ -88,13 +90,14 @@ namespace Jube.Engine
         private Task trainingTask;
 
         public Program(DynamicEnvironment.DynamicEnvironment dynamicEnvironment, ILog log, Random seeded,
-            IModel rabbitMqChannel,
+            IModel rabbitMqChannel, IDatabase redisDatabase,
             ConcurrentQueue<EntityAnalysisModelInvoke> pendingEntityInvoke, DefaultContractResolver contractResolver)
         {
             this.log = log;
             jubeEnvironment = dynamicEnvironment;
             this.seeded = seeded;
             this.rabbitMqChannel = rabbitMqChannel;
+            this.redisDatabase = redisDatabase;
             this.pendingEntityInvoke = pendingEntityInvoke;
             this.contractResolver = contractResolver;
 
@@ -352,6 +355,7 @@ namespace Jube.Engine
             EntityAnalysisModelManager.Seeded = seeded;
             EntityAnalysisModelManager.JubeEnvironment = jubeEnvironment;
             EntityAnalysisModelManager.RabbitMqChannel = rabbitMqChannel;
+            EntityAnalysisModelManager.RedisDatabase = redisDatabase;
             EntityAnalysisModelManager.PendingNotification = PendingNotification;
             EntityAnalysisModelManager.Start();
 
@@ -1150,7 +1154,7 @@ namespace Jube.Engine
         private void TimoutCallbacks()
         {
             if (lastCallbackTimeout.AddMilliseconds(100) >= DateTime.Now) return;
-            
+
             log.Debug("Callback Timeout Management: Starting to inspect pending callbacks.");
 
             try
@@ -1188,7 +1192,7 @@ namespace Jube.Engine
         private void UpdateQueueBalancesInDatabase()
         {
             if (lastBalanceCountersWritten.AddSeconds(60) >= DateTime.Now) return;
-            
+
             log.Debug("Counter Management: Starting to store in memory asynchronous queues in database.");
 
             var dbContext =
@@ -1609,6 +1613,7 @@ namespace Jube.Engine
                                             var entityModelInvoke = new EntityAnalysisModelInvoke(log,
                                                 jubeEnvironment,
                                                 rabbitMqChannel,
+                                                redisDatabase,
                                                 PendingNotification,
                                                 seeded,
                                                 EntityAnalysisModelManager.ActiveEntityAnalysisModels);

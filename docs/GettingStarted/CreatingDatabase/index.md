@@ -4,7 +4,7 @@ title: Creating Database
 nav_order: 2
 parent: Getting Started
 ---
-# Creating Database
+# Creating Postgres Database
 
 It is possible to install PostgreSQL to a Droplet on a self managed basis,  which is a cost effective and oftentimes preferable approach.  The resources are available at the following location:
 
@@ -66,3 +66,33 @@ The database settings which will be passed as an Environment Variable later in t
 Network security is outside the scope of this documentation; however, note that it is sensible to restrict access to the database to only the remote IP address in use, although this will not affect connections via the local network:
 
 ![Image](LocationOfSecurity.png)
+
+# Creating Redis Database
+The following is for completeness, however,  this guide does not suggest using Redis on Digital Ocean unless comfortable configuring TLS as follows:
+
+https://www.digitalocean.com/community/tutorials/how-to-connect-to-managed-redis-over-tls-with-stunnel-and-redis-cli
+
+In the same Databases context menu, proceed to create a new database as if it were Postgres SQL as above,  instead selecting Redis a the database product type:
+
+![Image](SelectingRedisNotPostgres.png)
+
+Select the desired size as specified in the introduction:
+
+![Image](RedisSize.png)
+
+Before scrolling down to confirm the creation of the Redis database:
+
+![Image](ConfirmCreationOfRedis.png)
+
+Once created,  the credentials for the Redis database exist in a very similar location:
+
+![Image](LocationOfRedisCredentials.png)
+
+The senstive information is exposed in the same manner as with Postgres,  clicking show. Hive off the following information for the installation of Jube as the final step of this process:
+
+```text
+username = default
+password = ************************ show
+host = db-redis-fra1-14927-do-user-12376516-0.c.db.ondigitalocean.com
+port = 25061
+```

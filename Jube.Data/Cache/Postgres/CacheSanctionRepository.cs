@@ -2,25 +2,28 @@
  *
  * This file is part of Jube™ software.
  *
- * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
  * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
- * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not,
  * see <https://www.gnu.org/licenses/>.
  */
 
 using System;
 using System.Threading.Tasks;
+using Jube.Data.Cache.Dto;
+using Jube.Data.Cache.Interfaces;
 using log4net;
 using Npgsql;
 
-namespace Jube.Data.Cache
+namespace Jube.Data.Cache.Postgres
 {
-    public class CacheSanctionRepository(string connectionString, ILog log)
+    public class CacheSanctionRepository(string connectionString, ILog log) : ICacheSanctionRepository
     {
-        public async Task<CacheSanctionDto> GetByMultiPartStringDistanceThresholdAsync(int entityAnalysisModelId, string multiPartString,
+        public async Task<CacheSanctionDto> GetByMultiPartStringDistanceThresholdAsync(int tenantRegistryId,
+            int entityAnalysisModelId, string multiPartString,
             int distanceThreshold)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -48,13 +51,12 @@ namespace Jube.Data.Cache
                 {
                     value = new CacheSanctionDto
                     {
-                        Id = (long) reader.GetValue(0),
                         CreatedDate = Convert.ToDateTime(reader.GetValue(2))
                     };
 
                     if (!reader.IsDBNull(1)) value.Value = (double) reader.GetValue(1);
                 }
-                
+
                 await reader.CloseAsync();
                 await reader.DisposeAsync();
                 await command.DisposeAsync();
@@ -74,7 +76,7 @@ namespace Jube.Data.Cache
             return value;
         }
 
-        public async Task InsertAsync(int entityAnalysisModelId, string multiPartString,
+        public async Task InsertAsync(int tenantRegistryId, int entityAnalysisModelId, string multiPartString,
             int distanceThreshold, double? value)
         {
             var connection = new NpgsqlConnection(connectionString);
@@ -110,7 +112,8 @@ namespace Jube.Data.Cache
             }
         }
 
-        public async Task UpdateAsync(long id, double? value)
+        public async Task UpdateAsync(int tenantRegistryId, int entityAnalysisModelId, string multiPartString,
+            int distanceThreshold, double? value)
         {
             var connection = new NpgsqlConnection(connectionString);
             try
@@ -120,11 +123,15 @@ namespace Jube.Data.Cache
                 var sql = "update \"CacheSanction\"" +
                           " set \"Value\" = (@value), " +
                           " \"CreatedDate\" = (@createdDate) " +
-                          " where \"Id\" = (@Id)";
+                          " where \"EntityAnalysisModelId\" = (@entityAnalysisModelId) and " +
+                          "\"MultiPartString\" = (@multiPartString) and " +
+                          "\"DistanceThreshold\" = (@distanceThreshold)";
 
                 var command = new NpgsqlCommand(sql);
                 command.Connection = connection;
-                command.Parameters.AddWithValue("Id", id);
+                command.Parameters.AddWithValue("entityAnalysisModelId", entityAnalysisModelId);
+                command.Parameters.AddWithValue("multiPartString", multiPartString);
+                command.Parameters.AddWithValue("distanceThreshold", distanceThreshold);
                 command.Parameters.AddWithValue("value", value.HasValue ? value : DBNull.Value);
                 command.Parameters.AddWithValue("createdDate", DateTime.Now);
 
@@ -140,13 +147,6 @@ namespace Jube.Data.Cache
                 await connection.CloseAsync();
                 await connection.DisposeAsync();
             }
-        }
-
-        public class CacheSanctionDto
-        {
-            public long Id { get; set; }
-            public DateTime CreatedDate { get; set; }
-            public double? Value { get; set; }
         }
     }
 }

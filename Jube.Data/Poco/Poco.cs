@@ -782,6 +782,8 @@ namespace Jube.Data.Poco
         [Column] [Nullable] public string ReferenceDateName { get; set; }
         [Column] [Nullable] public int? TenantRegistryId { get; set; }
         [Column] [Nullable] public int? CacheFetchLimit { get; set; }
+        [Column] [Nullable] public char? CacheTtlInterval { get; set; }
+        [Column] [Nullable] public int? CacheTtlIntervalValue { get; set; }
         [Column] [Nullable] public byte? ReferenceDatePayloadLocationTypeId { get; set; }
         [Column] [Nullable] public double? MaxResponseElevation { get; set; }
         [Column] [Nullable] public char? MaxResponseElevationInterval { get; set; }
@@ -1485,6 +1487,8 @@ namespace Jube.Data.Poco
         [Column] [Nullable] public string SearchKeyCacheInterval { get; set; }
         [Column] [Nullable] public int? SearchKeyCacheValue { get; set; }
         [Column] [Nullable] public byte? ResponsePayload { get; set; }
+        [Column] [Nullable] public string SearchKeyTtlInterval { get; set; }
+        [Column] [Nullable] public int? SearchKeyTtlIntervalValue { get; set; }
         [Column] [Nullable] public string SearchKeyCacheTtlInterval { get; set; }
         [Column] [Nullable] public int? SearchKeyCacheTtlValue { get; set; }
         [Column] [Nullable] public int? SearchKeyCacheFetchLimit { get; set; }
@@ -1492,7 +1496,7 @@ namespace Jube.Data.Poco
         [Column] [Nullable] public byte? SearchKeyCacheSample { get; set; }
         [Column] [Nullable] public byte? EnableSuppression { get; set; }
         [Column] [Nullable] public string DefaultValue { get; set; }
-
+        [Column] [Nullable] public int? SearchKeyFetchLimit { get; set; }
         [Association(ThisKey = "EntityAnalysisModelId", OtherKey = "Id", CanBeNull = true,
             Relationship = Relationship.ManyToOne)]
         public EntityAnalysisModel EntityAnalysisModel { get; set; }

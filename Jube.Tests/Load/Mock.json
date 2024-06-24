@@ -1,7 +1,7 @@
 {
   "AccountId": "[@AccountId@]",
   "TxnId": "[@TxnId@]",
-  "TxnDateTime": "2018-08-19T21:41:37.247",
+  "TxnDateTime": "[@TxnDateTime@]",
   "Currency": "826",
   "ResponseCode": "0",
   "CurrencyAmount": "123.45",
