@@ -188,10 +188,10 @@ A maximum of 8, and a minimum of 4 participants. Includes lunch and refreshments
 
 For further details, including the detailed training plan, kindly contact [support@jube.io](mailto:support@jube.io).
 
-Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of EUR 800 or USD 857, excluding customary business travel and accommodation costs.  Remote programs are not generally offered given observations of reduced practical participation and outcome.
+Where confidentially considerations exist, the same program can be made available at the client's premises for a daily rate of USD 1200, excluding customary business travel and accommodation costs.  Remote programs are not generally offered given observations of reduced practical participation and outcome.
 
 # Support
-Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues) on a best endeavour basis. Commercial Support available at a daily rate of EUR 800 or or USD 857 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact [support@jube.io](mailto:support@jube.io).
+Free Support is available via [Github Issues](https://github.com/jube-home/jube/issues) on a best endeavour basis. Commercial Support available at a daily rate of USD 1200 prorated. It is uncommon for a client to require more than two days of Commercial Support per month given an active production implementation,  although implementation demands vary depending on client technical proficiency. For further details, please contact [support@jube.io](mailto:support@jube.io).
 
 # Reporting Vulnerabilities
 
