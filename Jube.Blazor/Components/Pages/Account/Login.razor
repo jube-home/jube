@@ -1,0 +1,27 @@
+@page "/account/login"
+@using Jube.Blazor.Components.Code
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+<h3>Login</h3>
+
+<RadzenCard>
+    <RadzenTextBox @bind-value="userTextboxValue"/>
+    <RadzenButton Click=@(args => OnClickLogin()) Text="Login" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium"/>
+</RadzenCard>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string userTextboxValue = "Administrator";
+    private async Task OnClickLogin()
+    {
+        if (AuthenticationState != null)
+        {
+            var authState = await ((CustomAuthenticationStateProvider) AuthenticationStateProvider).ChangeUser(userTextboxValue, "123456", "Associate");
+
+            NavigationManager.TryGetQueryString<string>("ReturnUrl", out var returnUri);
+            NavigationManager.NavigateTo(!string.IsNullOrEmpty(returnUri) ? returnUri : "counter");
+        }
+    }
+
+}
