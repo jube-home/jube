@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Accord.MachineLearning", "A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jube.Extensions", "Jube.Extensions\Jube.Extensions.csproj", "{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jube.Blazor", "Jube.Blazor\Jube.Blazor.csproj", "{6CFE6CC4-C251-40C7-A6C0-126914B9F086}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -106,6 +108,10 @@ Global
 		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF0D2AE1-73C7-45C9-A8E5-B3ED22F6F9C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CFE6CC4-C251-40C7-A6C0-126914B9F086}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CFE6CC4-C251-40C7-A6C0-126914B9F086}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CFE6CC4-C251-40C7-A6C0-126914B9F086}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CFE6CC4-C251-40C7-A6C0-126914B9F086}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
