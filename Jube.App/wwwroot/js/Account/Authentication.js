@@ -50,7 +50,9 @@ $( document ).ready(function() {
         let data = {
             userName: $("#UserName").val(),
             password: $("#Password").val(),
-            newPassword: $("#NewPassword").val()
+            newPassword: $("#NewPassword").val(),
+            repeatNewPassword: $("#VerifyNewPassword").val(),
+            PasswordChangeState: isChange
         };
         
         $.ajax({

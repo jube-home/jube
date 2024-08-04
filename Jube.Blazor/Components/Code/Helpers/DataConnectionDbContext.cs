@@ -11,11 +11,18 @@
  * see <https://www.gnu.org/licenses/>.
  */
 
-namespace Jube.App.Dto.Authentication
+using Jube.Data.Context;
+using LinqToDB.Configuration;
+
+namespace Jube.Blazor.Components.Code.Helpers;
+
+public static class DataConnectionDbContext
 {
-    public class ChangePasswordRequestDto
+    public static DbContext GetDbContextDataConnection(string connectionString)
     {
-        public string Password { get; set; }
-        public string NewPassword { get; set; }
+        var builder = new LinqToDbConnectionOptionsBuilder();
+        builder.UsePostgreSQL(connectionString);
+        var connection = builder.Build<DbContext>();
+        return new DbContext(connection);
     }
 }

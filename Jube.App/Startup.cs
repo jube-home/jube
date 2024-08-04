@@ -233,7 +233,7 @@ namespace Jube.App
 
             Console.WriteLine(@"Copyright (C) 2022-present Jube Holdings Limited.");
             Console.WriteLine(@"");
-            Console.WriteLine(@"This software is Jube™.  Welcome.");
+            Console.WriteLine(@"This software is Jube.  Welcome.");
             Console.WriteLine(@"");
             Console.Write(
                 @"Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.");
