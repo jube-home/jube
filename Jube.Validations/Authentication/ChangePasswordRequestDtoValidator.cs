@@ -12,9 +12,9 @@
  */
 
 using FluentValidation;
-using Jube.App.Dto.Authentication;
+using Jube.Service.Dto.Authentication;
 
-namespace Jube.App.Validators.Authentication
+namespace Jube.Validations.Authentication
 {
     public class ChangePasswordRequestDtoValidator : AbstractValidator<ChangePasswordRequestDto>
     {

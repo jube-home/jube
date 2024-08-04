@@ -1,27 +1,220 @@
+@* Copyright (C) 2022-present Jube Holdings Limited.
+ *
+ * This file is part of Jube™ software.
+ *
+ * Jube™ is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License 
+ * as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ * Jube™ is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty  
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License along with Jube™. If not, 
+ * see <https://www.gnu.org/licenses/>.
+ *@
+
 @page "/account/login"
 @using Jube.Blazor.Components.Code
+@using Jube.Blazor.Components.Code.Helpers
+@using Jube.Data.Context
+@using Jube.DynamicEnvironment
+@using Jube.Service.Dto.Authentication
+@using Jube.Service.Exceptions.Authentication
+@using System.Security.Claims
+@using Jube.Data.Poco
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
-<h3>Login</h3>
+@inject DynamicEnvironment DynamicEnvironment
+@inject IHttpContextAccessor HttpContextAccessor;
+@inject IStringLocalizer<Resources> Localizer;
 
-<RadzenCard>
-    <RadzenTextBox @bind-value="userTextboxValue"/>
-    <RadzenButton Click=@(args => OnClickLogin()) Text="Login" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium"/>
-</RadzenCard>
+<h3>@Localizer["Pages:Account:Login:Login"]</h3>
+
+<EditForm Model="@authenticationRequestDto" OnValidSubmit="OnValidSubmit">
+    <FluentValidationValidator/>
+    <ValidationSummary/>
+    <RadzenRow>
+        <RadzenColumn Size="4" Visible="@(!showChangeCredentialsAndHideLogin)">
+            <RadzenCard>
+                <RadzenFieldset Text="@Localizer["Pages:Account:Login:VerifyCredentials"]">
+                    <RadzenRow>
+                        <RadzenColumn>
+                            <RadzenLabel>@Localizer["Pages:Account:Login:UserName"]</RadzenLabel>
+                        </RadzenColumn>
+                        <RadzenColumn>
+                            <RadzenTextBox @bind-Value="@authenticationRequestDto.UserName"/>
+                        </RadzenColumn>
+                    </RadzenRow>
+                    <RadzenRow>
+                        <RadzenColumn>
+                            <RadzenLabel>@Localizer["Pages:Account:Login:Password"]</RadzenLabel>
+                        </RadzenColumn>
+                        <RadzenColumn>
+                            <RadzenPassword @bind-Value="@authenticationRequestDto.Password"/>
+                        </RadzenColumn>
+                    </RadzenRow>
+                    <RadzenButton type="submit" Text="@Localizer["Pages:Account:Login:Login"]" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium"/>
+                </RadzenFieldset>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="4" Visible="@(showChangeCredentialsAndHideLogin)">
+            <RadzenCard>
+                <RadzenFieldset Text="@Localizer["Pages:Account:Login:ChangeCredentials"]">
+                    <RadzenRow>
+                        <RadzenColumn>
+                            <RadzenLabel>@Localizer["Pages:Account:Login:NewPassword"]</RadzenLabel>
+                        </RadzenColumn>
+                        <RadzenColumn>
+                            <RadzenPassword @bind-Value="@authenticationRequestDto.NewPassword"/>
+                        </RadzenColumn>
+                    </RadzenRow>
+                    <RadzenRow>
+                        <RadzenColumn>
+                            <RadzenLabel>@Localizer["Pages:Account:Login:RepeatNewPassword"]</RadzenLabel>
+                        </RadzenColumn>
+                        <RadzenColumn>
+                            <RadzenPassword @bind-Value="@authenticationRequestDto.RepeatNewPassword"/>
+                        </RadzenColumn>
+                    </RadzenRow>
+                    <RadzenButton type="submit" Text="@Localizer["Pages:Account:Login:Login"]" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium"/>
+                </RadzenFieldset>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+</EditForm>
+
+<RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" @bind-Visible="@showChangeCredentialsAlert" Close="OnCloseChangeCredentials">
+    @Localizer["Pages:Account:Login:MustChangePassword"]
+</RadzenAlert>
+<RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" @bind-Visible="@showInvalidCredentialsAlert" Close="OnCloseInvalidCredentials">
+    @Localizer["Pages:Account:Login:InvalidCredentialsTryAgain"]
+</RadzenAlert>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
 
-    private string userTextboxValue = "Administrator";
-    private async Task OnClickLogin()
-    {
-        if (AuthenticationState != null)
-        {
-            var authState = await ((CustomAuthenticationStateProvider) AuthenticationStateProvider).ChangeUser(userTextboxValue, "123456", "Associate");
+    private readonly AuthenticationRequestDto authenticationRequestDto = new();
+    private DbContext? dbContext;
+    private Service.Authentication.Authentication? service;
 
-            NavigationManager.TryGetQueryString<string>("ReturnUrl", out var returnUri);
-            NavigationManager.NavigateTo(!string.IsNullOrEmpty(returnUri) ? returnUri : "counter");
+    private bool showChangeCredentialsAndHideLogin;
+
+    @* ReSharper disable once NotAccessedField.Local *@
+    private bool showInvalidCredentialsAlert;
+
+    @* ReSharper disable once NotAccessedField.Local *@
+    private bool showChangeCredentialsAlert;
+
+    protected override void OnInitialized()
+    {
+        dbContext =
+            DataConnectionDbContext.GetDbContextDataConnection(DynamicEnvironment.AppSettings("ConnectionString"));
+        service = new Service.Authentication.Authentication(dbContext);
+    }
+
+    private void OnCloseInvalidCredentials()
+    {
+        showInvalidCredentialsAlert = false;
+    }
+
+    private void OnCloseChangeCredentials()
+    {
+        showChangeCredentialsAlert = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        if (AuthenticationState == null) return;
+
+        if (authenticationRequestDto is { UserName: not null, Password: not null })
+        {
+            HideAllAlerts();
+
+            UserRegistry? userRegistry;
+            try
+            {
+                userRegistry = AuthenticateByUserNamePassword();
+            }
+            catch (PasswordExpiredException)
+            {
+                ShowChangeCredentialsPanelAndAlert();
+
+                return;
+            }
+            catch (PasswordNewMustChangeException)
+            {
+                ShowChangeCredentialsPanelAndAlert();
+
+                return;
+            }
+            catch (Exception)
+            {
+                ShowInvalidCredentials();
+
+                return;
+            }
+
+            if (userRegistry != null)
+            {
+                await CreateAuthenticationAndClaims(userRegistry);
+
+                NavigateToReturnUriOrDefault();
+
+                return;
+            }
+
+            ShowInvalidCredentials();
         }
     }
 
+    private void ShowInvalidCredentials()
+    {
+        showInvalidCredentialsAlert = true;
+    }
+
+    private void HideAllAlerts()
+    {
+        showInvalidCredentialsAlert = false;
+        showChangeCredentialsAlert = false;
+    }
+
+    private void ShowChangeCredentialsPanelAndAlert()
+    {
+        showChangeCredentialsAndHideLogin = true;
+        showChangeCredentialsAlert = true;
+        authenticationRequestDto.PasswordChangeState = true;
+    }
+
+    private void NavigateToReturnUriOrDefault()
+    {
+        NavigationManager.TryGetQueryString<string>("ReturnUrl", out var returnUri);
+        NavigationManager.NavigateTo(!string.IsNullOrEmpty(returnUri) ? returnUri : "counter");
+    }
+
+    private UserRegistry? AuthenticateByUserNamePassword()
+    {
+        authenticationRequestDto.RemoteIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+        authenticationRequestDto.LocalIp = HttpContextAccessor.HttpContext?.Connection.LocalIpAddress?.ToString();
+        authenticationRequestDto.UserAgent = HttpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString();
+
+        return service?.AuthenticateByUserNamePassword(authenticationRequestDto,
+            DynamicEnvironment.AppSettings("PasswordHashingKey"));
+    }
+
+    private async Task CreateAuthenticationAndClaims(UserRegistry userRegistry)
+    {
+        if (authenticationRequestDto.UserName == null) throw new AuthenticationAndClaimsCreationException();
+
+        var authenticationState = await ((CustomAuthenticationStateProvider)AuthenticationStateProvider)
+            .ChangeUser(authenticationRequestDto.UserName, userRegistry.Id.ToString(),
+                userRegistry.RoleRegistryId.ToString());
+
+        var user = authenticationState.User;
+        var permissionValidation = new Data.Security.PermissionValidation();
+        var permissionValidationDto = await permissionValidation.GetPermissionsAsync(dbContext, user.Identity?.Name);
+
+        var claims = permissionValidationDto.Permissions
+            .Select(permission => new Claim("Permission", permission.ToString())).ToList();
+        claims.AddRange(user.Claims);
+
+        user.AddIdentity(new ClaimsIdentity(claims));
+    }
 }
