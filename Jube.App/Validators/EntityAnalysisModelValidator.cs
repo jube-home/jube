@@ -14,6 +14,7 @@
 using System.Collections.Generic;
 using FluentValidation;
 using Jube.App.Dto;
+using Jube.Service.Dto.EntityAnalysisModel;
 
 namespace Jube.App.Validators
 {
@@ -24,40 +25,38 @@ namespace Jube.App.Validators
             RuleFor(p => p.Active).NotNull();
             RuleFor(p => p.Locked).NotNull();
             RuleFor(p => p.Name).NotEmpty();
-
-            RuleFor(p => p.EntryXPath).NotEmpty();
-            RuleFor(p => p.ReferenceDateXPath).NotEmpty();
-            RuleFor(p => p.EntryName).NotEmpty();
-            RuleFor(p => p.ReferenceDateName).NotEmpty();
-
-            var typesPayloadLocation = new List<int> {1, 3};
-
-            RuleFor(p => p.ReferenceDatePayloadLocationTypeId).Must(m => typesPayloadLocation.Contains(m));
-            RuleFor(p => p.ReferenceDateName).NotEmpty();
-            RuleFor(p => p.ReferenceDatePayloadLocationTypeId).Must(m => typesPayloadLocation.Contains(m));
-            RuleFor(p => p.ReferenceDateXPath).NotEmpty();
-            RuleFor(p => p.CacheFetchLimit).GreaterThanOrEqualTo(0);
-            RuleFor(p => p.MaxResponseElevation).GreaterThanOrEqualTo(0);
-
-            var typesInterval = new List<char> {'s', 'n', 'h', 'd'};
-
-            RuleFor(p => p.CacheTtlInterval).Must(m => typesInterval.Contains(m));
-            RuleFor(p => p.CacheTtlIntervalValue).GreaterThanOrEqualTo(0);
-
-            RuleFor(p => p.MaxResponseElevationInterval).Must(m => typesInterval.Contains(m));
-            RuleFor(p => p.MaxResponseElevationValue).GreaterThanOrEqualTo(0);
-            RuleFor(p => p.MaxResponseElevationThreshold).GreaterThanOrEqualTo(0);
-
-            RuleFor(p => p.MaxActivationWatcherInterval).Must(m => typesInterval.Contains(m));
-            RuleFor(p => p.MaxActivationWatcherValue).GreaterThanOrEqualTo(0);
-            RuleFor(p => p.MaxActivationWatcherThreshold).GreaterThanOrEqualTo(0);
-            RuleFor(p => p.ActivationWatcherSample).InclusiveBetween(0, 1);
-
             RuleFor(p => p.EnableCache).NotNull();
             RuleFor(p => p.EnableTtlCounter).NotNull();
             RuleFor(p => p.EnableSanctionCache).NotNull();
             RuleFor(p => p.EnableRdbmsArchive).NotNull();
             RuleFor(p => p.EnableActivationWatcher).NotNull();
+            RuleFor(p => p.EntryXPath).NotEmpty();
+            RuleFor(p => p.ReferenceDateXPath).NotEmpty();
+            RuleFor(p => p.EntryName).NotEmpty();
+            RuleFor(p => p.ReferenceDateName).NotEmpty();
+
+            var typesPayloadLocation = new List<int?> {1, 3};
+
+            RuleFor(p => p.ReferenceDatePayloadLocationTypeId).Must(m => typesPayloadLocation.Contains(m));
+            RuleFor(p => p.ReferenceDateName).NotEmpty();
+            RuleFor(p => p.ReferenceDatePayloadLocationTypeId).Must(m => typesPayloadLocation.Contains(m));
+            RuleFor(p => p.ReferenceDateXPath).NotEmpty();
+            RuleFor(p => p.MaxResponseElevation).GreaterThanOrEqualTo(0);
+
+            var typesInterval = new List<char?> {'s', 'n', 'h', 'd'};
+
+            RuleFor(p => p.CacheTtlInterval).Must(m => typesInterval.Contains(m)).When(w => w.EnableCache);
+            RuleFor(p => p.CacheTtlIntervalValue).GreaterThanOrEqualTo(0).When(w => w.EnableCache);
+            RuleFor(p => p.CacheFetchLimit).GreaterThanOrEqualTo(0).When(w => w.EnableCache);
+
+            RuleFor(p => p.MaxResponseElevationInterval).Must(m => typesInterval.Contains(m)).When(w => w.EnableResponseElevationLimit);
+            RuleFor(p => p.MaxResponseElevationValue).GreaterThanOrEqualTo(0).When(w => w.EnableResponseElevationLimit);
+            RuleFor(p => p.MaxResponseElevationThreshold).GreaterThanOrEqualTo(0).When(w => w.EnableResponseElevationLimit);
+            
+            RuleFor(p => p.MaxActivationWatcherInterval).Must(m => typesInterval.Contains(m)).When(w => w.EnableActivationWatcher);
+            RuleFor(p => p.MaxActivationWatcherValue).GreaterThanOrEqualTo(0).When(w => w.EnableActivationWatcher);
+            RuleFor(p => p.MaxActivationWatcherThreshold).GreaterThanOrEqualTo(0).When(w => w.EnableActivationWatcher);
+            RuleFor(p => p.ActivationWatcherSample).InclusiveBetween(0, 1).When(w => w.EnableActivationWatcher);
         }
     }
 }

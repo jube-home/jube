@@ -14,20 +14,18 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using AutoMapper;
 using FluentValidation;
 using FluentValidation.Results;
 using Jube.App.Code;
-using Jube.App.Dto;
 using Jube.App.Validators;
 using Jube.Data.Context;
-using Jube.Data.Poco;
-using Jube.Data.Repository;
 using Jube.Engine.Helpers;
+using Jube.Service.Dto.EntityAnalysisModel;
 using log4net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Jube.Service.EntityAnalysisModel;
 
 namespace Jube.App.Controllers.Repository
 {
@@ -36,43 +34,42 @@ namespace Jube.App.Controllers.Repository
     [Authorize]
     public class EntityAnalysisModelController : Controller
     {
-        private readonly DbContext _dbContext;
-        private readonly ILog _log;
-        private readonly IMapper _mapper;
-        private readonly PermissionValidation _permissionValidation;
-        private readonly EntityAnalysisModelRepository _repository;
-        private readonly string _userName;
-        private readonly IValidator<EntityAnalysisModelDto> _validator;
+        private readonly DbContext dbContext;
+        private readonly ILog log;
+        private readonly PermissionValidation permissionValidation;
+        private readonly string userName;
+        private readonly IValidator<EntityAnalysisModelDto> validator;
+        private readonly EntityAnalysisModelService service;
 
         public EntityAnalysisModelController(ILog log, IHttpContextAccessor httpContextAccessor,
             DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
+            this.log = log;
+            
             if (httpContextAccessor.HttpContext?.User.Identity != null)
-                _userName = httpContextAccessor.HttpContext.User.Identity.Name;
-            _log = log;
+                userName = httpContextAccessor.HttpContext.User.Identity.Name;
             
-            _dbContext =
+            dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(dynamicEnvironment.AppSettings("ConnectionString"));
-            _permissionValidation = new PermissionValidation(_dbContext, _userName);
             
-            var config = new MapperConfiguration(cfg =>
+            permissionValidation = new PermissionValidation(dbContext, userName);
+            
+            validator = new EntityAnalysisModelsDtoValidator();
+
+            if (userName == null)
             {
-                cfg.CreateMap<EntityAnalysisModel, EntityAnalysisModelDto>();
-                cfg.CreateMap<EntityAnalysisModelDto, EntityAnalysisModel>();
-                cfg.CreateMap<List<EntityAnalysisModel>, List<EntityAnalysisModelDto>>()
-                    .ForMember("Item", opt => opt.Ignore());
-            });
-            _mapper = new Mapper(config);
-            _repository = new EntityAnalysisModelRepository(_dbContext, _userName);
-            _validator = new EntityAnalysisModelsDtoValidator();
+                throw new Exception("Could not create service as username is not available.");
+            }
+            
+            service = new EntityAnalysisModelService(dbContext, userName);
         }
         
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _dbContext.Close();
-                _dbContext.Dispose();
+                dbContext.Close();
+                dbContext.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -82,13 +79,13 @@ namespace Jube.App.Controllers.Repository
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,37,27,3,4,1})) return Forbid();
+                if (!permissionValidation.Validate(new[] {6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,37,27,3,4,1})) return Forbid();
 
-                return Ok(_mapper.Map<List<EntityAnalysisModelDto>>(_repository.Get()));
+                return Ok(service.Get());
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }
@@ -99,14 +96,13 @@ namespace Jube.App.Controllers.Repository
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {6})) return Forbid();
+                if (!permissionValidation.Validate(new[] {6})) return Forbid();
 
-                return Ok(_mapper.Map<EntityAnalysisModelDto>(
-                    _repository.GetById(id)));
+                return Ok(service.Get(id));
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }
@@ -118,16 +114,16 @@ namespace Jube.App.Controllers.Repository
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {6}, true)) return Forbid();
+                if (!permissionValidation.Validate(new[] {6}, true)) return Forbid();
 
-                var results = _validator.Validate(model);
-                if (results.IsValid) return Ok(_repository.Insert(_mapper.Map<EntityAnalysisModel>(model)));
+                var results = validator.Validate(model);
+                if (results.IsValid) return Ok(service.Insert(model));
 
                 return BadRequest(results);
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }
@@ -139,10 +135,10 @@ namespace Jube.App.Controllers.Repository
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {6}, true)) return Forbid();
+                if (!permissionValidation.Validate(new[] {6}, true)) return Forbid();
 
-                var results = _validator.Validate(model);
-                if (results.IsValid) return Ok(_repository.Update(_mapper.Map<EntityAnalysisModel>(model)));
+                var results = validator.Validate(model);
+                if (results.IsValid) return Ok(service.Update(model));
 
                 return BadRequest(results);
             }
@@ -152,20 +148,20 @@ namespace Jube.App.Controllers.Repository
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }
 
         [HttpDelete]
         [Route("{id:int}")]
-        public ActionResult<List<EntityAnalysisModelDto>> Get(int id)
+        public ActionResult Get(int id)
         {
             try
             {
-                if (!_permissionValidation.Validate(new[] {6}, true)) return Forbid();
+                if (!permissionValidation.Validate(new[] {6}, true)) return Forbid();
 
-                _repository.Delete(id);
+                service.Delete(id);
                 return Ok();
             }
             catch (KeyNotFoundException)
@@ -174,7 +170,7 @@ namespace Jube.App.Controllers.Repository
             }
             catch (Exception e)
             {
-                _log.Error(e);
+                log.Error(e);
                 return StatusCode(500);
             }
         }

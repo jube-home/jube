@@ -35,7 +35,7 @@ namespace Jube.App.Controllers.Authentication
 
         private readonly DbContext dbContext;
         private readonly DynamicEnvironment.DynamicEnvironment dynamicEnvironment;
-        private readonly Service.Authentication.Authentication service;
+        private readonly Service.Authentication.AuthenticationService service;
 
         public AuthenticationController(DynamicEnvironment.DynamicEnvironment dynamicEnvironment,
             IHttpContextAccessor contextAccessor)
@@ -44,7 +44,7 @@ namespace Jube.App.Controllers.Authentication
             dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(this.dynamicEnvironment.AppSettings("ConnectionString"));
             this.contextAccessor = contextAccessor;
-            service = new Service.Authentication.Authentication(dbContext);
+            service = new Service.Authentication.AuthenticationService(dbContext);
         }
 
         protected override void Dispose(bool disposing)

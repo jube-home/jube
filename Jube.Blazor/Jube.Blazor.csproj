@@ -25,6 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Jube.App\Jube.App.csproj" />
       <ProjectReference Include="..\Jube.DynamicEnvironment\Jube.DynamicEnvironment.csproj" />
       <ProjectReference Include="..\Jube.Migrations\Jube.Migrations.csproj" />
       <ProjectReference Include="..\Jube.Validations\Jube.Validations.csproj" />

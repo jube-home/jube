@@ -20,7 +20,7 @@ using Jube.Service.Exceptions.Authentication;
 
 namespace Jube.Service.Authentication;
 
-public class Authentication(DbContext dbContext)
+public class AuthenticationService(DbContext dbContext)
 {
     public UserRegistry AuthenticateByUserNamePassword(AuthenticationRequestDto authenticationRequestDto,
         string? passwordHashingKey)

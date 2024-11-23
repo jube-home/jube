@@ -11,12 +11,9 @@
  * see <https://www.gnu.org/licenses/>.
  */
 
-using System;
-using Jube.App.Dto.Interfaces;
-
-namespace Jube.App.Dto
+namespace Jube.Service.Dto.EntityAnalysisModel
 {
-    public class EntityAnalysisModelDto : IUpdated
+    public class EntityAnalysisModelDto
     {
         public string Name { get; set; }
         public Guid Guid { get; set; }
@@ -33,7 +30,7 @@ namespace Jube.App.Dto
         public int MaxActivationWatcherThreshold { get; set; }
         public double ActivationWatcherSample { get; set; }
         public bool EnableCache { get; set; }
-        public bool EnableSanctionCache { get; set; }
+        public bool? EnableSanctionCache { get; set; }
         public bool EnableTtlCounter { get; set; }
         public bool EnableElasticsearchArchive { get; set; }
         public bool EnableRdbmsArchive { get; set; }
@@ -44,16 +41,16 @@ namespace Jube.App.Dto
         public int CacheFetchLimit { get; set; }
         public char CacheTtlInterval { get; set; }
         public int CacheTtlIntervalValue { get; set; }
-        public byte EntryPayloadLocationTypeId { get; set; }
-        public byte ReferenceDatePayloadLocationTypeId { get; set; }
+        public int EntryPayloadLocationTypeId { get; set; }
+        public int ReferenceDatePayloadLocationTypeId { get; set; }
         public double MaxResponseElevation { get; set; }
-        public int Id { get; set; }
-        public string CreatedUser { get; set; }
-        public DateTime CreatedDate { get; set; }
-        public string UpdatedUser { get; set; }
-        public DateTime UpdatedDate { get; set; }
-        public int Version { get; set; }
-        public string DeletedUser { get; set; }
-        public DateTime DeletedDate { get; set; }
+        public int? Id { get; set; }
+        public string? CreatedUser { get; set; }
+        public DateTime? CreatedDate { get; set; }
+        public string? UpdatedUser { get; set; }
+        public DateTime? UpdatedDate { get; set; }
+        public int? Version { get; set; }
+        public string? DeletedUser { get; set; }
+        public DateTime? DeletedDate { get; set; }
     }
 }

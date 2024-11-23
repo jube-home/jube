@@ -1,0 +1,391 @@
+@page "/EntityAnalysisModel/EntityAnalysisModel/{entityAnalysisModelId}"
+@using Jube.App.Dto
+@using Jube.Blazor.Components.Code.Helpers
+@using Jube.Data.Context
+@using Jube.DynamicEnvironment
+@using Jube.Service.Dto.EntityAnalysisModel
+@using Jube.Service.EntityAnalysisModel
+@inject NavigationManager NavigationManager
+@inject DynamicEnvironment DynamicEnvironment
+@inject IHttpContextAccessor HttpContextAccessor;
+@inject IStringLocalizer<Resources> Localizer
+
+<RadzenTemplateForm Data="@entityAnalysisModelDto" OnValidSubmit="OnValidSubmit">
+<FluentValidationValidator/>
+<RadzenCard>
+<RadzenFieldset Text="Entity Analysis Model">
+<ValidationSummary/>
+<RadzenStack>
+<RadzenFieldset Text="Overview">
+    <RadzenStack>
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenLabel>Name</RadzenLabel>
+            </RadzenColumn>
+            <RadzenColumn>
+                <RadzenTextBox/>
+            </RadzenColumn>
+            <RadzenColumn>
+                <RadzenLabel>Active</RadzenLabel>
+            </RadzenColumn>
+            <RadzenColumn>
+                <RadzenSwitch/>
+            </RadzenColumn>
+            <RadzenColumn>
+                <RadzenLabel>Locked</RadzenLabel>
+            </RadzenColumn>
+            <RadzenColumn>
+                <RadzenSwitch/>
+            </RadzenColumn>
+        </RadzenRow>
+        <RadzenRow>
+            <RadzenColumn Size="2">
+                <RadzenLabel>Description</RadzenLabel>
+            </RadzenColumn>
+            <RadzenColumn Size="10">
+                <RadzenTextArea Style="width: 100%;"/>
+            </RadzenColumn>
+        </RadzenRow>
+        <RadzenFieldset Text="Version Information">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Guid</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        321654
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenLabel>Version</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        123456
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>User Created</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        Rich
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenLabel>Date Created</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        @DateTime.Now
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+    </RadzenStack>
+</RadzenFieldset>
+<RadzenRow>
+<RadzenColumn Size="6">
+    <RadzenStack>
+        <RadzenFieldset Text="Payload Data">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Entry Name</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenTextBox Style="width: 100%;"/>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Entry XPath</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenTextBox/>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Reference Date Name</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenTextBox/>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Reference Date Payload Location</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenRadioButtonList TValue="int" Orientation="Orientation.Vertical">
+                            <Items>
+                                <RadzenRadioButtonListItem Text="Body" Value="1"/>
+                                <RadzenRadioButtonListItem Text="Now" Value="2"/>
+                            </Items>
+                        </RadzenRadioButtonList>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Reference Date XPath</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenTextBox/>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+        <RadzenFieldset Text="Òther Processing">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        Enable Archive Storage
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        Enable Sanctions Cache
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        Enable Time To Live Counters
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+    </RadzenStack>
+</RadzenColumn>
+<RadzenColumn Size="6">
+    <RadzenStack>
+        <RadzenFieldset Text="Cache">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        Enable Cache
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch Change="@EnableCacheOnChange"></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow Visible="@showCachePurge">
+                    <RadzenColumn>
+                        <RadzenFieldset Text="Reach">
+                            <RadzenStack>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Time To Live Interval Type</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenRadioButtonList TValue="string" Orientation="Orientation.Vertical">
+                                            <Items>
+                                                <RadzenRadioButtonListItem Text="Seconds" Value="@("s")"/>
+                                                <RadzenRadioButtonListItem Text="Minutes" Value="@("n")"/>
+                                                <RadzenRadioButtonListItem Text="Hours" Value="@("h")"/>
+                                                <RadzenRadioButtonListItem Text="Days" Value="@("d")"/>
+                                            </Items>
+                                        </RadzenRadioButtonList>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Time To Live Interval Value</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+        <RadzenFieldset Text="Response Elevation">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Max Response Elevation</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenNumeric TValue="double"></RadzenNumeric>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Enable Limit</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch Change="@EnableResponseElevationLimitOnChange"></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow Visible="@showEnableResponseElevationLimit">
+                    <RadzenColumn>
+                        <RadzenFieldset Text="Reach">
+                            <RadzenStack>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit Interval Type</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenRadioButtonList TValue="string" Orientation="Orientation.Vertical">
+                                            <Items>
+                                                <RadzenRadioButtonListItem Text="Seconds" Value="@("s")"/>
+                                                <RadzenRadioButtonListItem Text="Minutes" Value="@("n")"/>
+                                                <RadzenRadioButtonListItem Text="Hours" Value="@("h")"/>
+                                                <RadzenRadioButtonListItem Text="Days" Value="@("d")"/>
+                                            </Items>
+                                        </RadzenRadioButtonList>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit Interval Value</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+        <RadzenFieldset Text="Activation Watcher">
+            <RadzenStack>
+                <RadzenRow>
+                    <RadzenColumn>
+                        <RadzenLabel>Enable Limit</RadzenLabel>
+                    </RadzenColumn>
+                    <RadzenColumn>
+                        <RadzenSwitch Change="@EnableActivationWatcherOnChange"></RadzenSwitch>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow Visible="@showEnableActivationWatcher">
+                    <RadzenColumn>
+                        <RadzenFieldset Text="Reach">
+                            <RadzenStack>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit Interval Type</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenRadioButtonList TValue="string" Orientation="Orientation.Vertical">
+                                            <Items>
+                                                <RadzenRadioButtonListItem Text="Seconds" Value="@("s")"/>
+                                                <RadzenRadioButtonListItem Text="Minutes" Value="@("n")"/>
+                                                <RadzenRadioButtonListItem Text="Hours" Value="@("h")"/>
+                                                <RadzenRadioButtonListItem Text="Days" Value="@("d")"/>
+                                            </Items>
+                                        </RadzenRadioButtonList>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit Interval Value</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenLabel>Limit</RadzenLabel>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenNumeric TValue="int"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+    </RadzenStack>
+</RadzenColumn>
+</RadzenRow>
+</RadzenStack>
+</RadzenFieldset>
+<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" class="rz-mt-8 rz-mb-4">
+    <RadzenButton ButtonType="ButtonType.Submit" Size="ButtonSize.Medium" Icon="save" Text="Save"/>
+</RadzenStack>
+</RadzenCard>
+</RadzenTemplateForm>
+
+@code {
+    private readonly EntityAnalysisModelDto entityAnalysisModelDto = new();
+    private bool showCachePurge;
+    private bool showEnableResponseElevationLimit;
+    private bool showEnableActivationWatcher;
+    private int? entityAnalysisModelId;
+    private EntityAnalysisModelDto model;
+    private EntityAnalysisModelService service;
+    private DbContext dbContext;
+    private string userName;
+
+    protected override void OnInitialized()
+    {
+        dbContext =
+            DataConnectionDbContext.GetDbContextDataConnection(DynamicEnvironment.AppSettings("ConnectionString"));
+
+        userName = HttpContextAccessor.HttpContext.User.Identity.Name;
+        service = new EntityAnalysisModelService(dbContext, userName);
+        
+        if (entityAnalysisModelId == null)
+        {
+            model = new EntityAnalysisModelDto()
+            {
+
+            };
+        }
+        else
+        {
+            
+        }
+    }
+    
+    private async Task OnValidSubmit()
+    {
+        
+    }
+
+    void EnableCacheOnChange(bool value)
+    {
+        showCachePurge = value;
+    }
+
+    void EnableResponseElevationLimitOnChange(bool value)
+    {
+        showEnableResponseElevationLimit = value;
+    }
+
+    void EnableActivationWatcherOnChange(bool value)
+    {
+        showEnableActivationWatcher = value;
+    }
+
+}

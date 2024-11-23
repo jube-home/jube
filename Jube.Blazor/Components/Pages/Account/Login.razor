@@ -26,8 +26,6 @@
 @inject IHttpContextAccessor HttpContextAccessor;
 @inject IStringLocalizer<Resources> Localizer;
 
-<h3>@Localizer["Pages:Account:Login:Login"]</h3>
-
 <EditForm Model="@authenticationRequestDto" OnValidSubmit="OnValidSubmit">
     <FluentValidationValidator/>
     <ValidationSummary/>
@@ -93,7 +91,7 @@
 
     private readonly AuthenticationRequestDto authenticationRequestDto = new();
     private DbContext? dbContext;
-    private Service.Authentication.Authentication? service;
+    private Service.Authentication.AuthenticationService? service;
 
     private bool showChangeCredentialsAndHideLogin;
 
@@ -107,7 +105,7 @@
     {
         dbContext =
             DataConnectionDbContext.GetDbContextDataConnection(DynamicEnvironment.AppSettings("ConnectionString"));
-        service = new Service.Authentication.Authentication(dbContext);
+        service = new Service.Authentication.AuthenticationService(dbContext);
     }
 
     private void OnCloseInvalidCredentials()
