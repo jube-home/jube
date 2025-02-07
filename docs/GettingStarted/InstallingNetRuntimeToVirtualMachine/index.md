@@ -1,19 +1,19 @@
 ---
 layout: default
-title: Installing .Net 8 Runtime to Virtual Machine (aka Droplet)
+title: Installing .Net 9 Runtime to Virtual Machine (aka Droplet)
 nav_order: 4
 parent: Getting Started
 ---
 
-# Installing .Net 8 Runtime to Virtual Machine (aka Droplet)
+# Installing .Net 9 Runtime to Virtual Machine (aka Droplet)
 
-The Droplet will be missing the .Net 8 Runtime by default, and it needs to be installed.  The packages are available from Microsoft as follows:
+The Droplet will be missing the .Net 9 Runtime by default, and it needs to be installed.  The packages are available from Microsoft as follows:
 
 https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
 
-For Ubuntu 23.10 Linux for the purposes of this tutorial:
+For Ubuntu 24.10 Linux for the purposes of this tutorial:
 
-https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-2310
+https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install?tabs=dotnet9&pivots=os-linux-ubuntu-2410
 
 Create a Droplet:
 
@@ -25,19 +25,11 @@ Navigate to cloud bash command line for the Droplet:
 
 ![Image](LinuxVersion.png)
 
-Scroll down the page and identify the package for the Linux distribution in use,  in this case  Ubuntu 23.10:
-
-![Image](LocationOfUbuntuLink.png)
-
-Click on the link to expose the command line statements to install:
-
-![Image](LocationOfInstallRuntime.png)
-
 The command to install can be extracted as follows:
 
 ```shell
 sudo apt-get update && \
-  sudo apt-get install -y aspnetcore-runtime-8.0
+  sudo apt-get install -y aspnetcore-runtime-9.0
 ```
 
 The shell command above is simply executed in the console via copy and paste:

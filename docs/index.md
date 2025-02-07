@@ -54,7 +54,7 @@ Please consider giving the project a GitHub Star. Thank you in advance!
 
 Jube runs on commodity Linux. The Quickstart has the following prerequisites:
 
-* .Net 8 Runtime.
+* .Net 9 Runtime.
 * Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking
   change).
 * Optional but recommended: Redis version 6 or above (it probably works fine on earlier versions, as the command used
@@ -136,18 +136,6 @@ proposition that provides
 for a generous free tier given shared infrastructure, or if paid, dedicated infrastructure. In the midst, mindful
 that Jube already has supervised learning for transaction analysis, Phi Language models will be included in the case
 management pages for summarization, developed as part of other modernisation efforts.
-
-The following table lays out the product Roadmap through April 2026:
-
-| Milestone                          | Description                                                                                                                                                                                                                                                                                                                                                                        | Delivery      |
-|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| .Net 9                             | Upgrade to .Net 9.                                                                                                                                                                                                                                                                                                                                                                 | December 2024 |
-| Git Version Control                | Implement file based representation of the database in Git and allow for recovery and replay of changes.                                                                                                                                                                                                                                                                           | June 2025     |
-| Modernisation                      | Upgrading the user interface to Blazor and Radzen tooling.  Essentially a total rewrite of the User Interface and the porting of functionality out of controllers into Service Layers. Existing controllers will be supported in their current form, although Blazor will not use REST (JSON over HTTP), rather go directly to Service Layers.  Possible upgrade of LINQ2DB layer. | October 2025  |
-| Phi                                | Implementation of Case Management Summarization using Phi.                                                                                                                                                                                                                                                                                                                         | November 2025 |
-| Unit Testing and Code Optimization | The inclusion of unit tests across all critical transaction processing functionality.  To the extent critical transaction processing functionality is too larger or complex,  it will be refactored.  Optimisations sought in all units through benchmarking and trials.                                                                                                           | November 2025 |
-| Transaction Serialisation          | Explore improvements in transaction processing by removing the JSON and serialization overhead and using a byte representation over gRPC.                                                                                                                                                                                                                                          | December 2025 |
-| Cloud Portal                       | The creation of a portal to allow for self service management of distributed and highly available implementations of Jube using containerisation.  Intention is to offer a free edition of Jube using shared infrastructure, or paid for given dedicated infrastructure                                                                                                            | April 2026    |
 
 # Documentation
 

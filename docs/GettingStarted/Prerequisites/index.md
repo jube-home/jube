@@ -35,7 +35,7 @@ introduction).
 
 Jube has the following prerequisites:
 
-* .Net 8 Runtime.
+* .Net 9 Runtime.
 * Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking
   change).
 * Optional: Redis version 6 or above (it probably works fine on earlier versions, as the command used are basic. RESP

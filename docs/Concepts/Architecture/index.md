@@ -42,7 +42,7 @@ allocating threads based on desired architecture and work allocation.
 
 Jube is intended to run on a commodity Linux open source infrastructure and has the following software dependencies:
 
-* .Net 8 Runtime.
+* .Net 9 Runtime.
 * Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking
   change).
 * Optional: Redis version 6 or above (it probably works fine on earlier versions, as the command used are basic. RESP
