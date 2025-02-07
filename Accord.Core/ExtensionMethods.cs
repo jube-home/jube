@@ -97,7 +97,7 @@ namespace Accord
         ///   </code>
         /// </example>
         /// 
-        public static void Add(this DataColumnCollection collection, OrderedDictionary<string, Type> columns)
+        public static void Add(this DataColumnCollection collection, Collections.OrderedDictionary<string, Type> columns)
         {
             foreach (var pair in columns)
                 collection.Add(pair.Key, pair.Value);

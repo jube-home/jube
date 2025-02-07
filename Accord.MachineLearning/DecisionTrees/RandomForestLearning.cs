@@ -160,7 +160,7 @@ namespace Accord.MachineLearning.DecisionTrees
         /// 
         /// <param name="attributes">The attributes to be processed by the induced tree.</param>
         ///
-        public RandomForestLearning(OrderedDictionary<string, string[]> attributes)
+        public RandomForestLearning(Collections.OrderedDictionary<string, string[]> attributes)
             : this()
         {
             this.attributes = DecisionVariable.FromDictionary(attributes);
