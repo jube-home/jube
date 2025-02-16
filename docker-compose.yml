@@ -3,7 +3,7 @@
     image: "postgres"
     container_name: "postgres"
     environment:
-      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_PASSWORD=${DockerComposePostgresPassword}
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
     ports:
@@ -22,17 +22,6 @@
       - default
     environment:
       REDIS_ARGS: --appendonly yes
-  rabbitmq:
-    image: "rabbitmq:3-management"
-    container_name: "rabbitmq"
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    networks:
-      - default
-    volumes:
-      - ./rabbitmq/data/:/var/lib/rabbitmq/
-      - ./rabbitmq/data/:/var/log/rabbitmq
   jube.webapi:
     image: jube.app
     depends_on:
@@ -40,24 +29,16 @@
           condition: service_started
         redis:
           condition: service_started
-        rabbitmq:
-          condition: service_started
-    deploy:
-      mode: replicated
-      replicas: 1
     links:
       - redis
       - postgres
-      - rabbitmq
     environment:
       - ASPNETCORE_URLS=http://0.0.0.0:5001
-      - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=mysecretpassword;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
-      - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=mysecretpassword;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+      - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+      - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
       - EnableSandbox=True
-      - JWTKey=IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L
+      - JWTKey=${DockerComposeJWTKey}
       - RedisConnectionString=redis
-      - AMQP=True
-      - AMQPUri=amqp://guest:guest@rabbitmq:5672/
       - EnableExhaustiveTraining=False
       - EnableCacheIndex=False
       - EnableReprocessing=False
@@ -81,19 +62,14 @@
             condition: service_started
           redis:
             condition: service_started
-          rabbitmq:
-            condition: service_started
         links:
           - redis
           - postgres
-          - rabbitmq
         environment:
-          - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=mysecretpassword;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
-          - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=mysecretpassword;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+        - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+        - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
           - RedisConnectionString=redis
-          - AMQP=True
-          - AMQPUri=amqp://guest:guest@rabbitmq:5672/
-          - JWTKey=IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L
+          - JWTKey=${DockerComposeJWTKey}
           - EnableExhaustiveTraining=True
           - EnableCacheIndex=True
           - EnableReprocessing=True
@@ -102,7 +78,7 @@
           - EnableTtlCounter=True
           - EnableSearchKeyCache=True
           - EnableCasesAutomation=True
-          - StreamingActivationWatcher=True
+          - StreamingActivationWatcher=False
           - EnableCallback=True
           - EnablePublicInvokeController=True
         networks:

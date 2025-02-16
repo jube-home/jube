@@ -47,7 +47,8 @@ public class SandboxRegistration(DbContext dbContext)
         InsertEntityAnalysisModelListValue(entityAnalysisModelListId, userRegistry.Name);
         InsertEntityAnalysisModelSanction(entityAnalysisModelId, userRegistry.Name);
         InsertEntityAnalysisModelTag(entityAnalysisModelId, userRegistry.Name);
-        InsertEntityAnalysisModelTtlCounter(entityAnalysisModelId, userRegistry.Name);
+        var entityEntityAnalysisModelTtlCounterId =
+            InsertEntityAnalysisModelTtlCounter(entityAnalysisModelId, userRegistry.Name);
 
         var insertVisualisationRegistryExampleVisualisationId =
             InsertVisualisationRegistryExampleVisualisation(userRegistry.Name);
@@ -79,7 +80,8 @@ public class SandboxRegistration(DbContext dbContext)
 
         var caseWorkflowStatusId = InsertCaseWorkflowStatus(caseWorkflowId, userRegistry.Name);
 
-        InsertEntityAnalysisModelActivationRule(entityAnalysisModelId, caseWorkflowId, caseWorkflowStatusId,
+        InsertEntityAnalysisModelActivationRule(entityAnalysisModelId,
+            caseWorkflowId, caseWorkflowStatusId, entityEntityAnalysisModelTtlCounterId,
             userRegistry.Name);
         InsertEntityAnalysisModelSynchronisationSchedule(userRegistry.Name);
 
@@ -1436,11 +1438,11 @@ public class SandboxRegistration(DbContext dbContext)
         });
     }
 
-    private void InsertEntityAnalysisModelTtlCounter(int entityAnalysisModelId, string userName)
+    private int InsertEntityAnalysisModelTtlCounter(int entityAnalysisModelId, string userName)
     {
         var entityAnalysisModelTtlCounterRepository = new EntityAnalysisModelTtlCounterRepository(dbContext, userName);
 
-        entityAnalysisModelTtlCounterRepository.Insert(new EntityAnalysisModelTtlCounter
+        return entityAnalysisModelTtlCounterRepository.Insert(new EntityAnalysisModelTtlCounter
         {
             Name = "TtlCounterAll",
             EntityAnalysisModelId = entityAnalysisModelId,
@@ -1451,7 +1453,7 @@ public class SandboxRegistration(DbContext dbContext)
             TtlCounterDataName = "AccountId",
             OnlineAggregation = 0,
             EnableLiveForever = 0
-        });
+        }).Id;
     }
 
     private int InsertEntityAnalysisModelList(int entityAnalysisModelId, string userName)
@@ -1617,7 +1619,7 @@ public class SandboxRegistration(DbContext dbContext)
     }
 
     private void InsertEntityAnalysisModelActivationRule(int entityAnalysisModelId, int caseWorkflowId,
-        int caseWorkflowStatusId, string userName)
+        int caseWorkflowStatusId, int entityAnalysisModelTtlCounterId, string userName)
     {
         var entityAnalysisModelActivationRuleRepository =
             new EntityAnalysisModelActivationRuleRepository(dbContext, userName);
@@ -1635,8 +1637,8 @@ public class SandboxRegistration(DbContext dbContext)
             CaseKey = "",
             Active = 1,
             EnableTtlCounter = 1,
-            EntityAnalysisModelTtlCounterId = 1,
-            EntityAnalysisModelIdTtlCounter = 1,
+            EntityAnalysisModelTtlCounterId = entityAnalysisModelTtlCounterId,
+            EntityAnalysisModelIdTtlCounter = entityAnalysisModelId,
             ResponsePayload = 0,
             EnableNotification = 0,
             EnableResponseElevation = 0,
@@ -1817,6 +1819,11 @@ public class SandboxRegistration(DbContext dbContext)
             EnableSuppression = 1,
             ResponsePayload = 1,
             SearchKey = 1,
+            SearchKeyFetchLimit = 100,
+            SearchKeyCacheInterval = "h",
+            SearchKeyCacheTtlValue = 1,
+            SearchKeyTtlIntervalValue = 1,
+            SearchKeyTtlInterval = "h",
             Active = 1,
             DefaultValue = "Test1"
         });
@@ -2609,6 +2616,9 @@ public class SandboxRegistration(DbContext dbContext)
             EnableSuppression = 1,
             ResponsePayload = 1,
             SearchKey = 1,
+            SearchKeyFetchLimit = 100,
+            SearchKeyCacheInterval = "h",
+            SearchKeyTtlIntervalValue = 1,
             Active = 1,
             DefaultValue = "OlaRoseGoldPhone6"
         });
@@ -2667,6 +2677,8 @@ public class SandboxRegistration(DbContext dbContext)
                 Active = 1,
                 ReferenceDateName = "TxnDateTime",
                 CacheFetchLimit = 100,
+                CacheTtlInterval = 'd',
+                CacheTtlIntervalValue = 100,
                 EnableCache = 1,
                 EnableRdbmsArchive = 1,
                 EnableTtlCounter = 1,

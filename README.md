@@ -60,7 +60,6 @@ installed. This docker compose file creates and configures the following compone
 
 * postgres image and start.
 * redis/redis-stack:latest image and start.
-* rabbitmq:3-management image and start.
 * The building of an image of Jube:
     * Starting an image of Jube for WebAPI Services (API and User Interface).
     * Starting an image of Jube for the Background Jobs.
@@ -70,12 +69,12 @@ With the prerequisites in place, Jube can be up and running in just a few minute
 ```shell
 git clone https://github.com/jube-home/jube.git
 cd jube
+export DockerComposePostgresPassword="SuperSecretPasswordToChange"
+export DockerComposeJWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
 docker compose up -d
 ```
 
 Upon conclusion Jube will be listening on the docker host, on port 5001, hence (http://localhost:5001).
-
-Be sure to update the docker compose file on production use, for appropriate credential creation and management.
 
 # Quickstart with dotnet run
 
@@ -94,8 +93,8 @@ Subject to prerequisites, Jube can be up and running in minutes:
 ```shell
 git clone https://github.com/jube-home/jube.git
 cd jube/Jube.App
-export ConnectionString="Host=<host>;Port=<port>;Database=<defaultdb>;Username=<username>;Password=<password>;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;SSL Mode=Require;Trust Server Certificate=true;"
-export RedisConnectionString="<host>"
+export ConnectionString="Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=SuperSecretPasswordToChange;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;SSL Mode=Require;Trust Server Certificate=true;"
+export RedisConnectionString="localhost"
 export ASPNETCORE_URLS="https://localhost:5001"
 export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP|GZy"YYWeVrNUqLQE}mz{L_UsingThisKeyIsDangerous"
 dotnet run

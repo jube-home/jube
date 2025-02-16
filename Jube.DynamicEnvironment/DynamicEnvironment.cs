@@ -49,7 +49,7 @@ public class DynamicEnvironment
                 {"ActivationWatcherBulkCopyThreshold", "100"},
                 {"ReprocessingThreads", "1"},
                 {"ThreadPoolManualControl", "False"},
-                {"MinThreadPoolThreads", "1"},
+                {"MinThreadPoolThreads", "30"},
                 {"MaxThreadPoolThreads", "1000"},
                 {"MaximumModelInvokeAsyncQueue", "10000"},
                 {"SMTPHost", null},
