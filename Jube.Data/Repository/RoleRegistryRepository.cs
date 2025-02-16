@@ -33,6 +33,12 @@ namespace Jube.Data.Repository
             _tenantRegistryId = _dbContext.UserInTenant.Where(w => w.User == _userName)
                 .Select(s => s.TenantRegistryId).FirstOrDefault();
         }
+        
+        public RoleRegistryRepository(DbContext dbContext,TenantRegistry tenantRegistry)
+        {
+            _dbContext = dbContext;
+            _tenantRegistryId = tenantRegistry.Id;
+        }
 
         public IEnumerable<RoleRegistry> Get()
         {

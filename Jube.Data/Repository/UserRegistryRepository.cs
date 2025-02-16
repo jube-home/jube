@@ -38,6 +38,12 @@ namespace Jube.Data.Repository
         {
             _dbContext = dbContext;
         }
+        
+        public UserRegistryRepository(DbContext dbContext,RoleRegistry roleRegistry)
+        {
+            _dbContext = dbContext;
+            _tenantRegistryId = roleRegistry.TenantRegistryId;
+        }
 
         public IEnumerable<UserRegistry> Get()
         {

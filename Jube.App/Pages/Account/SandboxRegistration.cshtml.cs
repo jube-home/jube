@@ -1,4 +1,4 @@
-/* Copyright (C) 2022-present Jube Holdings Limited.
+﻿/* Copyright (C) 2022-present Jube Holdings Limited.
  *
  * This file is part of Jube™ software.
  *
@@ -11,26 +11,13 @@
  * see <https://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Collections.Generic;
-using Jube.Data.Context;
-using Jube.Data.Poco;
-using LinqToDB;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace Jube.Data.Repository
+namespace Jube.App.Pages.Account
 {
-    public class EntityAnalysisInlineScriptRepository(DbContext dbContext)
+    [AllowAnonymous]
+    public class SandboxRegistration : PageModel
     {
-        public IEnumerable<EntityAnalysisInlineScript> Get()
-        {
-            return dbContext.EntityAnalysisInlineScript;
-        }
-        
-        public EntityAnalysisInlineScript Insert(EntityAnalysisInlineScript model)
-        {
-            model.CreatedDate = DateTime.Now;
-            model.Id = dbContext.InsertWithInt32Identity(model);
-            return model;
-        }
     }
 }

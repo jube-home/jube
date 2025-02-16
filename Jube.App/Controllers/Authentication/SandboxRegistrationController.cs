@@ -14,9 +14,11 @@
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Threading.Tasks;
 using Jube.App.Code;
 using Jube.Data.Context;
 using Jube.Engine.Helpers;
+using Jube.Service.Authentication;
 using Jube.Service.Dto.Authentication;
 using Jube.Service.Exceptions.Authentication;
 using Jube.Validations.Authentication;
@@ -29,23 +31,19 @@ namespace Jube.App.Controllers.Authentication
     [Route("api/[controller]")]
     [Produces("application/json")]
     [AllowAnonymous]
-    public class AuthenticationController : Controller
+    public class SandboxRegistrationController : Controller
     {
-        private readonly IHttpContextAccessor contextAccessor;
-
         private readonly DbContext dbContext;
         private readonly DynamicEnvironment.DynamicEnvironment dynamicEnvironment;
-        private readonly Service.Authentication.Authentication service;
+        private readonly SandboxRegistration service;
 
-        public AuthenticationController(DynamicEnvironment.DynamicEnvironment dynamicEnvironment,
-            IHttpContextAccessor contextAccessor)
+        public SandboxRegistrationController(DynamicEnvironment.DynamicEnvironment dynamicEnvironment)
         {
             this.dynamicEnvironment = dynamicEnvironment;
             dbContext =
                 DataConnectionDbContext.GetDbContextDataConnection(
                     this.dynamicEnvironment.AppSettings("ConnectionString"));
-            this.contextAccessor = contextAccessor;
-            service = new Service.Authentication.Authentication(dbContext);
+            service = new SandboxRegistration(dbContext);
         }
 
         protected override void Dispose(bool disposing)
@@ -59,41 +57,34 @@ namespace Jube.App.Controllers.Authentication
             base.Dispose(disposing);
         }
 
-        [HttpPost("ByUserNamePassword")]
-        [ProducesResponseType(typeof(AuthenticationResponseDto), (int)HttpStatusCode.OK)]
-        public ActionResult<AuthenticationResponseDto> ByUserNamePassword(
-            [FromBody] AuthenticationRequestDto model)
+        [HttpPost("Register")]
+        [ProducesResponseType(typeof(SandboxRegistrationResponseDto), (int)HttpStatusCode.OK)]
+        public async Task<ActionResult<AuthenticationResponseDto>> Register(
+            [FromBody] SandboxRegistrationRequestDto model)
         {
-            var validator = new AuthenticationRequestDtoValidator();
-            var results = validator.Validate(model);
+            if (!dynamicEnvironment.AppSettings("EnableSandbox").Equals("True")) return Unauthorized();
+            
+            var validator = new SandboxRegistrationRequestDtoValidator();
+            var results = await validator.ValidateAsync(model);
             if (!results.IsValid) return BadRequest(results);
 
             try
             {
-                model.UserAgent = contextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
-                model.LocalIp = contextAccessor.HttpContext?.Connection.LocalIpAddress?.ToString();
-                model.UserAgent = Request.Headers.UserAgent.ToString();
-
-                service.AuthenticateByUserNamePassword(model, dynamicEnvironment.AppSettings("PasswordHashingKey"));
+                var sandboxRegistrationResponseDto = await service.Register(model, dynamicEnvironment.AppSettings("PasswordHashingKey"));
+                SetAuthenticationCookie(model);
+                return Ok(sandboxRegistrationResponseDto);
             }
-            catch (PasswordExpiredException)
+            catch (ConflictException)
             {
-                return Forbid();
-            }
-            catch (PasswordNewMustChangeException)
-            {
-                return Forbid();
+                return StatusCode(409);
             }
             catch (Exception)
             {
-                return Unauthorized();
+                return StatusCode(500);
             }
-
-            var authenticationDto = SetAuthenticationCookie(model);
-            return Ok(authenticationDto);
         }
 
-        private AuthenticationResponseDto SetAuthenticationCookie(AuthenticationRequestDto model)
+        private void SetAuthenticationCookie(SandboxRegistrationRequestDto model)
         {
             var token = Jwt.CreateToken(model.UserName,
                 dynamicEnvironment.AppSettings("JWTKey"),
@@ -117,33 +108,6 @@ namespace Jube.App.Controllers.Authentication
 
             Response.Cookies.Append("authentication",
                 authenticationDto.Token, cookieOptions);
-            return authenticationDto;
-        }
-
-        [AllowAnonymous]
-        [HttpPost("ChangePassword")]
-        [ProducesResponseType(typeof(AuthenticationResponseDto), (int)HttpStatusCode.OK)]
-        public ActionResult ChangePassword([FromBody] ChangePasswordRequestDto model)
-        {
-            if (User.Identity == null) return Ok();
-
-            var validator = new ChangePasswordRequestDtoValidator();
-
-            var results = validator.Validate(model);
-
-            if (!results.IsValid) return BadRequest(results);
-
-            try
-            {
-                service.ChangePassword(User.Identity.Name, model,
-                    dynamicEnvironment.AppSettings("PasswordHashingKey"));
-            }
-            catch (BadCredentialsException)
-            {
-                return Unauthorized();
-            }
-
-            return Ok();
         }
     }
 }

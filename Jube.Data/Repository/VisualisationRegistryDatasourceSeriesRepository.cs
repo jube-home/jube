@@ -20,22 +20,22 @@ namespace Jube.Data.Repository
 {
     public class VisualisationRegistryDatasourceSeriesRepository
     {
-        private readonly DbContext _dbContext;
-        private readonly int _tenantRegistryId;
+        private readonly DbContext dbContext;
+        private readonly int tenantRegistryId;
 
         public VisualisationRegistryDatasourceSeriesRepository(DbContext dbContext, string userName)
         {
-            _dbContext = dbContext;
-            _tenantRegistryId = _dbContext.UserInTenant.Where(w => w.User == userName)
+            this.dbContext = dbContext;
+            tenantRegistryId = this.dbContext.UserInTenant.Where(w => w.User == userName)
                 .Select(s => s.TenantRegistryId).FirstOrDefault();
         }
-
+        
         public IEnumerable<VisualisationRegistryDatasourceSeries> GetByVisualisationRegistryDatasourceId(
             int visualisationRegistryDatasourceId)
         {
-            return _dbContext.VisualisationRegistryDatasourceSeries
+            return dbContext.VisualisationRegistryDatasourceSeries
                 .Where(w => w.VisualisationRegistryDatasource.VisualisationRegistry.TenantRegistryId ==
-                            _tenantRegistryId
+                            tenantRegistryId
                             && w.VisualisationRegistryDatasourceId == visualisationRegistryDatasourceId &&
                             (w.VisualisationRegistryDatasource.Deleted == 0 ||
                              w.VisualisationRegistryDatasource.Deleted == null));

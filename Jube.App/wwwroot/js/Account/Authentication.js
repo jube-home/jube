@@ -13,15 +13,15 @@
 
 var isChange;
 
-$( document ).ready(function() {
+$(document).ready(function () {
     $("#FormAuthenticate").kendoValidator({
         errorTemplate: "<span class='errorMessage'>#=message#</span>"
     });
-    
+
     $("#FormChange").kendoValidator({
         errorTemplate: "<span class='errorMessage'>#=message#</span>",
         rules: {
-            verifyPasswords: function(input){
+            verifyPasswords: function (input) {
                 if (input.is("#VerifyNewPassword")) {
                     return input.val() === $("#NewPassword").val();
                 }
@@ -29,13 +29,13 @@ $( document ).ready(function() {
             }
         }
     });
-    
-    $("#PasswordResetTable").hide();
+
+    $("#PasswordResetDiv").hide();
     $("#Message").hide();
     $("#MessageServerValidation").hide();
-    
+
     $("#Change").kendoButton({
-        click: function(e) {
+        click: function (e) {
             if ($("#FormChange").data("kendoValidator").validate()) {
                 $("#MessageChange").css('color', 'green');
                 $("#MessageChange").html("Changing.");
@@ -45,7 +45,7 @@ $( document ).ready(function() {
             }
         }
     }).hide();
-    
+
     function PostAuthentication() {
         let data = {
             userName: $("#UserName").val(),
@@ -54,7 +54,7 @@ $( document ).ready(function() {
             repeatNewPassword: $("#VerifyNewPassword").val(),
             PasswordChangeState: isChange
         };
-        
+
         $.ajax({
             url: "../api/Authentication/ByUserNamePassword",
             type: "POST",
@@ -70,36 +70,46 @@ $( document ).ready(function() {
                     $("#MessageAuthenticate").html("Password must be changed.");
                     $("#UserName").attr("disabled", "disabled");
                     $("#Password").attr("disabled", "disabled");
-                    $("#PasswordResetTable").show();
+                    $("#PasswordResetDiv").show();
                     $("#Change").show();
                     isChange = true;
                 },
                 401: function (response) {
                     $("#Login").data("kendoButton").enable(true);
                     $("#MessageAuthenticate").css('color', 'red');
-                    $("#MessageAuthenticate").html("Invalid Login.");
+
+                    let errorString = '</br></br>Invalid Login.';
+                    $("#MessageAuthenticate").html(errorString);
                 },
                 400: function (response) {
-                    if (isChange)
-                    {
+                    let errors = JSON.parse(response.responseText).errors;
+                    let i = 0;
+                    let errorListString = '';
+                    while (i < errors.length) {
+                        errorListString = errorListString + '<li>' + errors[i].errorMessage + '</li>';
+                        i++;
+                    }
+
+                    if (isChange) {
                         $("#MessageChange").html("");
                         $("#Change").data("kendoButton").enable(true);
-                        $("#MessageServerValidation").show();
+                        let errorString = '</br></br>Validation errors in password change:</br></br><ul>' + errorListString + '</ul>';
+                        $("#MessageChange").html(errorString);
                         $("#FormChange").data("kendoValidator").reset();
-                    }
-                    else {
+                    } else {
                         $("#Login").data("kendoButton").enable(true);
                         $("#MessageAuthenticate").css('color', 'red');
-                        $("#MessageAuthenticate").html("Invalid Login.");
+                        let errorString = '</br></br>Validation errors in authentication:</br></br><ul>' + errorListString + '</ul>';
+                        $("#MessageAuthenticate").html(errorString);
                         $("#FormChange").data("kendoValidator").reset();
                     }
                 }
             }
         });
     }
-    
+
     $("#Login").kendoButton({
-        click: function(e) {
+        click: function (e) {
             if ($("#FormAuthenticate").data("kendoValidator").validate()) {
                 $("#Login").data("kendoButton").enable(false);
                 $("#MessageAuthenticate").css('color', 'green');
@@ -109,3 +119,5 @@ $( document ).ready(function() {
         }
     });
 });
+
+//# sourceURL=Authentication.js
