@@ -25,10 +25,10 @@
   jube.webapi:
     image: jube.app
     depends_on:
-        postgres:
-          condition: service_started
-        redis:
-          condition: service_started
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
     links:
       - redis
       - postgres
@@ -56,36 +56,36 @@
       context: .
       dockerfile: Jube.App/Dockerfile
   jube.jobs:
-        image: jube.app
-        depends_on:
-          postgres:
-            condition: service_started
-          redis:
-            condition: service_started
-        links:
-          - redis
-          - postgres
-        environment:
-        - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
-        - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
-          - RedisConnectionString=redis
-          - JWTKey=${DockerComposeJWTKey}
-          - EnableExhaustiveTraining=True
-          - EnableCacheIndex=True
-          - EnableReprocessing=True
-          - EnableSanctionLoader=True
-          - CachePruneServer=True
-          - EnableTtlCounter=True
-          - EnableSearchKeyCache=True
-          - EnableCasesAutomation=True
-          - StreamingActivationWatcher=False
-          - EnableCallback=True
-          - EnablePublicInvokeController=True
-        networks:
-          - default
-        build:
-          context: .
-          dockerfile: Jube.App/Dockerfile
+    image: jube.app
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+    links:
+      - redis
+      - postgres
+    environment:
+      - ConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+      - ReportConnectionString=Host=postgres;Port=5432;Database=postgres;Username=postgres;Password=${DockerComposePostgresPassword};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;
+      - RedisConnectionString=redis
+      - JWTKey=${DockerComposeJWTKey}
+      - EnableExhaustiveTraining=True
+      - EnableCacheIndex=True
+      - EnableReprocessing=True
+      - EnableSanctionLoader=True
+      - CachePruneServer=True
+      - EnableTtlCounter=True
+      - EnableSearchKeyCache=True
+      - EnableCasesAutomation=True
+      - StreamingActivationWatcher=False
+      - EnableCallback=True
+      - EnablePublicInvokeController=True
+    networks:
+      - default
+    build:
+      context: .
+      dockerfile: Jube.App/Dockerfile
 
 networks:
   default:

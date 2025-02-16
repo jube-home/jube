@@ -176,8 +176,6 @@ Support is available through three channels:
 * Email at support@jube.io.
 * GitHub issues.
 
-Feel free to reach any using any option!
-
 # Training
 
 To further accelerate and ensure positive outcomes, a comprehensive training program is available. This program is
