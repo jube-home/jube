@@ -88,6 +88,9 @@
         <Content Update="log4net.config">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Include="..\.dockerignore">
+          <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>

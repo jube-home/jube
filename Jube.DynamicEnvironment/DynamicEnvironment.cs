@@ -38,6 +38,7 @@ public class DynamicEnvironment
                 {"EnableTtlCounter", "True"},
                 {"ConnectionString", null},
                 {"CacheConnectionString", null},
+                {"ReportConnectionString", null},
                 {"EnableSearchKeyCache", "True"},
                 {"EnableCasesAutomation", "True"},
                 {"CasesAutomationWait", "60000"},
@@ -104,7 +105,8 @@ public class DynamicEnvironment
                 {"RedisConnectionString", "localhost"},
                 {"StoreFullPayloadLatest", "True"},
                 {"CachePruneServer", "True"},
-                {"WaitCachePrune", "10000"}
+                {"WaitCachePrune", "10000"},
+                {"EnableSandbox","False"}
             };
 
             foreach (DictionaryEntry environmentVariable in Environment.GetEnvironmentVariables())

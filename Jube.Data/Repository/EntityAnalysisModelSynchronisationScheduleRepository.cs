@@ -59,7 +59,8 @@ namespace Jube.Data.Repository
             model.TenantRegistryId = _tenantRegistryId;
             model.CreatedDate = DateTime.Now;
 
-            if (model.ScheduleDate == default(DateTime)) model.ScheduleDate = model.CreatedDate;
+            if (model.ScheduleDate == default(DateTime) || model.ScheduleDate == null)
+                model.ScheduleDate = model.CreatedDate;
 
             model.Id = _dbContext.InsertWithInt32Identity(model);
             return model;

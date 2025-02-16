@@ -12,6 +12,7 @@
  */
 
 using System;
+using System.Threading.Tasks;
 using Jube.App.Code;
 using Jube.Data.Context;
 using Jube.Data.Query;
@@ -59,14 +60,14 @@ namespace Jube.App.Controllers.Query
         }
 
         [HttpGet]
-        public ActionResult Get(string drillName, string drillValue, int caseWorkflowId, int limit,
+        public async Task<ActionResult> Get(string drillName, string drillValue, int caseWorkflowId, int limit,
             bool activationsOnly, double responseElevation)
         {
             try
             {
                 if (!permissionValidation.Validate(new[] {1})) return Forbid();
 
-                return Ok(query.ExecuteAsync(drillName, drillValue, caseWorkflowId, limit,
+                return Ok(await query.ExecuteAsync(drillName, drillValue, caseWorkflowId, limit,
                     activationsOnly ? 1 : 0, responseElevation));
             }
             catch (Exception e)

@@ -23,7 +23,7 @@ using Jube.Data.Repository;
 
 namespace Jube.Data.Query
 {
-    public class GetByVisualisationRegistryDatasourceCommandExecutionQuery(DbContext dbContext, string user)
+    public class GetByVisualisationRegistryDatasourceCommandExecutionQuery(DbContext dbContext,string connectionString, string user)
     {
         public async Task<dynamic> ExecuteAsync(int id, Dictionary<int, object> parametersById)
         {
@@ -41,9 +41,10 @@ namespace Jube.Data.Query
                         .GetByVisualisationRegistryId(visualisationRegistryDatasource.VisualisationRegistryId.Value);
 
                 var parametersByName = visualisationRegistryParameter.ToDictionary(
-                    parameter => parameter.Name.Replace(" ", "_"), parameter => parametersById.TryGetValue(parameter.Id, out var value)
-                        ? value
-                        : parameter.DefaultValue);
+                    parameter => parameter.Name.Replace(" ", "_"), parameter =>
+                        parametersById.TryGetValue(parameter.Id, out var value)
+                            ? value
+                            : parameter.DefaultValue);
 
                 var sw = new StopWatch();
                 sw.Start();
@@ -51,7 +52,7 @@ namespace Jube.Data.Query
                 string error = default;
                 try
                 {
-                    var postgres = new Postgres(dbContext.ConnectionString);
+                    var postgres = new Postgres(connectionString);
                     values = await postgres.ExecuteByNamedParametersAsync(visualisationRegistryDatasource.Command,
                         parametersByName);
                 }
@@ -84,12 +85,13 @@ namespace Jube.Data.Query
                     = new VisualisationRegistryDatasourceExecutionLogParameterRepository(dbContext);
 
                 foreach (var visualisationRegistryDatasourceExecutionLogParameter in parametersById.Select(parameter =>
-                    new VisualisationRegistryDatasourceExecutionLogParameter
-                    {
-                        Value = parameter.Value.ToString(),
-                        VisualisationRegistryDatasourceExecutionLogId = visualisationRegistryDatasourceExecutionLog.Id,
-                        VisualisationRegistryParameterId = parameter.Key
-                    }))
+                             new VisualisationRegistryDatasourceExecutionLogParameter
+                             {
+                                 Value = parameter.Value.ToString(),
+                                 VisualisationRegistryDatasourceExecutionLogId =
+                                     visualisationRegistryDatasourceExecutionLog.Id,
+                                 VisualisationRegistryParameterId = parameter.Key
+                             }))
                     visualisationRegistryDatasourceExecutionLogParameterRepository
                         .Insert(visualisationRegistryDatasourceExecutionLogParameter);
             }
