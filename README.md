@@ -3,7 +3,7 @@
 # About Jube
 
 Jube is open-source transaction and event monitoring software. Jube implements real-time data wrangling, artificial
-intelligence, decision making and case management. Jube is particularly strong when implemented in fraud and abuse
+intelligence, decision-making and case management. Jube is particularly strong when implemented in fraud and abuse
 detection use cases.
 
 Data wrangling is real-time. Data wrangling is directed via a series of rules created using either a point-and-click
@@ -44,11 +44,44 @@ maintaining total isolation between tenant data with no loss of function in the 
 
 Please consider giving the project a GitHub Star. Thank you in advance!
 
-# Quickstart
+# Quickstart with the Sandbox
 
-Jube runs on commodity Linux. The Quickstart has the following prerequisites:
+The fastest means to get started is via the [sandbox](https://sandbox.jube.io/Account/Login). The Sandbox offers a fully
+functional version of Jube, tailored for learning and training purposes. It leverages Jube's multi-tenancy capabilities
+to deliver the experience of an isolated environment, even though it operates on shared resources with logical data
+isolation. While the Visualization and Reporting features are limited to three example tables, the overall experience
+remains thorough and effective.
 
-* .Net 8 Runtime.
+# Quickstart with docker compose
+
+A docker compose file is available - it is docker-compose.yml in the root directory - to quickly set up and orchestrate
+an installation of Jube, provided Docker is already
+installed. This docker compose file creates and configures the following components:
+
+* postgres image and start.
+* redis/redis-stack:latest image and start.
+* rabbitmq:3-management image and start.
+* The building of an image of Jube:
+    * Starting an image of Jube for WebAPI Services (API and User Interface).
+    * Starting an image of Jube for the Background Jobs.
+
+With the prerequisites in place, Jube can be up and running in just a few minutes:
+
+```shell
+git clone https://github.com/jube-home/jube.git
+cd jube
+docker compose up -d
+```
+
+Upon conclusion Jube will be listening on the docker host, on port 5001, hence (http://localhost:5001).
+
+Be sure to update the docker compose file on production use, for appropriate credential creation and management.
+
+# Quickstart with dotnet run
+
+Jube runs on commodity Linux. For running directly, there exists the following prerequisites:
+
+* .Net 9 Runtime.
 * Postgres database version 13 onwards (tested on 15.4 but no significant database development to cause a breaking
   change).
 * Optional but recommended: Redis version 6 or above (it probably works fine on earlier versions, as the command used
@@ -68,7 +101,8 @@ export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP
 dotnet run
 ```
 
-For security, there is no means to pass configuration values via anything other than Environment Variables, and the
+For security, and docker support, there is no means to pass configuration values via anything other than Environment
+Variables, and the
 contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security
 scanner tests for).
 
@@ -114,34 +148,12 @@ Waiting a few moments more will ensure that the embedded Kestrel web server is s
 navigate to the bound URL [https://localhost:5001/](https://localhost:5001/) as per the ASPNETCORE_URLS Environment
 Variable.
 
-The default user name \ password combination is Administrator \ Administrator, although the password will be need to be
+The default username \ password combination is Administrator \ Administrator, although the password will be need to be
 changed on first login.
 
 A more comprehensive installation guide is available in
 the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of
 the [documentation](https://jube-home.github.io/jube).
-
-# Roadmap
-
-The product roadmap spanning 2025 and 2026 involves modernisation and optimisation of the software and general
-preparation for
-the presentation of cloud cum managed services, planned for the start of 2026. Cloud means working towards a
-proposition that provides
-for a generous free tier given shared infrastructure, or if paid, dedicated infrastructure. In the midst, mindful
-that Jube already has supervised learning for transaction analysis, Phi Language models will be included in the case
-management pages for summarization, developed as part of other modernisation efforts.
-
-The following table lays out the product Roadmap through April 2026:
-
-| Milestone                          | Description                                                                                                                                                                                                                                                                                                                                                                        | Delivery      |
-|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| .Net 9                             | Upgrade to .Net 9.                                                                                                                                                                                                                                                                                                                                                                 | December 2024 |
-| Git Version Control                | Implement file based representation of the database in Git and allow for recovery and replay of changes.                                                                                                                                                                                                                                                                           | June 2025     |
-| Modernisation                      | Upgrading the user interface to Blazor and Radzen tooling.  Essentially a total rewrite of the User Interface and the porting of functionality out of controllers into Service Layers. Existing controllers will be supported in their current form, although Blazor will not use REST (JSON over HTTP), rather go directly to Service Layers.  Possible upgrade of LINQ2DB layer. | October 2025  |
-| Phi                                | Implementation of Case Management Summarization using Phi.                                                                                                                                                                                                                                                                                                                         | November 2025 |
-| Unit Testing and Code Optimization | The inclusion of unit tests across all critical transaction processing functionality.  To the extent critical transaction processing functionality is too larger or complex,  it will be refactored.  Optimisations sought in all units through benchmarking and trials.                                                                                                           | November 2025 |
-| Transaction Serialisation          | Explore improvements in transaction processing by removing the JSON and serialization overhead and using a byte representation over gRPC.                                                                                                                                                                                                                                          | December 2025 |
-| Cloud Portal                       | The creation of a portal to allow for self service management of distributed and highly available implementations of Jube using containerisation.  Intention is to offer a free edition of Jube using shared infrastructure, or paid for given dedicated infrastructure                                                                                                            | April 2026    |
 
 # Documentation
 
@@ -157,67 +169,29 @@ Jube is committed to high-quality instructional documentation and maintains it a
 methodology. If documentation is inadequate, unclear or missing, raise
 a [Github Issue](https://github.com/jube-home/jube/issues).
 
-# Training
-
-The Jube user profile is technically proficient in reading, building and running code.
-
-Jube currently makes a single commercial offer in the form of a training program that focuses on achieving proficiency
-in the effective implementation and utilization of
-Jube. Training returns a significant acceleration in the implementation of Jube in an organisation, while assuring its
-success.
-
-The schedule covers a duration of three days, with the length of each day ranging from 6 to 8 hours, depending on the
-undertaking of Elective Modules. Elective Modules cover in-depth training in advanced administrative concepts using
-dedicated training servers. Elective Modules are targeted at technical participants whom are likely to assume overall
-system administrative responsibility of an implementation of Jube.
-
-Day 1:
-
-* Introduction.
-* User Interface.
-* HTTP Messaging.
-* Models and Payload.
-* Inline Functions.
-* Abstraction Rules.
-* Abstraction Calculations.
-* Lists and Dictionaries.
-* Activation Rules.
-* Elective: Architecture and Caching.
-* Elective: Environment Variables.
-* Elective: Installation and Log Configuration.
-
-Day 2:
-
-* Suppression.
-* Sanctions Fuzzy Matching.
-* Time To Live (TTL) Counters.
-* Introduction to Artificial Intelligence (AI).
-* Exhaustive AI training.
-* Case Management.
-* Security.
-* Elective: Tracing Transaction Flow and Response Time Analysis.
-* Elective: High Availability.
-* Elective: Performance Counters.
-* Elective: AMQP.
-
-Day 3:
-
-* SQL database discovery.
-* Performance Monitoring.
-* Visualisation and Reporting.
-* Inline Scripts.
-* Scores via R Plumber (HTTP).
-* Elective: Cache Bottleneck Analysis.
-* Elective: Archive Bottleneck Analysis.
-* Elective: Multi-Tenancy.
-
-Delivered at client site or venue, globally. Fee of USD 3600, excluding travel and expenses. For further details,
-including the detailed training plan, kindly contact [support@jube.io](mailto:support@jube.io).
-
 # Support
 
-The free support offer is available via [Github Issues](https://github.com/jube-home/jube/issues) and is on a best
-endeavour basis.
+Support is available through three channels:
+
+* Ask Jooby, our AI assistant, located in the bottom right-hand corner of the [jube](https://jube.io) website.
+* Email at support@jube.io.
+* GitHub issues.
+
+Feel free to reach any using any option!
+
+# Training
+
+To further accelerate and ensure positive outcomes, a comprehensive training program is available. This program is
+designed to help participants develop the skills needed to effectively implement and manage Jube with confidence.
+
+By the end of the implementation training, participants will:
+
+* Confidently implement and manage Jube within their organization.
+* Optimize Jube for performance, scalability, and security.
+* Accelerate Jube adoption through hands-on experience and best practices.
+* For Developers; Troubleshoot and debug the system effectively.
+
+Explore the [agenda](https://www.jube.io/training/) plan on the [jube](https://www.jube.io) website
 
 # Reporting Vulnerabilities
 
@@ -233,10 +207,8 @@ Please report any security problems to Jube before disclosing them publicly.
 
 Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (
 registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration
-
 14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited
-          provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in
-          Cyprus.
+provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus.
 
 # Licence
 
