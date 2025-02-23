@@ -44,14 +44,6 @@ maintaining total isolation between tenant data with no loss of function in the 
 
 Please consider giving the project a GitHub Star. Thank you in advance!
 
-# Quickstart with the Sandbox
-
-The fastest means to get started is via the [sandbox](https://sandbox.jube.io/Account/Login). The Sandbox offers a fully
-functional version of Jube, tailored for learning and training purposes. It leverages Jube's multi-tenancy capabilities
-to deliver the experience of an isolated environment, even though it operates on shared resources with logical data
-isolation. While the Visualization and Reporting features are limited to three example tables, the overall experience
-remains thorough and effective.
-
 # Quickstart with docker compose
 
 A docker compose file is available - it is docker-compose.yml in the root directory - to quickly set up and orchestrate
@@ -167,28 +159,6 @@ with extensive use of screenshots.
 Jube is committed to high-quality instructional documentation and maintains it as part of the overall release
 methodology. If documentation is inadequate, unclear or missing, raise
 a [Github Issue](https://github.com/jube-home/jube/issues).
-
-# Support
-
-Support is available through three channels:
-
-* Ask Jooby, our AI assistant, located in the bottom right-hand corner of the [jube](https://jube.io) website.
-* Email at support@jube.io.
-* GitHub issues.
-
-# Training
-
-To further accelerate and ensure positive outcomes, a comprehensive training program is available. This program is
-designed to help participants develop the skills needed to effectively implement and manage Jube with confidence.
-
-By the end of the implementation training, participants will:
-
-* Confidently implement and manage Jube within their organization.
-* Optimize Jube for performance, scalability, and security.
-* Accelerate Jube adoption through hands-on experience and best practices.
-* For Developers; Troubleshoot and debug the system effectively.
-
-Explore the [agenda](https://www.jube.io/training/) plan on the [jube](https://www.jube.io) website
 
 # Reporting Vulnerabilities
 
