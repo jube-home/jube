@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Models
+title: Model Configuration
 nav_order: 1
 parent: Models
 grand_parent: Configuration
@@ -8,7 +8,7 @@ grand_parent: Configuration
 
 🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
 
-# Models
+# Model Configuration
 
 Jube does not have a fixed model specification nor integration API, instead, Models are configured via the user
 interface assuming the availability of JSON on integration.
