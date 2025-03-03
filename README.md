@@ -2,61 +2,34 @@
 
 🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
 
-# About Jube
+# Open-Source Anti-Money Laundering (AML) Transaction Monitoring
 
-Jube is open-source transaction and event monitoring software. Jube implements real-time data wrangling, artificial
-intelligence, decision-making and case management. Jube is particularly strong when implemented in fraud and abuse
-detection use cases.
+Jube is an open-source, real-time transaction and event monitoring software designed to support **Anti-Money
+Laundering (AML)** compliance efforts. It aligns with
+the [Jube AML Monitoring Compliance Guidance](https://jube.io/JubeAMLMonitoringComplianceGuidance.pdf), helping
+organizations adapt to regulatory obligations based on **FATF guidelines** and the **Wolfsberg Principles**. While
+focused on AML, Jube also addresses other transaction monitoring use cases, leveraging similar methodologies with slight
+variations.
 
-Data wrangling is real-time. Data wrangling is directed via a series of rules created using either a point-and-click
-rule builder or an intuitive rule coder. Rules are in-memory matching functions tested against data returned from
-high-performance cache tables, where datasets are fetched only once for each key that the rules roll up to for each
-transaction or event processing, with the matches aggregating using a variety of functions. Alternative means of
-maintaining a lightweight long-term state to facilitate data wrangling is Time To Live (TTL) Counters which are
-incremented on rule match and then decremented for that incrementation on time-lapse.
+# Documentation
 
-Data wrangling return values are independently available for use as features in artificial intelligence training and
-real-time recall or tested by rules to perform a specific action (e.g., the rejection of a transaction or event).
-Wrangled values are returned in the real-time response payload and can facilitate a Function as a Service (FaaS)
-pattern. Response payload data is also stored in an addressable fashion, improving the experience of advanced analytical
-reporting while also reducing database resource \ compute cost.
+The [Jube documentation](https://jube-home.github.io/jube) is comprehensive and designed to cover all features, ensuring
+there is no undocumented know-how. It adopts an **instructional style**, providing step-by-step explanations with
+extensive use of **screenshots** to guide users through each feature.
 
-Jube is developed stateless and can support massive horizontal scalability and separation of concerns in the
-infrastructure.
+# Quickstart with Docker Compose
 
-Jube takes a novel approach to artificial intelligence, ultimately Supervised Learning, yet blending anomaly detection
-with confirmed class data to ensure datasets of sufficient amounts of class data. Using data archived from its
-processing, Jube searches for optimal input variables, hidden layers and processing elements. The result is small,
-optimal, generalised and computationally inexpensive models for efficient real-time recall. The approach taken by Jube
-allows artificial intelligence's benefits to be available very early in an implementation's lifecycle. It avoids
-over-fitting models to typology long since passed.
-
-Transaction or event monitoring overlooks the embedding in human-engaging business processes. Jube is real-time, but
-this does not forgo the need for manual intervention; hence Jube makes comprehensive and highly customisable case
-management and visualisation intrinsically available in the user interface.
-
-To ensure the segregation of user responsibilities, a user, role and permission model is in place, which controls access
-to each page within the Jube user interface. Detailed audit logs are available. Any update to a configuration by a user
-retains a version history, in which the original is logically deleted and then replaced with the new version.
-
-Jube is multi-tenanted, allowing a single infrastructure to be shared among many logically isolated entities,
-maintaining total isolation between tenant data with no loss of function in the user interface.
-
-# Stargazing
-
-Please consider giving the project a GitHub Star. Thank you in advance!
-
-# Quickstart with docker compose
-
-A docker compose file is available - it is docker-compose.yml in the root directory - to quickly set up and orchestrate
+A Docker Compose file is available - it is docker-compose.yml in the root directory - to quickly set up and orchestrate
 an installation of Jube, provided Docker is already
-installed. This docker compose file creates and configures the following components:
+installed. This Docker Compose file creates and configures the following components:
 
 * postgres image and start.
 * redis/redis-stack:latest image and start.
 * The building of an image of Jube:
     * Starting an image of Jube for WebAPI Services (API and User Interface).
     * Starting an image of Jube for the Background Jobs.
+
+Jube is not built to a Docker Hub image, instead an image will be built to the dockerfile specification in the project.
 
 With the prerequisites in place, Jube can be up and running in just a few minutes:
 
@@ -103,7 +76,7 @@ The use of Redis is encouraged as it provides a 33% improvement in response time
 time variance contrasted against using Postgres Database. Redis also does not require Cache table indexing jobs, and
 while such indexing is automatic on existing data for Postgres, it does create some delay in the creation of Search Keys
 retroactively, however by contrast Search Keys in Redis can only be created on a forward only basis and there is no
-preexisting data. In general the trade of between Key \ Value Pair in-memory databases and RDMBS durable databases is
+preexisting data. In general the trade-off between Key \ Value Pair in-memory databases and RDMBS durable databases is
 not
 trivial. In general, the use of Postgres Database is probably the right choice for low volume or cost sensitive
 implementations
@@ -124,7 +97,7 @@ export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP
 The JWTKey value is used to encrypt access tokens providing for API authentication, and therefore user interface
 authentication.
 
-While outside of the scope of this installation documentation, other sensitive variables, while optional, are strongly
+While outside the scope of this installation documentation, other sensitive variables, while optional, are strongly
 suggested:
 
 ```shell
@@ -148,20 +121,6 @@ A more comprehensive installation guide is available in
 the [Getting Started](https://jube-home.github.io/jube/GettingStarted/) of
 the [documentation](https://jube-home.github.io/jube).
 
-# Documentation
-
-The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be
-any undocumented know-how. The documentation adopts an instructional style that will explain most features step-by-step
-with extensive use of screenshots.
-
-The [documentation](https://jube-home.github.io/jube) has been drafted to include all features, and there should not be
-any undocumented know-how. The documentation adopts an instructional style that will explain most features step-by-step
-with extensive use of screenshots.
-
-Jube is committed to high-quality instructional documentation and maintains it as part of the overall release
-methodology. If documentation is inadequate, unclear or missing, raise
-a [Github Issue](https://github.com/jube-home/jube/issues).
-
 # Reporting Vulnerabilities
 
 Please do not file GitHub issues for security vulnerabilities, as they are public.
@@ -175,8 +134,8 @@ Please report any security problems to Jube before disclosing them publicly.
 # Governance
 
 Jube Holdings Limited is a Cyprus company registered HE404521. Jube Holdings Limited owns Jube software and Trademarks (
-registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration
-14442207. Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited
+registered or otherwise). Jube is maintained by Jube Operations Limited, a United Kingdom company with registration 14442207. 
+Jube Operations Limited is a wholly owned subsidiary of Jube Holdings Limited. Jube Operations Limited 
 provides training and support services for Jube. Jube and "Jooby" (the logo) is a registered trademark in Cyprus.
 
 # Licence
