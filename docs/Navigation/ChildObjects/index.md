@@ -5,6 +5,8 @@ nav_order: 4
 parent: Navigation
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Child Objects
 
 Child objects roll up to the Parent Objects and they are administered via a common user interface. In this example,  a Request XPath will be added to a Model (whereby the Model was used as an example of a Parent object beforehand).

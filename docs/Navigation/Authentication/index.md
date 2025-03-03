@@ -5,6 +5,8 @@ nav_order: 1
 parent: Navigation
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Authentication
 The login page needs to authenticate the user via a User Name and Password.
 

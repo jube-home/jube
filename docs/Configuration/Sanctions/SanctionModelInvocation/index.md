@@ -6,6 +6,8 @@ parent: Sanctions
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Sanction Model Invocation
 Sanctions matching can also be achieved by model invocation,  taking the Multipart string from the data payload.
 

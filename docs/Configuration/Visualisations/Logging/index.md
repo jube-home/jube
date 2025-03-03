@@ -6,6 +6,8 @@ parent: Visualisations
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Logging in Visualisation Datasource
 On each recall of a Visualisation datasource there is extensive logging in the database for the purpose of capturing user inputs, the time taken to process the SQL and an errors returned by the database.
 

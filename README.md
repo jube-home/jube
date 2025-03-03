@@ -1,5 +1,7 @@
 ![Image](logo.png)
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # About Jube
 
 Jube is open-source transaction and event monitoring software. Jube implements real-time data wrangling, artificial

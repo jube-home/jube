@@ -6,6 +6,8 @@ parent: Models
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Lists
 The Lists Page facilitates the creation of lists of data that can be referenced as an operator in all rules in the models.  For example, the Lists page can be used to maintain a list of bad customer account identifiers that can be referenced using the Builder or Coder.
 

@@ -6,6 +6,8 @@ parent: Models
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Models
 
 Jube does not have a fixed model specification nor integration API, instead, Models are configured via the user

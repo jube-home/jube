@@ -5,6 +5,8 @@ nav_order: 2
 parent: Concepts
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Environment Variables
 
 In Jube, application settings can only be passed via operating system (or container) Environment Variables. The

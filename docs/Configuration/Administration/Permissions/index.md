@@ -6,6 +6,8 @@ parent: Administration
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Permissions
 Permissions grant access to resources in the user interface,  typically pages.  Permissions are added to Roles,  and then a Role is allocated to a user.
 

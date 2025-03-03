@@ -5,6 +5,8 @@ nav_order: 1
 parent: Getting Started
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Prerequisites
 
 The README file in the head of the project provides for a Quickstart that assumes some ability to provision servers,

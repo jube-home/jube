@@ -6,6 +6,8 @@ parent: Models
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Request XPath
 
 When a request is received from a HTTP Endpoint for a model it should have data contained in the POST body as JSON, as

@@ -5,6 +5,8 @@ nav_order: 2
 parent: Navigation
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Main Menu Navigation
 
 Navigation in the Jube platform is centred around a Menu, where each Menu item will redirect the user to a specific page

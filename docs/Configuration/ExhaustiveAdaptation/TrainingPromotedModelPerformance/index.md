@@ -6,6 +6,8 @@ parent: Exhaustive Adaptation
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Exhaustive Adaptation Training Promoted Model Performance
 Model performance is expressed as a score.  The score is the mean of percentage classification accuracy and the Spearman Rank Correlation.  There are other means to assess overall model performance however.  Model promotion statistics are computed to make available more comprehensive performance statistics via the Promoted Model Performance tab:
 

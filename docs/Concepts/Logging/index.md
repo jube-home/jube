@@ -5,6 +5,8 @@ nav_order: 3
 parent: Concepts
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Logging
 Logging is provided by Log4Net which is a .Net port of the populate Log4J package.
 

@@ -6,6 +6,8 @@ parent: CLI
 grand_parent: Concepts
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # CLI Password Reset
 In the event of total password lock and unavailability of the application for all administrative users, the password can be reset via the CLI:
 

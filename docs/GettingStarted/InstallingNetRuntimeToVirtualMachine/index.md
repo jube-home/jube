@@ -5,6 +5,8 @@ nav_order: 4
 parent: Getting Started
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Installing .Net 9 Runtime to Virtual Machine (aka Droplet)
 
 The Droplet will be missing the .Net 9 Runtime by default, and it needs to be installed.  The packages are available from Microsoft as follows:

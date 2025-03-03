@@ -6,6 +6,8 @@ parent: Exhaustive Adaptation
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Exhaustive Adaptation Training Promoted Models Performance
 Promoted models can be manually tested via the Promoted Models Testing tab:
 

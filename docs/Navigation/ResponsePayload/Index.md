@@ -5,6 +5,8 @@ nav_order: 6
 parent: Navigation
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Response Payload
 
 All Child Objects have the option to specify whether it should be returned in the response payload via HTTP or AMQP.  A Response Payload means that the content or value created will be returned to the HTTP response stream or AMQP payload,  otherwise excluded.  It is a means to reduce the amount of bandwidth that is used in extremely large throughput, as some hosting providers charge for outbound bandwidth:

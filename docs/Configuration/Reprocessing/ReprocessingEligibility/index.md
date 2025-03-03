@@ -6,6 +6,8 @@ parent: Reprocessing
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Reprocessing Eligibility
 Reprocessing allows for the contents of the Archive table to be reprocessed one by one retroactively,  which is useful if a new rule has been created and some historic management is required.
 

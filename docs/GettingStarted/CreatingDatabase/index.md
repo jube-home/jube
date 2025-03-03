@@ -4,6 +4,9 @@ title: Creating Database
 nav_order: 2
 parent: Getting Started
 ---
+
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Creating Postgres Database
 
 It is possible to install PostgreSQL to a Droplet on a self managed basis,  which is a cost effective and oftentimes preferable approach.  The resources are available at the following location:

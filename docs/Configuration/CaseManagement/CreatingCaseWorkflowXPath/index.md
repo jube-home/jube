@@ -6,6 +6,8 @@ parent: Case Management
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Case Workflow XPath
 Navigate to a case by Skim or Fetch:
 

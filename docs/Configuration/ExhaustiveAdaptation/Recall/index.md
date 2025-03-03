@@ -6,6 +6,8 @@ parent: Exhaustive Adaptation
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Exhaustive Adaptation Recall
 Upon models having been promoted during Exhaustive training,  they will be available for recall as part of model invocation.
 

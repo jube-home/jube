@@ -6,6 +6,8 @@ parent: Models
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # TTL Counters
 
 Time to Live Counters (TTL Counters) are an alternative way to create model memory without needing to store the full transaction or event data in the cache tables.  TTL Counters are incremented as the result of an Activation Rule matching and are set to live for only a prescribed amount of time after entry increment creation, after which they will decrement.

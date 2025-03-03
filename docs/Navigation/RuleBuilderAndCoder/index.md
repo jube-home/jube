@@ -5,6 +5,8 @@ nav_order: 8
 parent: Navigation
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Rule and Code Builder
 
 Several pages in the platform rely on the construction of code and in most cases this is facilitated by a point and click construction tool.  In most cases the code constricted is of vb.net fragment dialect,  unless it is used for reporting, case management or Exhaustive training, in which case it is an SQL query fragment:

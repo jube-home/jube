@@ -6,6 +6,8 @@ parent: Exhaustive Adaptation
 grand_parent: Configuration
 ---
 
+🚀Speed up implementation with hands-on, face-to-face [training](https://www.jube.io/training) from the developer.
+
 # Exhaustive Adaptation Training Configuration
 Exhaustive training is controlled by several Environment Variables,  however the defaults are adequate in most use cases.  Exhaustive models are otherwise given some basic training parameters which specify if Anomaly detection is to be used and the extent to which other class data is to be enriched into the anomlous classifications.
 
