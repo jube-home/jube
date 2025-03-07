@@ -67,6 +67,8 @@ export JWTKey="IMPORTANT:_ChangeThisKey_~%pvif3KRo!3Mk|1oMC50TvAPi%{mUt<9"B&|>DP
 dotnet run
 ```
 
+# Quickstart notes
+
 For security, and docker support, there is no means to pass configuration values via anything other than Environment
 Variables, and the
 contents of those Environment Variables are never - ever - stored by Jube (which is something the CodeQL security
